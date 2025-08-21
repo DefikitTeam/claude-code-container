@@ -238,7 +238,30 @@ async function handleIssueEvent(
     console.log('Container response status:', containerResponse.status);
     console.log('Container response headers:', Object.fromEntries(containerResponse.headers.entries()));
 
-    // Handle non-JSON responses gracefully
+    // Handle container unavailable (503) responses specifically
+    if (containerResponse.status === 503) {
+      const responseText = await containerResponse.text();
+      console.error('Container unavailable (503):', responseText);
+      
+      // Log helpful diagnostic information
+      console.log('🔧 Container provisioning issue detected');
+      console.log('📋 This usually indicates:');
+      console.log('   - Container not yet provisioned (first deployment)');
+      console.log('   - Max concurrent instances reached');
+      console.log('   - Container provisioning in progress');
+      console.log('💡 Try: wrangler deploy to ensure container is provisioned');
+      
+      return c.json({
+        success: false,
+        message: "Container service temporarily unavailable",
+        error: "503 Service Unavailable - Container instance not available",
+        status: 503,
+        retryAfter: "5 minutes",
+        suggestion: "Container may need to be provisioned. Run 'wrangler deploy' to ensure deployment."
+      }, 503);
+    }
+
+    // Handle other non-JSON responses gracefully
     let result: any;
     const responseText = await containerResponse.text();
     
