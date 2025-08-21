@@ -1,0 +1,54 @@
+# .dev.vars - Cloudflare Worker Development Environment Variables
+# Copy this file to .dev.vars and fill in your actual values
+# This file is git-ignored for security
+
+# ===== REQUIRED VARIABLES =====
+
+# Anthropic API Key for Claude Code functionality
+# Get this from: https://console.anthropic.com/
+ANTHROPIC_API_KEY=sk-ant-api03-your-anthropic-api-key-here
+
+# ===== OPTIONAL VARIABLES =====
+
+# GitHub App ID (can be set via config endpoint instead)
+# This is the numeric ID of your GitHub App
+# GITHUB_APP_ID=123456
+
+# GitHub Webhook Secret (can be set via config endpoint instead)
+# This is the secret you set when creating the GitHub App webhook
+# GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
+
+# Development Environment Override
+# This overrides the default environment setting
+# ENVIRONMENT=development
+
+# ===== DEBUG & LOGGING =====
+
+# Enable debug logging (optional)
+# DEBUG=*
+
+# Log level for development (optional)
+# LOG_LEVEL=debug
+
+# ===== DEVELOPMENT SETTINGS =====
+
+# Development mode flag (optional)
+# DEV_MODE=true
+
+# Local development port override (optional)
+# DEV_PORT=8787
+
+# ===== SECURITY SETTINGS =====
+
+# Skip webhook signature verification in development (NOT RECOMMENDED)
+# Only use for local testing with mock webhooks
+# SKIP_WEBHOOK_VERIFICATION=false
+
+# ===== NOTES =====
+# 
+# 1. ANTHROPIC_API_KEY is the only required variable
+# 2. GitHub App credentials can be set via the /config API endpoint
+# 3. This file should NEVER be committed to version control
+# 4. For production, set variables in Cloudflare Workers dashboard
+# 5. Environment variables here are available in the Worker runtime
+# 6. Container environment variables are passed through the MyContainer class
