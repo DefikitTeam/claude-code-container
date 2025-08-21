@@ -5,6 +5,7 @@ import { promises as fs } from 'node:fs';
 import { SemanticAnalyzer } from './semantic-analyzer.js';
 import { FileContentAnalyzer } from './file-content-analyzer.js';
 import ClaudeAPIOptimizer from './claude-api-optimizer.js';
+import ClaudeDeepInference from './claude-deep-inference.js';
 
 console.log('ClaudeCodeProcessor module loaded successfully');
 
@@ -18,6 +19,7 @@ export class ClaudeCodeProcessor {
     this.semanticAnalyzer = new SemanticAnalyzer();
     this.fileContentAnalyzer = new FileContentAnalyzer();
     this.claudeOptimizer = new ClaudeAPIOptimizer();
+    this.deepInference = new ClaudeDeepInference();
   }
 
   /**
@@ -270,6 +272,147 @@ The development team should review this issue and implement the requested change
   }
 
   /**
+   * Perform deep reasoning analysis with extended inference time
+   * This method prioritizes quality over speed, providing thorough analysis
+   */
+  async performDeepReasoningAnalysis(issue, workspaceDir, options = {}) {
+    try {
+      console.log('🧠 Starting Deep Reasoning Analysis System...');
+      console.log('⏱️  Prioritizing quality over speed - Expected time: 30-120 seconds');
+      
+      // Initialize deep inference system
+      await this.deepInference.initialize();
+      
+      // Auto-select appropriate depth based on issue complexity
+      const deepProfile = options.profile || this.deepInference.selectDeepProfile(issue);
+      console.log(`📊 Selected deep reasoning profile: ${deepProfile}`);
+      console.log(`⏱️  Expected completion: ${this.deepInference.getExpectedTime(deepProfile)}`);
+      
+      // Prepare comprehensive workspace context
+      const workspaceContext = await this.prepareExtendedWorkspaceContext(workspaceDir);
+      
+      // Perform multi-step deep analysis
+      const deepAnalysisResult = await this.deepInference.performDeepAnalysis(
+        issue, 
+        workspaceContext, 
+        deepProfile
+      );
+      
+      console.log('🎉 Deep reasoning analysis completed successfully');
+      console.log(`📊 Quality metrics:`, {
+        reasoning_quality: deepAnalysisResult.metadata.reasoning_quality,
+        total_duration: deepAnalysisResult.metadata.totalDuration,
+        reasoning_steps: deepAnalysisResult.metadata.steps.length,
+        complexity_handled: deepAnalysisResult.metadata.complexity_handled
+      });
+      
+      return deepAnalysisResult;
+      
+    } catch (error) {
+      console.error('❌ Deep reasoning analysis failed:', error);
+      console.log('🔄 Falling back to standard analysis...');
+      
+      // Fallback to optimized analysis if deep reasoning fails
+      return await this.analyzeIssueWithSemantics(issue, workspaceDir);
+    }
+  }
+
+  /**
+   * Prepare extended workspace context for deep analysis
+   */
+  async prepareExtendedWorkspaceContext(workspaceDir) {
+    try {
+      console.log('📋 Preparing extended workspace context...');
+      
+      // Get repository analysis
+      const repoAnalysis = await this.analyzeRepositoryContent(workspaceDir, { 
+        maxFiles: 50,
+        includeContent: true
+      });
+      
+      // Format context for deep analysis
+      const context = {
+        repository_structure: this.formatRepositoryStructure(repoAnalysis),
+        file_analysis: this.formatFileAnalysis(repoAnalysis),
+        technical_summary: this.generateTechnicalSummary(repoAnalysis),
+        complexity_indicators: this.extractComplexityIndicators(repoAnalysis)
+      };
+      
+      const formattedContext = `## Extended Workspace Context
+
+### Repository Structure
+${context.repository_structure}
+
+### File Analysis Summary  
+${context.file_analysis}
+
+### Technical Summary
+${context.technical_summary}
+
+### Complexity Indicators
+${context.complexity_indicators}`;
+
+      console.log('✅ Extended workspace context prepared');
+      return formattedContext;
+      
+    } catch (error) {
+      console.error('⚠️ Failed to prepare extended context:', error);
+      return `## Basic Workspace Context\nWorkspace: ${workspaceDir}\nNote: Extended context preparation failed, using minimal context.`;
+    }
+  }
+
+  /**
+   * Format repository structure for context
+   */
+  formatRepositoryStructure(analysis) {
+    if (!analysis || !analysis.fileIssues) return 'No structure data available';
+    
+    const files = analysis.fileIssues.map(f => f.filePath).slice(0, 20);
+    return files.length > 0 ? files.join('\n') : 'No files analyzed';
+  }
+
+  /**
+   * Format file analysis for context
+   */
+  formatFileAnalysis(analysis) {
+    if (!analysis || !analysis.summary) return 'No analysis data available';
+    
+    return `
+- Total Files: ${analysis.totalFiles || 0}
+- Files with Issues: ${analysis.filesWithIssues || 0}
+- Total Issues Found: ${analysis.summary.stats?.total || 0}
+- Can Auto-fix: ${analysis.summary.canAutoFix ? 'Yes' : 'No'}`;
+  }
+
+  /**
+   * Generate technical summary
+   */
+  generateTechnicalSummary(analysis) {
+    if (!analysis || !analysis.summary) return 'No technical data available';
+    
+    const recommendations = analysis.summary.recommendations || [];
+    const prioritizedIssues = analysis.summary.prioritizedIssues || [];
+    
+    return `
+- Key Recommendations: ${recommendations.slice(0, 3).join(', ') || 'None'}
+- Priority Issues: ${prioritizedIssues.length} identified
+- Fix Capability: ${analysis.summary.canAutoFix ? 'High' : 'Manual review needed'}`;
+  }
+
+  /**
+   * Extract complexity indicators
+   */
+  extractComplexityIndicators(analysis) {
+    const indicators = [];
+    
+    if (analysis.totalFiles > 50) indicators.push('Large codebase');
+    if (analysis.filesWithIssues > 10) indicators.push('Multiple issue areas');
+    if (analysis.summary?.stats?.total > 20) indicators.push('High issue density');
+    
+    return indicators.length > 0 ? indicators.join(', ') : 'Standard complexity';
+  }
+
+  /**
    * Generate solution for the analyzed issue
    */
   async generateSolution(analysis, workspaceDir) {
@@ -292,41 +435,84 @@ The development team should review this issue and implement the requested change
       
       const solutionPrompt = this.buildSolutionPrompt(analysis);
       
-      console.log('Generating solution with Claude API...');
+      console.log('🧠 Switching to Deep Reasoning Mode for high-quality solution generation...');
+      console.log('⏱️  This will take longer but provide much better results (30-120s expected)');
       console.log('Solution prompt length:', solutionPrompt.length);
-      console.log('Calling Claude API for solution...');
       
-      // Use direct Claude API instead of broken SDK
+      // Use Deep Inference System instead of fast API call
       let response;
       try {
-        const anthropic = await this.initializeClaudeAPI();
+        // Determine if we should use deep reasoning based on environment variable or issue complexity
+        const useDeepReasoning = process.env.ENABLE_DEEP_REASONING !== 'false'; // Default to enabled
+        const issueComplexity = this.deepInference.calculateComplexity(
+          `${analysis.issueTitle} ${analysis.analysis}`, 
+          analysis
+        );
         
-        if (anthropic) {
-          const apiResponse = await anthropic.messages.create({
-            model: 'claude-3-haiku-20240307',
-            max_tokens: 3000,
-            temperature: 0.1,
-            messages: [{
-              role: 'user',
-              content: solutionPrompt
-            }]
-          });
+        if (useDeepReasoning && issueComplexity > 0.3) {
+          console.log('🧠 Using Deep Reasoning System for thorough analysis...');
+          
+          // Perform deep reasoning analysis
+          const deepResult = await this.performDeepReasoningAnalysis(
+            {
+              title: analysis.issueTitle,
+              description: analysis.analysis,
+              labels: analysis.labels || []
+            },
+            workspaceDir,
+            {
+              profile: issueComplexity > 0.7 ? 'ultra_deep' : 'deep'
+            }
+          );
           
           response = {
-            content: apiResponse.content[0].text
+            content: deepResult.analysis,
+            metadata: deepResult.metadata
           };
-          console.log('Claude API solution generation completed successfully');
           
-          // Execute semantic fixes based on the analysis
-          console.log('=== IMPLEMENTING CHANGES BASED ON ANALYSIS ===');
-          console.log('Analysis:', analysis.analysis);
-          console.log('Workspace:', workspaceDir);
-          console.log('About to call attemptSemanticFixes...');
-          await this.attemptSemanticFixes(analysis, workspaceDir);
-          console.log('=== SEMANTIC IMPLEMENTATION COMPLETED ===');
+          console.log('✅ Deep reasoning solution generation completed successfully');
+          console.log(`📊 Quality improvement achieved through ${deepResult.metadata.steps.length} reasoning steps`);
+          
         } else {
-          throw new Error('Claude API not available');
+          console.log('⚡ Using optimized fast mode for simple issues...');
+          
+          // Fallback to optimized API call for simple issues
+          const anthropic = await this.initializeClaudeAPI();
+          
+          if (anthropic) {
+            const apiResponse = await anthropic.messages.create({
+              model: 'claude-3-5-sonnet-20241022', // Upgrade from Haiku
+              max_tokens: 4000,                    // Increase token limit
+              temperature: 0.2,                    // Slight increase for better reasoning
+              top_p: 0.85,                        // Allow more diverse responses
+              messages: [{
+                role: 'user',
+                content: solutionPrompt
+              }]
+            });
+            
+            response = {
+              content: apiResponse.content[0].text,
+              metadata: {
+                mode: 'optimized_fast',
+                model: 'claude-3-5-sonnet-20241022',
+                tokens: apiResponse.usage?.output_tokens || 0
+              }
+            };
+            console.log('Claude API solution generation completed with upgraded model');
+          } else {
+            throw new Error('Claude API not available');
+          }
         }
+        
+        // Execute semantic fixes based on the analysis
+        console.log('=== IMPLEMENTING CHANGES BASED ON ANALYSIS ===');
+        console.log('Analysis:', analysis.analysis);
+        console.log('Workspace:', workspaceDir);
+        console.log('About to call attemptSemanticFixes...');
+        await this.attemptSemanticFixes(analysis, workspaceDir);
+        console.log('=== SEMANTIC IMPLEMENTATION COMPLETED ===');
+        
       } catch (apiError) {
         console.warn('Claude API failed, using intelligent semantic fallback:', apiError.message);
         

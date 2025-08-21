@@ -810,6 +810,9 @@ async function startContainer() {
     console.log('- NODE_ENV:', process.env.NODE_ENV || 'NOT SET');
     console.log('- CONTAINER_ID:', process.env.CONTAINER_ID || 'NOT SET');
     
+    // Log Deep Inference configuration
+    logDeepInferenceConfig();
+    
     console.log('Initializing Claude Code Container...');
     const container = new ClaudeCodeContainer();
     console.log('Container instance created, starting server...');
@@ -855,5 +858,28 @@ process.on('unhandledRejection', (reason, promise) => {
   
   process.exit(1);
 });
+
+// ===== CLAUDE DEEP INFERENCE CONFIGURATION =====
+function logDeepInferenceConfig() {
+  const deepReasoningEnabled = process.env.ENABLE_DEEP_REASONING !== 'false';
+  const complexityThreshold = parseFloat(process.env.DEEP_REASONING_THRESHOLD || '0.3');
+  const forceProfile = process.env.FORCE_DEEP_PROFILE || 'auto';
+  const processingTimeout = parseInt(process.env.PROCESSING_TIMEOUT || '45000');
+  
+  console.log('🧠 ===== CLAUDE DEEP INFERENCE CONFIGURATION =====');
+  console.log(`🎯 Deep Reasoning Enabled: ${deepReasoningEnabled ? '✅ YES' : '❌ NO'}`);
+  console.log(`📊 Complexity Threshold: ${complexityThreshold} (0.0-1.0)`);
+  console.log(`⚙️  Force Profile: ${forceProfile}`);
+  console.log(`⏱️  Processing Timeout: ${processingTimeout}ms (${Math.round(processingTimeout/1000)}s)`);
+  
+  if (deepReasoningEnabled) {
+    console.log('🔥 QUALITY MODE: Issues will be processed with deep reasoning (30-120s)');
+    console.log('📈 Expected improvements: Higher accuracy, better solutions, thorough analysis');
+  } else {
+    console.log('⚡ SPEED MODE: Issues will be processed quickly (5-10s)');
+    console.log('⚠️  Note: Quality may be lower due to limited reasoning time');
+  }
+  console.log('🧠 =============================================');
+}
 
 startContainer();

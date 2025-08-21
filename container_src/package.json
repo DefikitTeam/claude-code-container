@@ -7,13 +7,16 @@
     "start": "node src/main.js",
     "dev": "node --watch src/main.js",
     "build": "tsc",
-    "test": "node --test"
+    "test": "node --test",
+    "test:deep-inference": "node test-deep-inference.js",
+    "test:deep-inference:dev": "node --watch test-deep-inference.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.85",
     "@anthropic-ai/sdk": "^0.29.0",
-    "@octokit/rest": "^22.0.0",
     "@octokit/auth-app": "^7.1.3",
+    "@octokit/rest": "^22.0.0",
+    "dotenv": "^17.2.1",
     "simple-git": "^3.28.0"
   },
   "devDependencies": {

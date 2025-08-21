@@ -222,13 +222,13 @@ async function handleIssueEvent(
 
     // Send request to container
     console.log('Sending request to container:', {
-      url: "http://localhost:8080/process-issue",
+      url: "/process-issue",
       method: "POST",
       bodyLength: JSON.stringify(containerRequest).length
     });
     
     const containerResponse = await container.fetch(
-      new Request("http://localhost:8080/process-issue", {
+      new Request("/process-issue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(containerRequest),
@@ -366,7 +366,7 @@ app.post("/container/process", async (c) => {
     const container = c.env.MY_CONTAINER.get(containerId);
     
     const response = await container.fetch(
-      new Request("http://localhost:8080/process-issue", {
+      new Request("/process-issue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestData),
@@ -414,7 +414,7 @@ app.get("/container/health", async (c) => {
     const containerId = c.env.MY_CONTAINER.idFromName("health-check");
     const container = c.env.MY_CONTAINER.get(containerId);
     const response = await container.fetch(
-      new Request("http://localhost:8080/health")
+      new Request("/health")
     );
     
     // Handle non-JSON responses gracefully
