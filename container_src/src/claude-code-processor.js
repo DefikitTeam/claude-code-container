@@ -533,9 +533,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
    * Build analysis prompt for Claude Code
    */
   buildAnalysisPrompt(issue, workspaceDir) {
-    return `# GitHub Issue Analysis
+    return `# GitHub Issue Analysis - Semantic Understanding Required
 
-Please analyze the following GitHub issue and the current codebase to understand the problem and potential solutions.
+You are an expert developer analyzing a GitHub issue. Your task is to provide deep semantic understanding of the requirements.
 
 ## Issue Details
 - **Title:** ${issue.title}
@@ -546,13 +546,46 @@ Please analyze the following GitHub issue and the current codebase to understand
 ## Issue Description
 ${issue.body || 'No description provided'}
 
-## Instructions
-1. Examine the codebase in the current directory
-2. Understand the issue context and requirements
-3. Identify the root cause of the problem
-4. Provide a clear analysis of what needs to be fixed
+## CRITICAL ANALYSIS REQUIREMENTS
 
-Please focus on understanding the issue thoroughly before proposing any changes.`;
+### 1. SEMANTIC EXTRACTION
+If this is a **STYLING/COLOR** issue, extract:
+- **Specific Colors**: Convert any color names to exact hex codes
+  - "cyan blue" → #00BFFF or #00FFFF (choose appropriate cyan-blue shade)
+  - "light green" → #90EE90
+  - "dark red" → #8B0000
+  - "navy" → #000080
+- **Style Properties**: background-color, text-color, border-color, etc.
+- **Target Elements**: body, buttons, containers, specific components
+
+### 2. TECHNICAL CONTEXT
+- Examine the codebase structure in the current directory
+- Identify project type (React, Next.js, Vue, plain HTML/CSS, etc.)
+- Locate existing styling files (CSS, SCSS, styled-components)
+- Understand current color scheme and theme structure
+
+### 3. IMPLEMENTATION STRATEGY
+- Determine the most appropriate files to modify
+- Consider CSS variables vs direct styling
+- Account for responsive design and accessibility
+- Plan for theme consistency
+
+### 4. REQUIREMENTS VALIDATION
+- Extract ALL specific requirements from the natural language description
+- Identify any ambiguities that need clarification
+- Note any potential conflicts with existing design
+
+## OUTPUT FORMAT
+Provide your analysis in this structure:
+
+ISSUE TYPE: [styling/feature/bug/enhancement]
+SPECIFIC REQUIREMENTS: [extracted requirements with exact values]
+COLORS IDENTIFIED: [color_name: #hexcode pairs if applicable]
+TARGET FILES: [list of files to modify]
+IMPLEMENTATION APPROACH: [high-level strategy]
+TECHNICAL NOTES: [any important considerations]
+
+Focus on extracting EXACT, ACTIONABLE requirements rather than general descriptions.`;
   }
 
   /**
@@ -563,53 +596,74 @@ Please focus on understanding the issue thoroughly before proposing any changes.
     const projectType = this.detectProjectTypeFromAnalysis(analysis, repositoryContext);
     const frameworkInstructions = this.getFrameworkSpecificInstructions(projectType, analysis);
     
-    return `# IMPLEMENT SOLUTION - MODIFY ACTUAL FILES
+    return `# IMPLEMENT SOLUTION - SEMANTIC-DRIVEN APPROACH
 
-🚨 CRITICAL: You must modify actual code files, not create documentation.
+🚨 CRITICAL: You must implement the EXACT requirements identified in the analysis. No generic solutions.
 
-## Issue Analysis
+## Analysis Results
 ${analysis.analysis}
 
-## PROJECT TYPE DETECTED: ${projectType.toUpperCase()}
+## PROJECT TYPE: ${projectType.toUpperCase()}
 
 ${frameworkInstructions}
 
-## MANDATORY IMPLEMENTATION INSTRUCTIONS
+## SEMANTIC IMPLEMENTATION PROTOCOL
 
-### 1. IDENTIFY TARGET FILES
-- Locate the exact files that need modification
-- For styling: Find CSS files, component styles, or configuration files
-- For features: Find relevant component or page files
-- For bugs: Find the specific code causing the issue
+### 1. PARSE ANALYSIS OUTPUT
+- Extract SPECIFIC REQUIREMENTS from the analysis
+- Use COLORS IDENTIFIED section for exact hex codes
+- Follow TARGET FILES recommendations
+- Implement IMPLEMENTATION APPROACH strategy
 
-### 2. MAKE ACTUAL FILE CHANGES
-🔧 **YOU MUST EDIT/CREATE THESE FILE TYPES:**
-- CSS files (.css, .scss, .module.css)
-- Component files (.js, .jsx, .ts, .tsx)
-- Configuration files (tailwind.config.js, next.config.js)
+### 2. COLOR/STYLING IMPLEMENTATION RULES
+🎨 **For Color Changes:**
+- NEVER use generic/default colors
+- ALWAYS use exact colors from analysis (e.g., "cyan blue" → #00BFFF)
+- Apply colors to the specific elements identified
+- Update CSS variables if they exist, otherwise create them
+
+### 3. MANDATORY FILE CHANGES
+🔧 **YOU MUST EDIT THESE FILES:**
+- CSS files (.css, .scss, .module.css) with EXACT color values
+- Component files (.js, .jsx, .ts, .tsx) with proper styling
+- Configuration files (tailwind.config.js, next.config.js) if needed
 - Style variables or theme files
 
-### 3. IMPLEMENTATION REQUIREMENTS
-- ✅ **MODIFY FILES DIRECTLY** - Don't just describe changes
-- ✅ **MAKE REAL CODE CHANGES** - Edit actual file contents
-- ✅ **UPDATE STYLES/LOGIC** - Change the actual implementation
-- ❌ **NO DOCUMENTATION ONLY** - Don't just create .md files
+### 4. IMPLEMENTATION VALIDATION
+- ✅ Use EXACT specifications from analysis
+- ✅ Apply colors to SPECIFIC elements mentioned
+- ✅ Follow existing code patterns and architecture
+- ✅ Ensure responsive design compatibility
+- ❌ NO generic implementations
+- ❌ NO documentation-only solutions
 
-### 4. VALIDATION
-- Ensure changes follow existing code patterns
-- Verify syntax is correct for the file type
-- Maintain backwards compatibility
-- Use appropriate imports and exports
+### 5. EXAMPLE SEMANTIC IMPLEMENTATION
 
-## EXAMPLE FOR STYLING ISSUES:
-**WRONG**: Create "STYLING_GUIDE.md" ❌
-**RIGHT**: Modify "globals.css" or component styles ✅
+If analysis shows:
+- COLORS IDENTIFIED: cyan blue: #00BFFF
+- TARGET FILES: globals.css, index.css  
+- SPECIFIC REQUIREMENTS: Change background color to cyan blue
 
-## EXAMPLE FOR FEATURE ISSUES:
-**WRONG**: Create "FEATURE_PLAN.md" ❌ 
-**RIGHT**: Modify component files and add actual code ✅
+Then implement:
+\`\`\`css
+:root {
+  --background-color: #00BFFF; /* Semantic: cyan blue */
+  --text-color: #FFFFFF; /* High contrast for accessibility */
+}
 
-IMPLEMENT THE SOLUTION NOW BY MODIFYING THE ACTUAL FILES.`;
+body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+\`\`\`
+
+### 6. FRAMEWORK-SPECIFIC NOTES
+- **React/Next.js**: Update component styles and CSS modules
+- **Tailwind**: Modify config file AND utility classes
+- **Plain CSS**: Update stylesheets directly
+- **Styled-components**: Modify theme objects
+
+IMPLEMENT THE EXACT SOLUTION BASED ON THE SEMANTIC ANALYSIS ABOVE.`;
   }
 
   /**
@@ -816,7 +870,7 @@ module.exports = {
       // Apply fixes based on intent analysis
       if (intent.confidence >= 0.6) {
         console.log('=== APPLYING INTENT-BASED FIXES ===');
-        await this.applyIntentBasedFixes(intent, workspaceDir);
+        await this.applyIntentBasedFixes(intent, workspaceDir, analysis);
         console.log('=== INTENT-BASED FIXES COMPLETED ===');
       } else {
         console.log('Intent confidence too low, applying general fixes');
@@ -856,7 +910,7 @@ module.exports = {
   /**
    * Apply fixes based on semantic intent analysis
    */
-  async applyIntentBasedFixes(intent, workspaceDir) {
+  async applyIntentBasedFixes(intent, workspaceDir, analysis = null) {
     console.log(`Applying ${intent.primaryIntent} fixes with ${intent.confidence} confidence`);
     
     switch (intent.primaryIntent) {
@@ -874,7 +928,7 @@ module.exports = {
         break;
       case 'fix_bug':
         console.log('Bug fix detected - analyzing specific issue');
-        await this.applyBugFixes(intent, workspaceDir);
+        await this.applyBugFixes(intent, workspaceDir, analysis);
         break;
       case 'add_documentation':
         console.log('Documentation addition detected - implementing README improvements');
@@ -882,7 +936,7 @@ module.exports = {
         break;
       case 'improve_code':
         console.log('Code improvement detected - applying quality enhancements');
-        await this.applyCodeImprovementFixes(intent, workspaceDir);
+        await this.applyCodeImprovementFixes(intent, workspaceDir, analysis);
         break;
       case 'refactor':
         console.log('Refactoring detected - applying structural improvements');
@@ -945,12 +999,12 @@ module.exports = {
   /**
    * Apply bug fixes (enhanced implementation)
    */
-  async applyBugFixes(intent, workspaceDir) {
+  async applyBugFixes(intent, workspaceDir, analysis = null) {
     console.log('Applying enhanced bug fixes with project-specific detection');
     
     // Use enhanced code improvement logic for bug fixes
     // This handles React, Next.js, HTML projects with proper file detection
-    await this.applyCodeImprovementFixes(intent, workspaceDir);
+    await this.applyCodeImprovementFixes(intent, workspaceDir, analysis);
   }
 
   /**
@@ -1131,7 +1185,7 @@ This project is licensed under the MIT License.
   /**
    * Apply code improvement fixes with actual file modifications
    */
-  async applyCodeImprovementFixes(intent, workspaceDir) {
+  async applyCodeImprovementFixes(intent, workspaceDir, analysis = null) {
     console.log('Applying code improvement fixes with real file modifications');
     
     // Detect project type
@@ -1145,47 +1199,50 @@ This project is licensed under the MIT License.
         intent.description.toLowerCase().includes('theme')) {
       
       console.log('Applying styling fixes for project type:', projectType);
-      await this.applyActualStylingChanges(intent, workspaceDir, projectType);
+      await this.applyActualStylingChanges(intent, workspaceDir, projectType, analysis);
       
     } else if (intent.description.toLowerCase().includes('button')) {
       console.log('Applying button-specific fixes');
-      await this.applyActualButtonFixes(intent, workspaceDir, projectType);
+      await this.applyActualButtonFixes(intent, workspaceDir, projectType, analysis);
       
     } else {
       // Apply general code changes
       console.log('Applying general code improvements');
-      await this.applyActualCodeChanges(intent, workspaceDir, projectType);
+      await this.applyActualCodeChanges(intent, workspaceDir, projectType, analysis);
     }
   }
 
   /**
    * Apply actual styling changes to CSS/config files
    */
-  async applyActualStylingChanges(intent, workspaceDir, projectType) {
+  async applyActualStylingChanges(intent, workspaceDir, projectType, analysis = null) {
     try {
       console.log('Creating actual styling changes for:', projectType);
       
       if (projectType === 'nextjs' || projectType === 'react') {
         // Look for and modify actual CSS files
-        await this.modifyGlobalCSS(workspaceDir, intent);
-        await this.modifyTailwindConfig(workspaceDir, intent);
+        await this.modifyGlobalCSS(workspaceDir, intent, analysis);
+        await this.modifyTailwindConfig(workspaceDir, intent, analysis);
         
       } else if (projectType === 'html') {
-        await this.modifyHTMLStyles(workspaceDir, intent);
+        await this.modifyHTMLStyles(workspaceDir, intent, analysis);
       }
       
-      // Always create a component-level style fix
-      await this.createComponentStyling(workspaceDir, intent, projectType);
+      console.log('✅ CSS file modifications completed successfully');
       
     } catch (error) {
       console.error('Failed to apply actual styling changes:', error);
+      
+      // Only create component as fallback if CSS modifications failed
+      console.log('Creating StyleFix component as fallback...');
+      await this.createComponentStyling(workspaceDir, intent, projectType, analysis);
     }
   }
 
   /**
    * Modify globals.css or main CSS file
    */
-  async modifyGlobalCSS(workspaceDir, intent) {
+  async modifyGlobalCSS(workspaceDir, intent, analysis = null) {
     const possiblePaths = [
       path.join(workspaceDir, 'app', 'globals.css'),
       path.join(workspaceDir, 'styles', 'globals.css'),
@@ -1208,7 +1265,7 @@ This project is licensed under the MIT License.
         }
         
         // Add or modify background and text color styles
-        const backgroundChanges = this.generateBackgroundColorCSS(intent);
+        const backgroundChanges = this.generateBackgroundColorCSS(intent, analysis);
         
         if (fileExists) {
           // Modify existing file
@@ -1237,24 +1294,49 @@ This project is licensed under the MIT License.
   }
 
   /**
-   * Generate background color CSS based on intent
+   * Generate background color CSS based on semantic analysis
    */
-  generateBackgroundColorCSS(intent) {
-    const description = intent.description.toLowerCase();
+  generateBackgroundColorCSS(intent, analysis = null) {
+    // Try to extract colors from semantic analysis first
     let backgroundColor = '#ffffff';
     let textColor = '#000000';
     
-    // Parse colors from description
-    if (description.includes('white background')) {
-      backgroundColor = '#ffffff';
-      textColor = '#000000';
-    } else if (description.includes('dark background')) {
-      backgroundColor = '#000000';
-      textColor = '#ffffff';
-    } else if (description.includes('blue background')) {
-      backgroundColor = '#3b82f6';
-      textColor = '#ffffff';
+    console.log('🎨 Starting semantic color generation...');
+    
+    // If we have analysis with specific color information, use it
+    if (analysis && analysis.analysis) {
+      const analysisText = analysis.analysis.toLowerCase();
+      console.log('📝 Analysis text preview:', analysisText.substring(0, 200));
+      
+      // Method 1: Look for hex color codes in analysis
+      const hexColorMatch = analysisText.match(/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})/);
+      if (hexColorMatch) {
+        backgroundColor = hexColorMatch[0].toUpperCase();
+        textColor = this.getContrastColor(backgroundColor);
+        console.log(`✅ Found hex color in analysis: ${backgroundColor}`);
+      } else {
+        // Method 2: Look for "COLORS IDENTIFIED:" section
+        const colorsMatch = analysisText.match(/colors identified:.*?([^:]+):\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})/i);
+        if (colorsMatch) {
+          backgroundColor = colorsMatch[2].toUpperCase();
+          textColor = this.getContrastColor(backgroundColor);
+          console.log(`✅ Found color in COLORS IDENTIFIED: ${colorsMatch[1]} → ${backgroundColor}`);
+        } else {
+          // Method 3: Try to extract semantic color information from analysis
+          backgroundColor = this.extractSemanticColor(analysisText);
+          textColor = this.getContrastColor(backgroundColor);
+          console.log(`✅ Extracted semantic color from analysis: ${backgroundColor}`);
+        }
+      }
+    } else {
+      // Fallback: use advanced color parsing from description
+      console.log('📝 No analysis available, parsing from intent description');
+      backgroundColor = this.extractSemanticColor(intent.description.toLowerCase());
+      textColor = this.getContrastColor(backgroundColor);
+      console.log(`✅ Extracted semantic color from intent: ${backgroundColor}`);
     }
+    
+    console.log(`🎨 Final colors: background=${backgroundColor}, text=${textColor}`);
     
     return `/* Updated by Claude Code for background color changes */
 :root {
@@ -1274,6 +1356,128 @@ body {
   color: var(--text-color);
   min-height: 100vh;
 }`;
+  }
+
+  /**
+   * Extract semantic color from natural language description
+   */
+  extractSemanticColor(description) {
+    console.log(`🔍 Extracting color from description: "${description}"`);
+    
+    // Advanced color mapping for natural language
+    const colorMap = {
+      // Cyan/Aqua variations
+      'cyan blue': '#00BFFF',
+      'cyan': '#00FFFF',
+      'turquoise': '#40E0D0',
+      'aqua': '#00FFFF',
+      'teal': '#008080',
+      'sky blue': '#87CEEB',
+      
+      // Blue variations  
+      'blue': '#0000FF',
+      'light blue': '#ADD8E6',
+      'dark blue': '#00008B',
+      'navy blue': '#000080',
+      'navy': '#000080',
+      'royal blue': '#4169E1',
+      'steel blue': '#4682B4',
+      'powder blue': '#B0E0E6',
+      
+      // Green variations
+      'green': '#008000',
+      'light green': '#90EE90',
+      'dark green': '#006400',
+      'lime green': '#32CD32',
+      'lime': '#00FF00',
+      'forest green': '#228B22',
+      'sea green': '#2E8B57',
+      'olive green': '#808000',
+      'mint green': '#98FB98',
+      
+      // Red variations
+      'red': '#FF0000',
+      'light red': '#FFB6C1',
+      'dark red': '#8B0000',
+      'crimson': '#DC143C',
+      'coral': '#FF7F50',
+      'salmon': '#FA8072',
+      'pink': '#FFC0CB',
+      'hot pink': '#FF69B4',
+      
+      // Purple variations
+      'purple': '#800080',
+      'violet': '#EE82EE',
+      'indigo': '#4B0082',
+      'lavender': '#E6E6FA',
+      'magenta': '#FF00FF',
+      'plum': '#DDA0DD',
+      
+      // Yellow/Orange variations
+      'yellow': '#FFFF00',
+      'light yellow': '#FFFFE0',
+      'gold': '#FFD700',
+      'orange': '#FFA500',
+      'dark orange': '#FF8C00',
+      'peach': '#FFCBA4',
+      
+      // Brown variations
+      'brown': '#A52A2A',
+      'tan': '#D2B48C',
+      'beige': '#F5F5DC',
+      'chocolate': '#D2691E',
+      
+      // Neutral variations
+      'white': '#FFFFFF',
+      'black': '#000000',
+      'gray': '#808080',
+      'grey': '#808080',
+      'light gray': '#D3D3D3',
+      'light grey': '#D3D3D3',
+      'dark gray': '#A9A9A9',
+      'dark grey': '#A9A9A9',
+      'silver': '#C0C0C0',
+    };
+    
+    // Try to find exact matches first (longer phrases first for better matching)
+    const sortedColors = Object.entries(colorMap).sort((a, b) => b[0].length - a[0].length);
+    
+    for (const [colorName, hexCode] of sortedColors) {
+      if (description.includes(colorName)) {
+        console.log(`🎨 Semantic color match: "${colorName}" → ${hexCode}`);
+        return hexCode;
+      }
+    }
+    
+    // Try partial matching as fallback (single word colors only to avoid false positives)
+    const singleWordColors = sortedColors.filter(([colorName]) => !colorName.includes(' '));
+    for (const [colorName, hexCode] of singleWordColors) {
+      if (description.includes(colorName)) {
+        console.log(`🔵 Partial semantic color match: "${colorName}" → ${hexCode}`);
+        return hexCode;
+      }
+    }
+    
+    console.log(`⚠️  No semantic color match found for: "${description}", using default white`);
+    // Fallback to default
+    return '#FFFFFF';
+  }
+
+  /**
+   * Get contrasting text color for accessibility
+   */
+  getContrastColor(backgroundColor) {
+    // Convert hex to RGB
+    const hex = backgroundColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate relative luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // Return white for dark backgrounds, black for light backgrounds
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
   }
 
   /**
@@ -1361,9 +1565,13 @@ body {
   /**
    * Generate a style component for the fix
    */
-  generateStyleComponent(intent, projectType) {
+  generateStyleComponent(intent, projectType, analysis = null) {
     const description = intent.description || 'styling fix';
     const isTypeScript = projectType === 'nextjs';
+    
+    // Extract actual colors from the issue description
+    const backgroundColor = this.extractSemanticColor(intent.description.toLowerCase());
+    const textColor = this.getContrastColor(backgroundColor);
     
     return `${isTypeScript ? "import React from 'react';" : "import React from 'react';"}
 
@@ -1379,12 +1587,12 @@ const StyleFix${isTypeScript ? ': React.FC' : ''} = () => {
       left: 0,
       width: '100%',
       height: '100%',
-      backgroundColor: 'var(--background-color, #ffffff)',
-      color: 'var(--text-color, #000000)',
+      backgroundColor: '${backgroundColor}',
+      color: '${textColor}',
       zIndex: -1,
       pointerEvents: 'none'
     }}>
-      {/* Background fix applied */}
+      {/* Background fix applied - ${backgroundColor} */}
     </div>
   );
 };
