@@ -20,9 +20,9 @@ export class ClaudeAPIOptimizer {
         temperature: 0.1,          // Low creativity for factual analysis
         top_p: 0.8,                // Focused on most probable responses  
         top_k: 20,                 // Limit to top 20 most probable words
-        repetition_penalty: 1.05,  // Slight penalty to avoid repetition
-        frequency_penalty: 0.1,    // Discourage repetitive phrases
-        presence_penalty: 0.0      // Don't penalize new topics
+        // repetition_penalty: 1.05,  // Slight penalty to avoid repetition
+        // frequency_penalty: 0.1,    // Discourage repetitive phrases
+        // presence_penalty: 0.0      // Don't penalize new topics
       },
       
       // Balanced approach for implementation
@@ -32,9 +32,9 @@ export class ClaudeAPIOptimizer {
         temperature: 0.2,          // Slightly more creative for solutions
         top_p: 0.9,                // Allow more diverse responses
         top_k: 40,                 // More word choices for implementation
-        repetition_penalty: 1.1,   // Moderate penalty for repetition
-        frequency_penalty: 0.15,   // Discourage repetitive code patterns
-        presence_penalty: 0.05     // Slight encouragement for diverse topics
+        // repetition_penalty: 1.1,   // Moderate penalty for repetition
+        // frequency_penalty: 0.15,   // Discourage repetitive code patterns
+        // presence_penalty: 0.05     // Slight encouragement for diverse topics
       },
       
       // High creativity for problem-solving
@@ -44,9 +44,9 @@ export class ClaudeAPIOptimizer {
         temperature: 0.3,          // More creative for innovative solutions
         top_p: 0.95,               // High diversity in responses
         top_k: 60,                 // More word choices for creativity
-        repetition_penalty: 1.15,  // Higher penalty to encourage variety
-        frequency_penalty: 0.2,    // Discourage repetitive solutions
-        presence_penalty: 0.1      // Encourage exploring new approaches
+        // repetition_penalty: 1.15,  // Higher penalty to encourage variety
+        // frequency_penalty: 0.2,    // Discourage repetitive solutions
+        // presence_penalty: 0.1      // Encourage exploring new approaches
       },
       
       // Focused approach for semantic understanding
@@ -56,9 +56,9 @@ export class ClaudeAPIOptimizer {
         temperature: 0.05,         // Very low for precise understanding
         top_p: 0.7,                // Focused on most likely responses
         top_k: 15,                 // Very focused word selection
-        repetition_penalty: 1.02,  // Minimal repetition penalty
-        frequency_penalty: 0.05,   // Minimal frequency penalty
-        presence_penalty: 0.0      // No presence penalty for consistency
+        // repetition_penalty: 1.02,  // Minimal repetition penalty
+        // frequency_penalty: 0.05,   // Minimal frequency penalty
+        // presence_penalty: 0.0      // No presence penalty for consistency
       }
     };
   }

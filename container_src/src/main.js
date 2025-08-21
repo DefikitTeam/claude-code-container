@@ -861,7 +861,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // ===== CLAUDE DEEP INFERENCE CONFIGURATION =====
 function logDeepInferenceConfig() {
-  const deepReasoningEnabled = process.env.ENABLE_DEEP_REASONING !== 'false';
+  const deepReasoningEnabled = process.env.ENABLE_DEEP_REASONING === 'true';
   const complexityThreshold = parseFloat(process.env.DEEP_REASONING_THRESHOLD || '0.3');
   const forceProfile = process.env.FORCE_DEEP_PROFILE || 'auto';
   const processingTimeout = parseInt(process.env.PROCESSING_TIMEOUT || '45000');

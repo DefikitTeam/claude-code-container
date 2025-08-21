@@ -443,7 +443,7 @@ ${context.complexity_indicators}`;
       let response;
       try {
         // Determine if we should use deep reasoning based on environment variable or issue complexity
-        const useDeepReasoning = process.env.ENABLE_DEEP_REASONING !== 'false'; // Default to enabled
+        const useDeepReasoning = process.env.ENABLE_DEEP_REASONING === 'true'; // Default to disabled
         const issueComplexity = this.deepInference.calculateComplexity(
           `${analysis.issueTitle} ${analysis.analysis}`, 
           analysis
