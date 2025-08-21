@@ -286,12 +286,17 @@ Focus on delivering ACTIONABLE, SPECIFIC guidance rather than generic advice.`;
     const optimizedPrompt = this.prepareOptimizedPrompt(issueContext, workspaceDir, selectedProfile);
     
     // Custom overrides for specific improvements
-    const customConfig = {
-      // Slightly increase max tokens for complex issues  
-      max_tokens: issueContext.description && issueContext.description.length > 1000 ? 4000 : undefined,
-      // Reduce temperature for critical bugs
-      temperature: issueContext.labels && issueContext.labels.some(l => l.includes('critical')) ? 0.05 : undefined
-    };
+    const customConfig = {};
+    
+    // Slightly increase max tokens for complex issues  
+    if (issueContext.description && issueContext.description.length > 1000) {
+      customConfig.max_tokens = 4000;
+    }
+    
+    // Reduce temperature for critical bugs
+    if (issueContext.labels && issueContext.labels.some(l => l.includes('critical'))) {
+      customConfig.temperature = 0.05;
+    }
     
     // Execute optimized query
     const result = await this.optimizedQuery(

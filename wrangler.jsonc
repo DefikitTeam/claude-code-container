@@ -33,13 +33,15 @@
     }
   ],
   "vars": {
-    "ENVIRONMENT": "development"
+    "ENVIRONMENT": "development",
+    "ENABLE_DEEP_REASONING": "false"
   },
   "env": {
     "development": {
       "name": "claude-code-containers-dev",
       "vars": {
-        "ENVIRONMENT": "development"
+        "ENVIRONMENT": "development",
+        "ENABLE_DEEP_REASONING": "false"
       },
       "containers": [
         {
@@ -64,7 +66,8 @@
     "staging": {
       "name": "claude-code-containers-staging",
       "vars": {
-        "ENVIRONMENT": "staging"
+        "ENVIRONMENT": "staging",
+        "ENABLE_DEEP_REASONING": "false"
       },
       "containers": [
         {
