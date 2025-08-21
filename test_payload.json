@@ -1,0 +1,27 @@
+{
+  "action": "opened",
+  "issue": {
+    "id": 12345,
+    "number": 1,
+    "title": "Test issue for debugging",
+    "body": "This is a test issue to check webhook processing",
+    "state": "open",
+    "html_url": "https://github.com/test/repo/issues/1",
+    "user": {
+      "login": "testuser"
+    }
+  },
+  "repository": {
+    "id": 67890,
+    "name": "test-repo",
+    "full_name": "testuser/test-repo",
+    "clone_url": "https://github.com/testuser/test-repo.git",
+    "default_branch": "main",
+    "owner": {
+      "login": "testuser"
+    }
+  },
+  "installation": {
+    "id": 123456
+  }
+}

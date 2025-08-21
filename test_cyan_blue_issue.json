@@ -1,0 +1,12 @@
+{
+  "issue": {
+    "title": "Change background to cyan blue",
+    "number": 123,
+    "state": "open",
+    "user": {
+      "login": "testuser"
+    },
+    "body": "Please make the background have color cyan blue. This should apply to the main container and body elements."
+  },
+  "description": "Test case for improved semantic color parsing - should convert 'cyan blue' to appropriate hex code like #00BFFF instead of defaulting to white"
+}

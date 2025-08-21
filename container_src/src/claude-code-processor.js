@@ -4,6 +4,7 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { SemanticAnalyzer } from './semantic-analyzer.js';
 import { FileContentAnalyzer } from './file-content-analyzer.js';
+import ClaudeAPIOptimizer from './claude-api-optimizer.js';
 
 console.log('ClaudeCodeProcessor module loaded successfully');
 
@@ -16,6 +17,7 @@ export class ClaudeCodeProcessor {
     this.git = null;
     this.semanticAnalyzer = new SemanticAnalyzer();
     this.fileContentAnalyzer = new FileContentAnalyzer();
+    this.claudeOptimizer = new ClaudeAPIOptimizer();
   }
 
   /**
@@ -188,71 +190,58 @@ export class ClaudeCodeProcessor {
   }
 
   /**
-   * Analyze GitHub issue using Claude API
+   * Analyze GitHub issue using optimized Claude API
    */
   async analyzeIssue(issue, workspaceDir) {
     try {
-      const anthropic = await this.initializeClaudeAPI();
-      
-      const analysisPrompt = this.buildAnalysisPrompt(issue, workspaceDir);
-      
-      console.log('Starting issue analysis with Claude API...');
+      console.log('🚀 Starting optimized issue analysis...');
       console.log('ANTHROPIC_API_KEY available:', !!process.env.ANTHROPIC_API_KEY);
-      console.log('Analysis prompt length:', analysisPrompt.length);
-      console.log('Analysis prompt preview:', analysisPrompt.substring(0, 200) + '...');
       
-      console.log('Calling Claude API...');
+      // Initialize Claude API Optimizer
+      await this.claudeOptimizer.initialize();
       
-      let response;
-      try {
-        if (anthropic) {
-          const apiResponse = await anthropic.messages.create({
-            model: 'claude-3-haiku-20240307',
-            max_tokens: 2000,
-            temperature: 0.1,
-            messages: [{
-              role: 'user',
-              content: analysisPrompt
-            }]
-          });
-          
-          response = {
-            content: apiResponse.content[0].text
-          };
-          console.log('Claude API analysis completed successfully');
-        } else {
-          throw new Error('Claude API not available');
-        }
-      } catch (apiError) {
-        console.warn('Claude API failed, using fallback analysis:', apiError.message);
+      // Prepare issue context for optimization
+      const issueContext = {
+        issueNumber: issue.number,
+        title: issue.title,
+        description: issue.body || '',
+        labels: issue.labels || [],
+        author: issue.user?.login || 'unknown',
+        repositoryName: process.env.REPOSITORY_NAME || 'unknown'
+      };
+      
+      // Use optimized analysis workflow
+      console.log('Executing optimized Claude analysis workflow...');
+      const optimizedResult = await this.claudeOptimizer.performOptimizedAnalysis(
+        issueContext, 
+        workspaceDir
+      );
+      
+      if (optimizedResult.success) {
+        console.log('✅ Optimized analysis completed successfully', {
+          profile: optimizedResult.metadata.profile,
+          tokens_used: optimizedResult.metadata.usage?.output_tokens || 'unknown',
+          duration: optimizedResult.metadata.duration,
+          optimizations: optimizedResult.metadata.optimizations_applied.length
+        });
         
-        // Fallback: Generate analysis without API
-        response = {
-          content: `## Issue Analysis (Fallback Mode)
-
-**Issue:** ${issue.title}
-**Description:** ${issue.body || 'No description provided'}
-
-This issue has been received and the repository has been successfully cloned. Due to Claude API limitations in the container environment, this analysis uses fallback processing.
-
-## Recommended Actions
-1. Review the issue description and requirements
-2. Examine the codebase structure 
-3. Implement necessary changes based on the issue requirements
-4. Test the changes thoroughly
-
-## Next Steps
-The development team should review this issue and implement the requested changes according to the project's coding standards and best practices.`
+        return {
+          analysis: optimizedResult.analysis,
+          metadata: optimizedResult.metadata
         };
+      } else {
+        throw new Error('Optimized analysis failed');
       }
-      
-      // Ensure we have valid content
-      const analysis = response?.content || `## Issue Analysis (Fallback Mode)
+    } catch (apiError) {
+      console.warn('⚠️ Optimized Claude API failed, using fallback analysis:', apiError.message);
+        
+      // Fallback: Generate simplified analysis without API
+      const fallbackAnalysis = `## Issue Analysis (Fallback Mode)
 
 **Issue:** ${issue.title}
 **Description:** ${issue.body || 'No description provided'}
 
-This issue has been received and the repository has been successfully cloned. Analysis completed using container environment processing.
+This issue has been received and the repository has been successfully cloned. Due to Claude API optimization limitations, this analysis uses fallback processing.
 
 ## Recommended Actions
 1. Review the issue description and requirements
@@ -262,16 +251,16 @@ This issue has been received and the repository has been successfully cloned. An
 
 ## Next Steps
 The development team should review this issue and implement the requested changes according to the project's coding standards and best practices.`;
-
+      
       return {
-        issueId: issue.id,
-        issueNumber: issue.number,
-        analysis,
-        timestamp: new Date().toISOString()
+        analysis: fallbackAnalysis,
+        metadata: {
+          profile: 'fallback',
+          optimizations_applied: ['Fallback mode - API unavailable'],
+          duration: 0,
+          usage: { input_tokens: 0, output_tokens: 0 }
+        }
       };
-    } catch (error) {
-      console.error('Issue analysis failed:', error);
-      throw new Error(`Issue analysis failed: ${error.message}`);
     }
   }
 

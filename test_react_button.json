@@ -1,0 +1,27 @@
+{
+  "type": "process_issue",
+  "payload": {
+    "action": "opened",
+    "issue": {
+      "id": 12345,
+      "number": 2,
+      "title": "restyle button",
+      "body": "Please restyle the Deploy Now button to match the style of the Read our docs button. The buttons should have consistent styling across the React components.",
+      "state": "open",
+      "user": {
+        "login": "testuser"
+      }
+    },
+    "repository": {
+      "full_name": "dghongnam3003/container-next-repo",
+      "clone_url": "https://github.com/dghongnam3003/container-next-repo.git"
+    }
+  },
+  "config": {
+    "appId": "123456",
+    "privateKey": "test-key",
+    "webhookSecret": "test-secret",
+    "installationId": "789012",
+    "installationToken": "test-token"
+  }
+}
