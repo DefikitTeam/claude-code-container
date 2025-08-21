@@ -1236,10 +1236,45 @@ This project is licensed under the MIT License.
   }
 
   /**
+   * Find existing CSS files in the repository
+   */
+  async findExistingCSSFiles(workspaceDir) {
+    const cssFiles = [];
+    
+    try {
+      const { execSync } = require('child_process');
+      // Find all CSS files in the repository (excluding node_modules)
+      const findResult = execSync(
+        'find . -name "*.css" -not -path "./node_modules/*" -not -path "./.git/*"',
+        { cwd: workspaceDir, encoding: 'utf8' }
+      );
+      
+      const foundFiles = findResult.trim().split('\n').filter(f => f);
+      
+      for (const file of foundFiles) {
+        // Convert relative paths to absolute
+        const absolutePath = path.join(workspaceDir, file.replace(/^\.\//, ''));
+        cssFiles.push(absolutePath);
+      }
+      
+      console.log(`🔍 Found ${cssFiles.length} existing CSS files:`, cssFiles.map(f => path.basename(f)));
+      
+    } catch (error) {
+      console.log('Could not search for existing CSS files:', error.message);
+    }
+    
+    return cssFiles;
+  }
+
+  /**
    * Modify globals.css or main CSS file
    */
   async modifyGlobalCSS(workspaceDir, intent, analysis = null) {
+    // First try to find existing CSS files in the repository
+    const existingCssFiles = await this.findExistingCSSFiles(workspaceDir);
+    
     const possiblePaths = [
+      ...existingCssFiles, // Prioritize existing CSS files
       path.join(workspaceDir, 'app', 'globals.css'),
       path.join(workspaceDir, 'styles', 'globals.css'),
       path.join(workspaceDir, 'src', 'index.css'),
@@ -1286,6 +1321,22 @@ This project is licensed under the MIT License.
       } catch (error) {
         console.log(`Could not modify ${cssPath}:`, error.message);
       }
+    }
+    
+    // If we get here, no CSS files were successfully modified
+    console.log('⚠️ No CSS files were found or successfully modified');
+    console.log('📁 Checked paths:', possiblePaths);
+    
+    // Create a CSS file if none exist
+    const defaultCssPath = path.join(workspaceDir, 'styles.css');
+    const backgroundChanges = this.generateBackgroundColorCSS(intent, analysis);
+    
+    try {
+      await fs.writeFile(defaultCssPath, backgroundChanges, 'utf8');
+      console.log(`✅ Created new CSS file: ${defaultCssPath}`);
+    } catch (error) {
+      console.error(`❌ Failed to create default CSS file: ${error.message}`);
+      throw new Error(`CSS modification failed: No existing CSS files found and cannot create new one`);
     }
   }
 
