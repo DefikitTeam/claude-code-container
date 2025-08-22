@@ -22,15 +22,22 @@ COPY container_src/package*.json ./
 RUN npm ci --only=production
 
 # Copy container source code
-COPY container_src/src/ ./src/
+COPY container_src/dist/ ./
 
 # Create a non-root user for security
 RUN addgroup --gid 1001 --system nodejs && \
-    adduser --system --uid 1001 nodejs
+    adduser --system --uid 1001 nodejs --home /home/nodejs --shell /bin/bash
+
+# Create and set up home directory
+RUN mkdir -p /home/nodejs && chown -R nodejs:nodejs /home/nodejs
 
 # Change ownership of the app directory
 RUN chown -R nodejs:nodejs /app
-# USER nodejs  # Temporarily disabled for debugging
+USER nodejs
+
+# Set working directory and environment
+ENV HOME=/home/nodejs
+WORKDIR /app
 
 # Expose port
 EXPOSE 8080
@@ -40,4 +47,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["node", "main.js"]

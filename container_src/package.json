@@ -2,14 +2,12 @@
   "name": "claude-code-container",
   "version": "1.0.0",
   "description": "Claude Code container for processing GitHub issues",
-  "main": "src/main.js",
+  "main": "dist/main.js",
   "scripts": {
-    "start": "node src/main.js",
-    "dev": "node --watch src/main.js",
+    "start": "node dist/main.js",
+    "dev": "tsc --watch",
     "build": "tsc",
-    "test": "node --test",
-    "test:deep-inference": "node test-deep-inference.js",
-    "test:deep-inference:dev": "node --watch test-deep-inference.js"
+    "test": "node --test"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.85",

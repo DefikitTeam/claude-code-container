@@ -232,7 +232,13 @@ async function handleIssueEvent(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(containerRequest),
-      })
+      }),
+      {
+        env: {
+          ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY,
+          GITHUB_TOKEN: configWithToken.installationToken,
+        }
+      }
     );
 
     console.log('Container response status:', containerResponse.status);
