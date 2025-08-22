@@ -256,6 +256,9 @@ async function processIssue(issueContext: IssueContext, githubToken: string): Pr
 }
 
 async function processIssueHandler(req: http.IncomingMessage, res: http.ServerResponse) {
+  const startTime = Date.now();
+  logWithContext('PROCESS', 'Starting issue processing', { timestamp: new Date().toISOString() });
+  
   try {
     const body = await getRequestBody(req);
     const payload = JSON.parse(body || '{}');
@@ -282,9 +285,22 @@ async function processIssueHandler(req: http.IncomingMessage, res: http.ServerRe
     };
 
     const result = await processIssue(issueContext, githubToken);
+    
+    const duration = Date.now() - startTime;
+    logWithContext('PROCESS', 'Issue processing completed', { 
+      success: result.success, 
+      durationMs: duration,
+      durationSeconds: Math.round(duration / 1000)
+    });
+    
     return sendJson(res, result.success ? 200 : 500, result);
   } catch (error: any) {
-    logWithContext('PROCESS', 'Error processing issue', { error: error.message });
+    const duration = Date.now() - startTime;
+    logWithContext('PROCESS', 'Error processing issue', { 
+      error: error.message, 
+      durationMs: duration,
+      durationSeconds: Math.round(duration / 1000)
+    });
     return sendJson(res, 500, { success: false, message: error.message });
   }
 }
