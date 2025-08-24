@@ -77,6 +77,25 @@ export interface ContainerResponse {
   logs?: string[];
 }
 
+export interface PromptRequest {
+  prompt: string;
+  repository?: string; // owner/repo format, optional if user has only one installation
+  branch?: string; // target branch, defaults to repository default branch
+  title?: string; // issue title, generated from prompt if not provided
+}
+
+export interface PromptProcessingResult {
+  success: boolean;
+  message?: string;
+  issueId?: number;
+  issueNumber?: number;
+  issueUrl?: string;
+  pullRequestUrl?: string;
+  error?: string;
+  repository?: string;
+  branch?: string;
+}
+
 export interface StoredGitHubConfig {
   appId: string;
   encryptedPrivateKey: {

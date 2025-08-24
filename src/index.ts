@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { Env, GitHubIssuePayload, GitHubAppConfig, ContainerRequest } from "./types";
+import { Env, GitHubIssuePayload, GitHubAppConfig, ContainerRequest, PromptRequest, PromptProcessingResult } from "./types";
 import { GitHubAppConfigDO, MyContainer } from "./durable-objects";
 import { CryptoUtils } from "./crypto";
 
@@ -20,6 +20,7 @@ app.get("/", (c) => {
     endpoints: {
       "/": "System information",
       "/webhook/github": "POST - GitHub webhook endpoint",
+      "/process-prompt": "POST - Process prompt and create issue",
       "/health": "Health check",
       "/config": "GitHub App configuration endpoints",
       "/container/process": "Direct container processing",
@@ -39,6 +40,68 @@ app.get("/health", (c) => {
       webhooks: "ready",
     },
   });
+});
+
+// Process prompt endpoint - creates issue and processes it automatically
+app.post("/process-prompt", async (c) => {
+  try {
+    console.log("=== PROCESS PROMPT REQUEST ===");
+    
+    // Parse request body
+    const promptRequest: PromptRequest = await c.req.json();
+    
+    console.log("Prompt request:", {
+      promptLength: promptRequest.prompt?.length || 0,
+      repository: promptRequest.repository,
+      branch: promptRequest.branch,
+      hasTitle: !!promptRequest.title
+    });
+
+    // Validate required fields
+    if (!promptRequest.prompt || promptRequest.prompt.trim() === "") {
+      return c.json({ 
+        success: false,
+        error: "Prompt is required and cannot be empty" 
+      }, 400);
+    }
+
+    // Get GitHub configuration
+    const config = await getGitHubConfig(c.env);
+    if (!config) {
+      return c.json({ 
+        success: false,
+        error: "GitHub App not configured. Please configure the app first." 
+      }, 500);
+    }
+
+    // Ensure we have a valid installation token
+    let configWithToken = config;
+    if (!config.installationToken || isTokenExpired(config.tokenExpiresAt)) {
+      console.log("Generating new installation token for prompt processing...");
+      const newConfig = await generateInstallationToken(c.env, config);
+      if (!newConfig) {
+        return c.json({ 
+          success: false,
+          error: "Failed to generate GitHub installation token" 
+        }, 500);
+      }
+      configWithToken = newConfig;
+    }
+
+    // Process the prompt request
+    const result = await processPromptRequest(c, promptRequest, configWithToken);
+    
+    return c.json(result);
+    
+  } catch (error) {
+    console.error("Prompt processing error:", error);
+    return c.json({
+      success: false,
+      error: "Prompt processing failed",
+      message: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString()
+    }, 500);
+  }
 });
 
 // GitHub webhook endpoint
@@ -308,6 +371,173 @@ async function handleIssueEvent(
       },
       500
     );
+  }
+}
+
+// Process prompt request - creates issue and processes it
+async function processPromptRequest(
+  c: any,
+  promptRequest: PromptRequest,
+  config: GitHubAppConfig
+): Promise<PromptProcessingResult> {
+  try {
+    console.log("=== PROCESSING PROMPT REQUEST ===");
+    
+    // Step 1: Determine target repository
+    let targetRepository: string;
+    if (promptRequest.repository) {
+      // User specified repository
+      targetRepository = promptRequest.repository;
+      console.log(`Using user-specified repository: ${targetRepository}`);
+    } else {
+      // Need to get available repositories for this installation
+      const repositories = await getInstallationRepositories(config);
+      if (repositories.length === 0) {
+        return {
+          success: false,
+          error: "No repositories found for this GitHub App installation"
+        };
+      } else if (repositories.length === 1) {
+        targetRepository = repositories[0].full_name;
+        console.log(`Using single available repository: ${targetRepository}`);
+      } else {
+        return {
+          success: false,
+          error: `Multiple repositories available. Please specify one: ${repositories.map(r => r.full_name).join(', ')}`
+        };
+      }
+    }
+
+    // Step 2: Get repository information
+    const [owner, repo] = targetRepository.split('/');
+    const repoInfo = await getRepositoryInfo(config, owner, repo);
+    if (!repoInfo) {
+      return {
+        success: false,
+        error: `Repository ${targetRepository} not found or not accessible`
+      };
+    }
+
+    // Step 3: Generate issue title if not provided
+    let issueTitle = promptRequest.title;
+    if (!issueTitle) {
+      issueTitle = generateIssueTitle(promptRequest.prompt);
+    }
+
+    // Step 4: Create the GitHub issue
+    console.log(`Creating issue in ${targetRepository}: ${issueTitle}`);
+    const issue = await createGitHubIssue(config, owner, repo, issueTitle, promptRequest.prompt);
+    
+    if (!issue) {
+      return {
+        success: false,
+        error: "Failed to create GitHub issue"
+      };
+    }
+
+    console.log(`Issue created: #${issue.number} (ID: ${issue.id})`);
+
+    // Step 5: Create GitHub issue payload (simulate webhook payload)
+    const issuePayload: GitHubIssuePayload = {
+      action: "opened",
+      issue: {
+        id: issue.id,
+        number: issue.number,
+        title: issue.title,
+        body: issue.body || "",
+        state: "open",
+        html_url: issue.html_url,
+        user: {
+          login: "claude-prompt-api" // Indicates this was created via API
+        }
+      },
+      repository: {
+        id: repoInfo.id,
+        name: repo,
+        full_name: targetRepository,
+        clone_url: repoInfo.clone_url,
+        default_branch: repoInfo.default_branch,
+        owner: {
+          login: owner
+        }
+      },
+      installation: {
+        id: parseInt(config.installationId || "0")
+      }
+    };
+
+    // Step 6: Process the issue using existing container logic
+    console.log("Processing created issue using existing container flow...");
+    
+    const containerId = c.env.MY_CONTAINER.idFromName(`prompt-issue-${issue.id}`);
+    const container = c.env.MY_CONTAINER.get(containerId);
+
+    const containerRequest: ContainerRequest = {
+      type: "process_issue",
+      payload: issuePayload,
+      config: config,
+    };
+
+    const containerResponse = await container.fetch(
+      new Request("https://container/process-issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(containerRequest),
+      }),
+      {
+        env: {
+          ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY,
+          GITHUB_TOKEN: config.installationToken,
+        }
+      }
+    );
+
+    if (containerResponse.status === 503) {
+      return {
+        success: false,
+        error: "Container service temporarily unavailable. Please try again in a few minutes.",
+        issueId: issue.id,
+        issueNumber: issue.number,
+        issueUrl: issue.html_url,
+        repository: targetRepository
+      };
+    }
+
+    const responseText = await containerResponse.text();
+    let containerResult: any;
+    
+    try {
+      containerResult = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Container response is not valid JSON:', responseText.substring(0, 200));
+      return {
+        success: false,
+        error: "Container returned invalid response",
+        issueId: issue.id,
+        issueNumber: issue.number,
+        issueUrl: issue.html_url,
+        repository: targetRepository
+      };
+    }
+
+    // Step 7: Return comprehensive result
+    return {
+      success: true,
+      message: `Prompt processed successfully. Issue #${issue.number} created and resolved.`,
+      issueId: issue.id,
+      issueNumber: issue.number,
+      issueUrl: issue.html_url,
+      pullRequestUrl: containerResult.pullRequestUrl,
+      repository: targetRepository,
+      branch: promptRequest.branch || repoInfo.default_branch
+    };
+
+  } catch (error) {
+    console.error("Prompt request processing failed:", error);
+    return {
+      success: false,
+      error: `Prompt processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
   }
 }
 
@@ -628,6 +858,114 @@ async function createJWT(appId: string, privateKey: string): Promise<string> {
     console.error('JWT creation failed:', error);
     console.error('Error details:', error instanceof Error ? error.stack : String(error));
     throw new Error(`JWT creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Helper functions for prompt processing
+
+// Get all repositories for the GitHub App installation
+async function getInstallationRepositories(config: GitHubAppConfig): Promise<any[]> {
+  try {
+    const jwt = await createJWT(config.appId, config.privateKey);
+    const apiUrl = `https://api.github.com/installation/repositories`;
+    
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${config.installationToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'claude-code-containers/1.0.0'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to get installation repositories: ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json() as any;
+    return data.repositories || [];
+  } catch (error) {
+    console.error('Failed to get installation repositories:', error);
+    return [];
+  }
+}
+
+// Get repository information
+async function getRepositoryInfo(config: GitHubAppConfig, owner: string, repo: string): Promise<any | null> {
+  try {
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}`;
+    
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${config.installationToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'claude-code-containers/1.0.0'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to get repository info: ${response.status}`);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get repository info:', error);
+    return null;
+  }
+}
+
+// Generate issue title from prompt
+function generateIssueTitle(prompt: string): string {
+  // Extract first sentence or first 60 characters as title
+  const firstSentence = prompt.split('.')[0].trim();
+  if (firstSentence.length > 0 && firstSentence.length <= 60) {
+    return firstSentence;
+  }
+  
+  // Truncate to 60 characters and add ellipsis
+  const truncated = prompt.substring(0, 60).trim();
+  return truncated.length < prompt.length ? truncated + '...' : truncated;
+}
+
+// Create GitHub issue
+async function createGitHubIssue(
+  config: GitHubAppConfig, 
+  owner: string, 
+  repo: string, 
+  title: string, 
+  body: string
+): Promise<any | null> {
+  try {
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/issues`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.installationToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'claude-code-containers/1.0.0',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title,
+        body: `**Auto-generated from prompt:**\n\n${body}`,
+        labels: ['automated', 'claude-prompt']
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to create GitHub issue: ${response.status} - ${errorText}`);
+      return null;
+    }
+
+    const issue = await response.json() as any;
+    console.log(`GitHub issue created successfully: #${issue.number}`);
+    return issue;
+  } catch (error) {
+    console.error('Failed to create GitHub issue:', error);
+    return null;
   }
 }
 

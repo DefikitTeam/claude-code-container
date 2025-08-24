@@ -312,7 +312,22 @@ function sendJson(res: http.ServerResponse, status: number, obj: any) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://localhost:${PORT}`);
-  if (req.method === 'POST' && url.pathname === '/process-issue') return processIssueHandler(req, res);
+  if (req.method === 'POST' && url.pathname === '/process-issue') {
+    // Process the issue
+    await processIssueHandler(req, res);
+    
+    // Schedule server shutdown after a brief delay to allow response to complete
+    setTimeout(() => {
+      logWithContext('SERVER', 'Shutting down after processing issue');
+      server.close(() => {
+        logWithContext('SERVER', 'Server closed, process will exit');
+        process.exit(0);
+      });
+    }, 1000); // 1 second delay
+    
+    return;
+  }
+  
   if (req.method === 'GET' && url.pathname === '/health') return sendJson(res, 200, { status: 'healthy', instance: INSTANCE_ID });
   return sendJson(res, 404, { success: false, message: 'not found' });
 });

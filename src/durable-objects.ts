@@ -206,8 +206,8 @@ export class GitHubAppConfigDO extends DurableObject<Env> {
 export class MyContainer extends Container<Env> {
   // Port the container listens on (default: 8080)
   defaultPort = 8080;
-  // Time before container sleeps due to inactivity (increased for long-running GitHub issue processing)
-  sleepAfter = "600s"; // 10 minutes instead of 45 seconds
+  // Time before container sleeps due to inactivity (allow time for GitHub issue processing)
+  sleepAfter = "5m"; // 5 minutes - enough for most GitHub issue processing
   // Environment variables passed to the container
   envVars = {
     ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY || '',
