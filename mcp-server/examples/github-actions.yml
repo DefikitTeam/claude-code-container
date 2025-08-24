@@ -1,0 +1,125 @@
+name: Auto Process GitHub Issues
+on:
+  issues:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 'Repository to process (owner/repo)'
+        required: true
+      issue_number:
+        description: 'Issue number to process'
+        required: true
+
+jobs:
+  process-issue:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install Dependencies
+        run: |
+          cd mcp-server
+          npm install
+          npm run build
+          
+      - name: Setup Environment
+        run: |
+          echo "CLAUDE_CODE_API_URL=${{ secrets.CLAUDE_CODE_API_URL }}" >> $GITHUB_ENV
+          
+      - name: Process Issue Automatically
+        id: process_issue
+        run: |
+          cd mcp-server
+          
+          # Create a simple wrapper script to use MCP server
+          cat > process_issue.js << 'EOF'
+          import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+          import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+          
+          const repository = process.env.GITHUB_REPOSITORY || process.argv[2];
+          const issueNumber = process.env.ISSUE_NUMBER || parseInt(process.argv[3]);
+          
+          console.log(`Processing issue #${issueNumber} in ${repository}`);
+          
+          const transport = new StdioClientTransport({
+            command: 'node',
+            args: ['dist/index.js'],
+            env: {
+              CLAUDE_CODE_API_URL: process.env.CLAUDE_CODE_API_URL
+            }
+          });
+          
+          const client = new Client({
+            name: 'github-actions',
+            version: '1.0.0'
+          });
+          
+          try {
+            await client.connect(transport);
+            
+            const result = await client.callTool({
+              name: 'process-github-issue',
+              arguments: {
+                repository,
+                issueNumber,
+                branch: 'main'
+              }
+            });
+            
+            console.log('Process result:', result.content[0].text);
+            
+            // Save result to step output
+            const fs = await import('fs');
+            fs.writeFileSync('result.txt', result.content[0].text);
+            
+          } catch (error) {
+            console.error('Error:', error.message);
+            process.exit(1);
+          } finally {
+            await client.close();
+          }
+          EOF
+          
+          # Run the script
+          export ISSUE_NUMBER=${{ github.event.issue.number || github.event.inputs.issue_number }}
+          node process_issue.js
+          
+      - name: Comment on Issue
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = fs.readFileSync('mcp-server/result.txt', 'utf8');
+            
+            const issueNumber = context.issue?.number || ${{ github.event.inputs.issue_number }};
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `🤖 **Automated Processing Complete**\n\n${result}\n\n---\n*Processed by Claude Code Container MCP Server*`
+            });
+            
+      - name: Notify on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.issue?.number || ${{ github.event.inputs.issue_number }};
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `❌ **Automated Processing Failed**\n\nThe automated issue processing failed. Please check the [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId}) for details.\n\n---\n*Claude Code Container MCP Server*`
+            });

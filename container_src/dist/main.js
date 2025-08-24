@@ -226,6 +226,8 @@ async function processIssue(issueContext, githubToken) {
     }
 }
 async function processIssueHandler(req, res) {
+    const startTime = Date.now();
+    logWithContext('PROCESS', 'Starting issue processing', { timestamp: new Date().toISOString() });
     try {
         const body = await getRequestBody(req);
         const payload = JSON.parse(body || '{}');
@@ -249,10 +251,21 @@ async function processIssueHandler(req, res) {
             author: String(actualPayload.issue.user?.login || 'unknown')
         };
         const result = await processIssue(issueContext, githubToken);
+        const duration = Date.now() - startTime;
+        logWithContext('PROCESS', 'Issue processing completed', {
+            success: result.success,
+            durationMs: duration,
+            durationSeconds: Math.round(duration / 1000)
+        });
         return sendJson(res, result.success ? 200 : 500, result);
     }
     catch (error) {
-        logWithContext('PROCESS', 'Error processing issue', { error: error.message });
+        const duration = Date.now() - startTime;
+        logWithContext('PROCESS', 'Error processing issue', {
+            error: error.message,
+            durationMs: duration,
+            durationSeconds: Math.round(duration / 1000)
+        });
         return sendJson(res, 500, { success: false, message: error.message });
     }
 }
@@ -262,8 +275,19 @@ function sendJson(res, status, obj) {
 }
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
-    if (req.method === 'POST' && url.pathname === '/process-issue')
-        return processIssueHandler(req, res);
+    if (req.method === 'POST' && url.pathname === '/process-issue') {
+        // Process the issue
+        await processIssueHandler(req, res);
+        // Schedule server shutdown after a brief delay to allow response to complete
+        setTimeout(() => {
+            logWithContext('SERVER', 'Shutting down after processing issue');
+            server.close(() => {
+                logWithContext('SERVER', 'Server closed, process will exit');
+                process.exit(0);
+            });
+        }, 1000); // 1 second delay
+        return;
+    }
     if (req.method === 'GET' && url.pathname === '/health')
         return sendJson(res, 200, { status: 'healthy', instance: INSTANCE_ID });
     return sendJson(res, 404, { success: false, message: 'not found' });

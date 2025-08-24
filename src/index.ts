@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { Env, GitHubIssuePayload, GitHubAppConfig, ContainerRequest, PromptRequest, PromptProcessingResult } from "./types";
 import { GitHubAppConfigDO, MyContainer } from "./durable-objects";
 import { CryptoUtils } from "./crypto";
+import { addInstallationEndpoints } from "./installation-endpoints";
 
 // Export Durable Objects only
 export { GitHubAppConfigDO, MyContainer };
@@ -19,6 +20,10 @@ app.get("/", (c) => {
     version: "1.0.0",
     endpoints: {
       "/": "System information",
+      "/install": "GET - GitHub App installation page (UI)",
+      "/install/github-app": "GET - Get GitHub App installation URL",
+      "/install/callback": "GET - Handle GitHub installation callback",
+      "/install/status/:id": "GET - Check installation status",
       "/webhook/github": "POST - GitHub webhook endpoint",
       "/process-prompt": "POST - Process prompt and create issue",
       "/health": "Health check",
@@ -41,6 +46,9 @@ app.get("/health", (c) => {
     },
   });
 });
+
+// Add GitHub App installation endpoints
+addInstallationEndpoints(app);
 
 // Process prompt endpoint - creates issue and processes it automatically
 app.post("/process-prompt", async (c) => {

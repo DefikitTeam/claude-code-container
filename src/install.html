@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Install Claude Code GitHub App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: #24292f;
+            border-radius: 16px;
+            margin: 0 auto 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+        }
+        
+        h1 {
+            color: #24292f;
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .subtitle {
+            color: #656d76;
+            font-size: 18px;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+        
+        .features {
+            background: #f6f8fa;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 32px 0;
+            text-align: left;
+        }
+        
+        .features h3 {
+            color: #24292f;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .feature-list {
+            list-style: none;
+        }
+        
+        .feature-list li {
+            color: #656d76;
+            margin-bottom: 8px;
+            padding-left: 24px;
+            position: relative;
+        }
+        
+        .feature-list li::before {
+            content: "✓";
+            color: #22c55e;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+        
+        .install-button {
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin: 16px 0;
+        }
+        
+        .install-button:hover {
+            background: #2ea043;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
+        }
+        
+        .install-button:active {
+            transform: translateY(0);
+        }
+        
+        .permissions {
+            background: #fff8e1;
+            border: 1px solid #ffecb3;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 24px 0;
+            text-align: left;
+        }
+        
+        .permissions h4 {
+            color: #e65100;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .permissions ul {
+            list-style: disc;
+            padding-left: 20px;
+        }
+        
+        .permissions li {
+            color: #bf5f00;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .status {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            color: #15803d;
+            display: block;
+        }
+        
+        .status.error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            display: block;
+        }
+        
+        .github-logo {
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        .loading {
+            display: none;
+            margin-top: 16px;
+        }
+        
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #238636;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">⚡</div>
+        
+        <h1>Install Claude Code GitHub App</h1>
+        
+        <p class="subtitle">
+            Automate your GitHub workflow with AI-powered code analysis and issue processing
+        </p>
+        
+        <div class="features">
+            <h3>What this app will do:</h3>
+            <ul class="feature-list">
+                <li>Automatically analyze GitHub issues and provide intelligent responses</li>
+                <li>Generate pull requests with code fixes and improvements</li>
+                <li>Process repository analysis and provide insights</li>
+                <li>Integrate with Claude AI for advanced code understanding</li>
+            </ul>
+        </div>
+        
+        <div class="permissions">
+            <h4>⚠️ Required Permissions:</h4>
+            <ul>
+                <li>Issues (Read & Write) - to process and respond to issues</li>
+                <li>Pull Requests (Read & Write) - to create automated fixes</li>
+                <li>Contents (Read & Write) - to analyze and modify code</li>
+                <li>Metadata (Read) - to access repository information</li>
+            </ul>
+        </div>
+        
+        <button id="installButton" class="install-button" onclick="startInstallation()">
+            <span class="github-logo">📱</span>
+            Install on GitHub
+        </button>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            Redirecting to GitHub...
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e1e4e8; color: #656d76; font-size: 14px;">
+            <p>
+                🔒 Secure installation process powered by GitHub Apps.<br>
+                You can review and modify permissions after installation.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Check URL parameters for callback handling
+        const urlParams = new URLSearchParams(window.location.search);
+        const installationId = urlParams.get('installation_id');
+        const setupAction = urlParams.get('setup_action');
+        
+        // If we have installation_id, this is a callback from GitHub
+        if (installationId) {
+            handleInstallationCallback(installationId, setupAction);
+        }
+        
+        async function startInstallation() {
+            const button = document.getElementById('installButton');
+            const loading = document.getElementById('loading');
+            const status = document.getElementById('status');
+            
+            try {
+                button.style.display = 'none';
+                loading.style.display = 'block';
+                status.style.display = 'none';
+                
+                // Get installation URL from our API
+                const response = await fetch('/install/github-app');
+                const data = await response.json();
+                
+                if (data.installation_url) {
+                    // Redirect to GitHub for installation
+                    window.location.href = data.installation_url;
+                } else {
+                    throw new Error('Failed to get installation URL');
+                }
+                
+            } catch (error) {
+                console.error('Installation error:', error);
+                button.style.display = 'inline-block';
+                loading.style.display = 'none';
+                showStatus('error', 'Failed to start installation. Please try again.');
+            }
+        }
+        
+        async function handleInstallationCallback(installationId, setupAction) {
+            const status = document.getElementById('status');
+            const button = document.getElementById('installButton');
+            
+            try {
+                // Notify our backend about the installation
+                const response = await fetch(`/install/callback?installation_id=${installationId}&setup_action=${setupAction || 'install'}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    button.style.display = 'none';
+                    showStatus('success', `
+                        🎉 Installation successful! Installation ID: ${installationId}<br><br>
+                        <strong>Next steps:</strong><br>
+                        1. Configure your GitHub App credentials via the /config endpoint<br>
+                        2. Set up webhook URL: ${data.next_steps?.webhook_url || ''}<br>
+                        3. Test your integration
+                    `);
+                } else {
+                    throw new Error(data.error || 'Installation callback failed');
+                }
+                
+            } catch (error) {
+                console.error('Callback error:', error);
+                showStatus('error', `Installation callback failed: ${error.message}`);
+            }
+        }
+        
+        function showStatus(type, message) {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+            status.style.display = 'block';
+        }
+        
+        // Auto-hide loading after 5 seconds as fallback
+        setTimeout(() => {
+            const loading = document.getElementById('loading');
+            if (loading.style.display === 'block') {
+                loading.style.display = 'none';
+                document.getElementById('installButton').style.display = 'inline-block';
+                showStatus('error', 'Redirect timeout. Please try again.');
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

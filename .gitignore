@@ -41,6 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 /container_src/node_modules
+/container_src/dist
+/mcp-server/node_modules
+/mcp-server/dist
 /.wrangler
 
 .dev.vars
