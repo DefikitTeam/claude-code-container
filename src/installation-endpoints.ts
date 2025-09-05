@@ -352,11 +352,14 @@ export function addInstallationEndpoints(app: Hono<{ Bindings: Env }>) {
       app_name: appName,
       callback_url: callbackUrl,
       setup_url_note: "Make sure to set this callback_url as your GitHub App's Setup URL",
+      multi_tenant_note: "This is a service provider controlled GitHub App. Users only need the Installation ID.",
       instructions: {
         step_1: "Click the installation_url to install the GitHub App",
-        step_2: "Select repositories you want to grant access to",
+        step_2: "Select repositories you want to grant access to", 
         step_3: "GitHub will redirect back to callback_url with installation_id",
-        step_4: "Use the installation_id to configure the app via /config endpoint"
+        step_4: "Copy your installation_id and use it with /register-user endpoint",
+        step_5: "Provide your Anthropic API key when registering",
+        step_6: "Deploy your own Cloudflare Worker with your user credentials"
       }
     });
   });
@@ -379,18 +382,26 @@ export function addInstallationEndpoints(app: Hono<{ Bindings: Env }>) {
         success: true,
         installation_id,
         setup_action: setup_action || "install",
-        message: "GitHub App installation received",
+        message: "GitHub App installation successful!",
         next_steps: {
-          configure: `POST ${new URL(c.req.url).origin}/config`,
-          webhook_url: `${new URL(c.req.url).origin}/webhook/github`,
+          step_1: `Register as a user: POST ${new URL(c.req.url).origin}/register-user`,
+          step_2: "Deploy your own Cloudflare Worker",
+          step_3: `Configure webhook URL in your Worker: ${new URL(c.req.url).origin}/webhook/github`,
           required_data: {
-            app_id: "Your GitHub App ID",
             installation_id,
-            private_key: "Your GitHub App Private Key",
-            webhook_secret: "Your GitHub App Webhook Secret"
+            anthropic_api_key: "Your Anthropic API key"
           }
         },
-        note: "Please configure the app using the /config endpoint with your GitHub App credentials"
+        registration_example: {
+          method: "POST",
+          url: `${new URL(c.req.url).origin}/register-user`,
+          body: {
+            installationId: installation_id,
+            anthropicApiKey: "your-anthropic-api-key-here",
+            userId: "optional-custom-user-id"
+          }
+        },
+        note: "This GitHub App is managed by the service provider. You only need your Installation ID and Anthropic API key."
       });
 
     } catch (error) {

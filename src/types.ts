@@ -4,11 +4,17 @@ export interface Env {
   // Durable Object bindings (includes container classes)
   MY_CONTAINER: DurableObjectNamespace;
   GITHUB_APP_CONFIG: DurableObjectNamespace;
+  USER_CONFIG: DurableObjectNamespace;
 
   // Environment variables
   ANTHROPIC_API_KEY?: string;
   GITHUB_APP_ID?: string;
   GITHUB_WEBHOOK_SECRET?: string;
+  
+  // Fixed GitHub App configuration (service provider controlled)
+  FIXED_GITHUB_APP_ID?: string;
+  FIXED_GITHUB_PRIVATE_KEY?: string;
+  FIXED_GITHUB_WEBHOOK_SECRET?: string;
 }
 
 export interface GitHubAppConfig {
@@ -18,6 +24,32 @@ export interface GitHubAppConfig {
   installationId?: string;
   installationToken?: string;
   tokenExpiresAt?: number;
+}
+
+// Multi-tenant user configuration
+export interface UserConfig {
+  userId: string;
+  installationId: string;
+  anthropicApiKey: string;
+  repositoryAccess: string[]; // List of repo full_names the user has access to
+  created: number;
+  updated: number;
+  isActive: boolean;
+}
+
+// Fixed GitHub App configuration (service provider controlled)
+export interface FixedGitHubAppConfig {
+  appId: string;
+  privateKey: string;
+  webhookSecret: string;
+}
+
+// Per-user installation token cache
+export interface UserInstallationToken {
+  installationId: string;
+  token: string;
+  expiresAt: number;
+  userId: string;
 }
 
 export interface GitHubInstallation {
@@ -113,4 +145,25 @@ export interface StoredGitHubConfig {
   } | null;
   tokenExpiresAt?: number;
   updatedAt: string;
+}
+
+// Encrypted user configuration storage
+export interface StoredUserConfig {
+  userId: string;
+  installationId: string;
+  encryptedAnthropicApiKey: {
+    encryptedData: Uint8Array;
+    iv: Uint8Array;
+  };
+  repositoryAccess: string[];
+  created: number;
+  updated: number;
+  isActive: boolean;
+}
+
+// User registration request
+export interface UserRegistrationRequest {
+  installationId: string;
+  anthropicApiKey: string;
+  userId?: string; // Optional, can be generated if not provided
 }

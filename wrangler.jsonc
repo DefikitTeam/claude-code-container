@@ -23,6 +23,10 @@
       {
         "class_name": "GitHubAppConfigDO",
         "name": "GITHUB_APP_CONFIG"
+      },
+      {
+        "class_name": "UserConfigDO",
+        "name": "USER_CONFIG"
       }
     ]
   },
@@ -30,6 +34,10 @@
     {
       "new_sqlite_classes": ["MyContainer", "GitHubAppConfigDO"],
       "tag": "v1"
+    },
+    {
+      "new_sqlite_classes": ["UserConfigDO"],
+      "tag": "v2"
     }
   ],
   "vars": {
@@ -59,6 +67,10 @@
           {
             "class_name": "GitHubAppConfigDO",
             "name": "GITHUB_APP_CONFIG"
+          },
+          {
+            "class_name": "UserConfigDO",
+            "name": "USER_CONFIG"
           }
         ]
       }
@@ -85,6 +97,10 @@
           {
             "class_name": "GitHubAppConfigDO",
             "name": "GITHUB_APP_CONFIG"
+          },
+          {
+            "class_name": "UserConfigDO",
+            "name": "USER_CONFIG"
           }
         ]
       }
