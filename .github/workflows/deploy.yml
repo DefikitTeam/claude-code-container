@@ -14,13 +14,17 @@ on:
         - staging
         - development
 
-  # Auto-deploy on main branch push
+  # Auto-deploy on multiple branches  
   push:
-    branches: [ main ]
+    branches: [ main, develop, cloudflare-deploy-button ]
     paths-ignore:
       - 'README.md'
       - 'docs/**'
       - '*.md'
+
+  # Deploy previews on pull requests
+  pull_request:
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -50,12 +54,26 @@ jobs:
         cd container_src
         npm run build
         
+    - name: Determine environment
+      id: env
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "environment=production" >> $GITHUB_OUTPUT
+          echo "worker_name=claude-code-containers" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+          echo "environment=staging" >> $GITHUB_OUTPUT  
+          echo "worker_name=claude-code-containers-staging" >> $GITHUB_OUTPUT
+        else
+          echo "environment=development" >> $GITHUB_OUTPUT
+          echo "worker_name=claude-code-containers-dev" >> $GITHUB_OUTPUT
+        fi
+        
     - name: Deploy to Cloudflare Workers
       uses: cloudflare/wrangler-action@v3
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        command: deploy --env ${{ github.event.inputs.environment || 'production' }}
+        command: deploy --env ${{ steps.env.outputs.environment || github.event.inputs.environment || 'production' }} --name ${{ steps.env.outputs.worker_name }}
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
@@ -63,5 +81,5 @@ jobs:
     - name: Output deployment URL
       run: |
         echo "🚀 Deployment completed!"
-        echo "🔗 Your Worker is available at: https://claude-code-containers.workers.dev"
-        echo "⚙️ Setup GitHub App at: https://claude-code-containers.workers.dev/install"
+        echo "🔗 Your Worker is available at: https://${{ steps.env.outputs.worker_name }}.workers.dev"
+        echo "⚙️ Setup GitHub App at: https://${{ steps.env.outputs.worker_name }}.workers.dev/install"
