@@ -1,6 +1,15 @@
 # Claude Code Containers
 
-<div align="## 🚀 One-Click Deploy
+<div align="## � **Requirements**
+
+- **Node.js 20+** (for Wrangler CLI compatibility)
+- **Cloudflare Account** (free tier works)
+- **Anthropic API Key** (for Claude integration)
+- **GitHub Repository** (for automation)
+
+---
+
+## �🚀 One-Click Deploy
 
 ### Method 1: Fork + Auto-Deploy (Recommended)
 
