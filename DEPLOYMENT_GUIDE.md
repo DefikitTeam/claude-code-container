@@ -52,11 +52,15 @@ ENCRYPTION_KEY=your_32_character_encryption_key_here
 
 ### Step 3: Deploy
 1. Go to your forked repo's **Actions** tab
-2. Click **"Deploy to Cloudflare Workers"**
-3. Click **"Run workflow"**
+2. Look for **"Deploy to Cloudflare Workers"** workflow
+3. Click **"Run workflow"** (green button on the right)
 4. Select branch: `main`
 5. Choose environment: `production`
-6. Click **"Run workflow"**
+6. Click **"Run workflow"** to start deployment
+
+> **💡 Tip**: If you don't see the workflow, make sure you've committed the workflow files to your repository. The workflow should appear after you fork the repo.
+
+**Alternative**: Push any change to the `main` branch to trigger automatic deployment.
 
 ### Step 4: Complete Setup
 After deployment:
@@ -118,6 +122,13 @@ Once deployed successfully:
 ---
 
 ## 🆘 **Troubleshooting**
+
+### "Deploy to Cloudflare Workers" Not Showing in Actions Tab
+**Solutions:**
+1. **Refresh the page** - GitHub sometimes needs a moment to detect workflow files
+2. **Check the workflow files exist** - Make sure `.github/workflows/deploy.yml` exists in your fork
+3. **Force sync your fork** - Go to your fork → "Sync fork" → "Update branch"
+4. **Manual trigger** - Push any small change (edit README.md) to trigger the workflow
 
 ### "Unauthorized" Error
 - **Solution**: Use Method 1 (Fork + GitHub Actions)
