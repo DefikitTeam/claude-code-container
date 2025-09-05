@@ -4,7 +4,9 @@
 
 ## 🚀 One-Click Deploy to Cloudflare
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yourusername/claudecode-modern-container)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
+
+*Can't see the button above? [Click here to deploy manually](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)*
 
 **✨ Fork this repository and deploy your own Claude Code automation system in under 10 minutes!**
 
