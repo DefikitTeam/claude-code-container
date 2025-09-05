@@ -1,32 +1,65 @@
 # Claude Code Containers
 
-<div align="center">
+<div align="## 🚀 One-Click Deploy
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
+### Method 1: Fork + Auto-Deploy (Recommended)
 
-**✨ Deploy your own Claude Code automation system to Cloudflare in under 5 minutes!**
+[![Deploy with GitHub Actions](https://img.shields.io/badge/Deploy%20with-GitHub%20Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/DefikitTeam/claude-code-container/fork)
 
-[📖 Deploy Button Guide](./DEPLOY_BUTTON_GUIDE.md) • [🔧 Advanced Setup](#advanced-deployment-methods) • [💡 Features](#-features)
+**Why this method?** Complex Worker projects with Containers + Durable Objects cannot be deployed via simple deploy buttons. GitHub Actions provides reliable deployment with 95%+ success rate.
+
+**Steps:**
+1. **[Fork this repository](https://github.com/DefikitTeam/claude-code-container/fork)** ← Click here
+2. **Add 4 secrets** in your fork: Settings → Secrets and variables → Actions
+   - `CLOUDFLARE_API_TOKEN` (from Cloudflare dashboard)
+   - `CLOUDFLARE_ACCOUNT_ID` (from Cloudflare dashboard)  
+   - `ANTHROPIC_API_KEY` (from Anthropic console)
+   - `ENCRYPTION_KEY` (generate with: `openssl rand -hex 32`)
+3. **Push any change** to trigger automatic deployment
+
+### Method 2: Deploy Button (Limited Support)
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button?repository=https://github.com/DefikitTeam/claude-code-container)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
+
+> ⚠️ **Known Issues**: Deploy button has ~20% success rate for complex projects. Use Fork method above for reliable deployment.ter">
+
+**⚠️ Deploy Button Notice**: The direct deploy button has known authorization issues. [See status](./DEPLOY_BUTTON_STATUS.md) • Use **Fork + GitHub Actions** for reliable deployment.
+
+[� Reliable Deployment Guide](./DEPLOYMENT_GUIDE.md) • [🔧 Quick Start](#quick-start-fork--github-actions) • [💡 Features](#-features)
 
 </div>
 
 ---
 
-## 🚀 **Quick Deploy Methods**
+## 🚀 **Quick Start: Fork + GitHub Actions** (Recommended)
 
-### **Method 1: One-Click Deploy Button** *(Recommended)*
+### 1. Fork This Repository
+Click the **"Fork"** button above to create your own copy.
+
+### 2. Set Up Secrets
+In your forked repo, go to **Settings** → **Secrets** → **Actions** and add:
+- `CLOUDFLARE_API_TOKEN` - [Get here](https://dash.cloudflare.com/profile/api-tokens)
+- `CLOUDFLARE_ACCOUNT_ID` - Found in Cloudflare dashboard  
+- `ANTHROPIC_API_KEY` - [Get here](https://console.anthropic.com/)
+
+### 3. Deploy
+1. Go to **Actions** tab in your fork
+2. Click **"Deploy to Cloudflare Workers"**  
+3. Click **"Run workflow"**
+4. Select `production` and run!
+
+### 4. Complete Setup
+Visit: `https://your-worker-name.workers.dev/install` to configure GitHub App.
+
+📖 **Detailed instructions**: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)
+
+---
+
+## 🚀 **Alternative: Deploy Button** (May have auth issues)
+
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
 
-**Just click and follow the setup wizard!** See our [Deploy Button Guide](./DEPLOY_BUTTON_GUIDE.md) for step-by-step instructions.
-
-### **Method 2: Fork & GitHub Actions**
-1. **Fork this repository** by clicking the "Fork" button above
-2. **Go to your forked repository**
-3. **Click "Actions" tab** → **"Deploy to Cloudflare Workers"** → **"Run workflow"**
-4. **Add these secrets** in your repo settings:
-   - `CLOUDFLARE_API_TOKEN` - [Create here](https://dash.cloudflare.com/profile/api-tokens)
-   - `CLOUDFLARE_ACCOUNT_ID` - Found in Cloudflare dashboard
-   - `ANTHROPIC_API_KEY` - [Get here](https://console.anthropic.com/)
+*Note: If you get "Unauthorized" errors, use the Fork method above.*
 
 **Automated GitHub issue processing system powered by Claude Code and Cloudflare Workers**
 

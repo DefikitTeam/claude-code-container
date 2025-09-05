@@ -1,0 +1,21 @@
+{
+  "name": "Claude Code Container - AI GitHub Automation",
+  "description": "Multi-tier AI-powered GitHub automation system with Claude Code SDK, Containers, and Durable Objects",
+  "repository": "https://github.com/DefikitTeam/claude-code-container",
+  "tags": ["AI", "GitHub", "Automation", "Containers", "Durable Objects"],
+  "categories": ["AI", "Developer Tools", "Automation"],
+  "deployment": {
+    "type": "github-actions",
+    "workflow": ".github/workflows/deploy.yml",
+    "secrets_required": [
+      "CLOUDFLARE_API_TOKEN",
+      "CLOUDFLARE_ACCOUNT_ID"
+    ],
+    "environment_variables": [
+      "ANTHROPIC_API_KEY",
+      "ENCRYPTION_KEY"
+    ]
+  },
+  "setup_guide": "https://github.com/DefikitTeam/claude-code-container/blob/main/DEPLOYMENT_GUIDE.md",
+  "demo_url": "https://claude-code-container.your-subdomain.workers.dev"
+}

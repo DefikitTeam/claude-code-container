@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "deploy:prod": "wrangler deploy --env production",
+    "deploy:prod": "wrangler deploy --env production", 
+    "deploy:safe": "./deploy-with-auth-check.sh",
     "deploy:button": "./deploy-button.sh",
     "dev": "wrangler dev",
     "start": "wrangler dev",
