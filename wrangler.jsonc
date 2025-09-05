@@ -41,8 +41,11 @@
     }
   ],
   "vars": {
-    "ENVIRONMENT": "development",
+    "ENVIRONMENT": "production",
     "ENABLE_DEEP_REASONING": "false"
+  },
+  "build": {
+    "command": "npm run build:all"
   },
   "env": {
     "development": {

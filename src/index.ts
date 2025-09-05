@@ -4,9 +4,11 @@ import { GitHubAppConfigDO, MyContainer, UserConfigDO } from "./durable-objects"
 import { CryptoUtils } from "./crypto";
 import { addInstallationEndpoints } from "./installation-endpoints";
 import { addUserEndpoints } from "./user-endpoints";
+import { addDeploymentEndpoints } from "./deployment-endpoints";
 import { getFixedGitHubAppConfig, validateFixedAppConfig } from "./app-config";
 import { validateWebhookSignature, createLegacyGitHubAppConfig, getInstallationRepositories, getRepositoryInfo, createGitHubIssue } from "./github-utils";
 import { getTokenManager } from "./token-manager";
+import { webhookAuthMiddleware, quickAuthValidation } from "./auth-middleware";
 
 // Export Durable Objects only
 export { GitHubAppConfigDO, MyContainer, UserConfigDO };
@@ -82,6 +84,9 @@ addInstallationEndpoints(app);
 
 // Add user management endpoints
 addUserEndpoints(app);
+
+// Add deployment endpoints with authentication
+addDeploymentEndpoints(app);
 
 // Process prompt endpoint - creates issue and processes it automatically (multi-tenant)
 app.post("/process-prompt", async (c) => {

@@ -4,13 +4,23 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "deploy:button": "./deploy-button.sh",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "build": "npm run build:container",
+    "build:all": "npm install && npm run build:container",
+    "build:container": "cd container_src && npm install && npm run build",
+    "install:all": "npm install && cd container_src && npm install",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postinstall": "echo '📦 Installing container dependencies...' && cd container_src && npm install || echo '⚠️  Container dependencies installation failed'"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "5.8.3",
+    "vitest": "^2.1.9",
     "wrangler": "^4.25.0"
   },
   "dependencies": {

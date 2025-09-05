@@ -1,0 +1,46 @@
+{
+  "deploy": {
+    "button": {
+      "text": "Deploy to Cloudflare Workers",
+      "url": "https://deploy.workers.cloudflare.com/",
+      "params": {
+        "template": "https://github.com/DefikitTeam/claude-code-container"
+      }
+    },
+    "requirements": {
+      "cloudflare": {
+        "workers": "unlimited",
+        "durable_objects": true,
+        "containers": true
+      },
+      "external_services": [
+        {
+          "name": "Anthropic Claude API",
+          "url": "https://console.anthropic.com/",
+          "required": true
+        },
+        {
+          "name": "GitHub App",
+          "url": "https://github.com/settings/apps",
+          "required": true
+        }
+      ]
+    },
+    "post_deploy": {
+      "instructions": [
+        "Visit your deployed worker URL + /install to set up GitHub App integration",
+        "Configure your GitHub App webhook URL to point to your worker + /webhook/github",
+        "Test the system by creating a GitHub issue in a repository with the app installed"
+      ]
+    }
+  },
+  "build": {
+    "command": "npm run build:all",
+    "output": "dist"
+  },
+  "scripts": {
+    "prebuild": "npm install && cd container_src && npm install",
+    "build": "cd container_src && npm run build",
+    "postbuild": "echo 'Build completed successfully'"
+  }
+}

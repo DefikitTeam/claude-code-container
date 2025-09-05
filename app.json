@@ -1,0 +1,54 @@
+{
+  "name": "Claude Code Container",
+  "description": "Automated GitHub issue processing system powered by Claude Code and Cloudflare Workers",
+  "repository": "https://github.com/DefikitTeam/claude-code-container",
+  "logo": "https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/5ca0ca32-e897-4699-d4c1-6b680512f000/public",
+  "keywords": ["ai", "github", "automation", "claude", "typescript", "workers"],
+  "website": "https://github.com/DefikitTeam/claude-code-container",
+  "success_url": "/install",
+  "env": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Your Anthropic Claude API key from https://console.anthropic.com/",
+      "value": "",
+      "required": true
+    },
+    "GITHUB_APP_PRIVATE_KEY": {
+      "description": "GitHub App Private Key in PEM format (copy the entire key including headers)",
+      "value": "",
+      "required": true
+    },
+    "GITHUB_APP_ID": {
+      "description": "GitHub App ID number from your GitHub App settings",
+      "value": "",
+      "required": true
+    },
+    "GITHUB_WEBHOOK_SECRET": {
+      "description": "GitHub Webhook Secret for signature validation",
+      "value": "",
+      "required": true
+    },
+    "ENCRYPTION_KEY": {
+      "description": "32-byte hex string for data encryption (generate with: openssl rand -hex 32)",
+      "value": "",
+      "required": true
+    },
+    "ENVIRONMENT": {
+      "description": "Deployment environment",
+      "value": "production",
+      "required": false
+    },
+    "ENABLE_DEEP_REASONING": {
+      "description": "Enable advanced AI reasoning features",
+      "value": "false",
+      "required": false
+    }
+  },
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "standard"
+    }
+  },
+  "buildpacks": [],
+  "stack": "cloudflare-workers"
+}

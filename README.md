@@ -2,17 +2,31 @@
 
 <div align="center">
 
-## 🚀 One-Click Deploy to Cloudflare
-
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
 
-*Can't see the button above? [Click here to deploy manually](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)*
+**✨ Deploy your own Claude Code automation system to Cloudflare in under 5 minutes!**
 
-**✨ Fork this repository and deploy your own Claude Code automation system in under 10 minutes!**
+[📖 Deploy Button Guide](./DEPLOY_BUTTON_GUIDE.md) • [🔧 Advanced Setup](#advanced-deployment-methods) • [💡 Features](#-features)
 
 </div>
 
 ---
+
+## 🚀 **Quick Deploy Methods**
+
+### **Method 1: One-Click Deploy Button** *(Recommended)*
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
+
+**Just click and follow the setup wizard!** See our [Deploy Button Guide](./DEPLOY_BUTTON_GUIDE.md) for step-by-step instructions.
+
+### **Method 2: Fork & GitHub Actions**
+1. **Fork this repository** by clicking the "Fork" button above
+2. **Go to your forked repository**
+3. **Click "Actions" tab** → **"Deploy to Cloudflare Workers"** → **"Run workflow"**
+4. **Add these secrets** in your repo settings:
+   - `CLOUDFLARE_API_TOKEN` - [Create here](https://dash.cloudflare.com/profile/api-tokens)
+   - `CLOUDFLARE_ACCOUNT_ID` - Found in Cloudflare dashboard
+   - `ANTHROPIC_API_KEY` - [Get here](https://console.anthropic.com/)
 
 **Automated GitHub issue processing system powered by Claude Code and Cloudflare Workers**
 
