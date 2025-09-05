@@ -38,21 +38,8 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
-        
-    - name: Install worker dependencies
-      run: npm ci
-
-    - name: Install container dependencies
-      run: |
-        cd container_src
-        npm ci
-        
-    - name: Build container TypeScript
-      run: |
-        cd container_src
-        npm run build
         
     - name: Determine environment
       id: env
@@ -73,8 +60,13 @@ jobs:
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        preCommands: |
+          npm ci
+          cd container_src && npm ci && npm run build && cd ..
         command: deploy --env ${{ steps.env.outputs.environment || github.event.inputs.environment || 'production' }} --name ${{ steps.env.outputs.worker_name }}
       env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
 
