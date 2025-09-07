@@ -1,50 +1,30 @@
-# syntax=docker/dockerfile:1
+FROM node:22-alpine
 
-FROM node:22-slim AS base
+# Install system dependencies for git operations
+RUN apk add --no-cache git bash curl
 
-# Install system dependencies needed for Git, Python, and build tools
-RUN apt-get update && apt-get install -y \
-    git \
-    python3 \
-    python3-pip \
-    build-essential \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set destination for COPY
+# Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy container package files
 COPY container_src/package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including TypeScript for build)
+RUN npm ci
 
 # Copy container source code
-COPY container_src/dist/ ./
+COPY container_src/src ./src
+COPY container_src/tsconfig.json ./
 
-# Create a non-root user for security
-RUN addgroup --gid 1001 --system nodejs && \
-    adduser --system --uid 1001 nodejs --home /home/nodejs --shell /bin/bash
+# Build TypeScript to JavaScript
+RUN npx tsc
 
-# Create and set up home directory
-RUN mkdir -p /home/nodejs && chown -R nodejs:nodejs /home/nodejs
-
-# Change ownership of the app directory
-RUN chown -R nodejs:nodejs /app
-USER nodejs
-
-# Set working directory and environment
-ENV HOME=/home/nodejs
-WORKDIR /app
-
-# Expose port
-EXPOSE 8080
-
-# Add health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# Health check for container
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
-# Start the application
-CMD ["node", "main.js"]
+# Expose the port that the container listens on
+EXPOSE 8080
+
+# Start the container server
+CMD ["node", "dist/main.js"]

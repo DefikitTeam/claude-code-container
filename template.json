@@ -1,0 +1,48 @@
+{
+  "name": "Claude Code Containers",
+  "description": "Automated GitHub issue processing system powered by Claude Code",
+  "repository": "https://github.com/yourusername/claudecode-modern-container",
+  "version": "2.0.0",
+  "author": "Claude Code Team",
+  "license": "MIT",
+  
+  "deploy": {
+    "environment": "production",
+    "auto_configure": true,
+    "build_command": "npm install && cd container_src && npm install && npm run build",
+    "output_directory": "dist"
+  },
+  
+  "secrets": [
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Your Anthropic API key for Claude Code access",
+      "required": true,
+      "help_url": "https://console.anthropic.com/"
+    }
+  ],
+  
+  "env": {
+    "ENVIRONMENT": "production",
+    "ENABLE_DEEP_REASONING": "false"
+  },
+  
+  "cloudflare": {
+    "account_id_required": true,
+    "workers": {
+      "compatibility_date": "2025-05-23",
+      "compatibility_flags": ["nodejs_compat"],
+      "containers": true,
+      "durable_objects": true
+    }
+  },
+  
+  "setup_instructions": {
+    "post_deploy": [
+      "1. Your Claude Code Container is now deployed!",
+      "2. Create a GitHub App and get your Installation ID",
+      "3. Configure your GitHub App using the /config endpoint",
+      "4. Test by creating an issue in your repository"
+    ]
+  }
+}

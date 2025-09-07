@@ -1,6 +1,74 @@
 # Claude Code Containers
 
+<div align="## � **Requirements**
+
+- **Node.js 22+** (for Wrangler CLI and container compatibility)
+- **Cloudflare Account** (free tier works)
+- **Anthropic API Key** (for Claude integration)
+- **GitHub Repository** (for automation)
+
+---
+
+## �🚀 One-Click Deploy 
+
+### Method 1: Fork + Auto-Deploy (Recommended)
+
+[![Deploy with GitHub Actions](https://img.shields.io/badge/Deploy%20with-GitHub%20Actions-2088FF?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/DefikitTeam/claude-code-container/fork)
+
+**Why this method?** Complex Worker projects with Containers + Durable Objects cannot be deployed via simple deploy buttons. GitHub Actions provides reliable deployment with 95%+ success rate.
+
+**Steps:**
+1. **[Fork this repository](https://github.com/DefikitTeam/claude-code-container/fork)** ← Click here
+2. **Add 4 secrets** in your fork: Settings → Secrets and variables → Actions
+   - `CLOUDFLARE_API_TOKEN` (from Cloudflare dashboard)
+   - `CLOUDFLARE_ACCOUNT_ID` (from Cloudflare dashboard)  
+   - `ANTHROPIC_API_KEY` (from Anthropic console)
+   - `ENCRYPTION_KEY` (generate with: `openssl rand -hex 32`)
+3. **Push any change** to trigger automatic deployment
+
+### Method 2: Deploy Button (Limited Support)
+
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button?repository=https://github.com/DefikitTeam/claude-code-container)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
+
+> ⚠️ **Known Issues**: Deploy button has ~20% success rate for complex projects. Use Fork method above for reliable deployment.ter">
+
+**⚠️ Deploy Button Notice**: The direct deploy button has known authorization issues. [See status](./DEPLOY_BUTTON_STATUS.md) • Use **Fork + GitHub Actions** for reliable deployment.
+
+[� Reliable Deployment Guide](./DEPLOYMENT_GUIDE.md) • [🔧 Quick Start](#quick-start-fork--github-actions) • [💡 Features](#-features)
+
+</div>
+
+---
+
+## 🚀 **Quick Start: Fork + GitHub Actions** (Recommended)
+
+### 1. Fork This Repository
+Click the **"Fork"** button above to create your own copy.
+
+### 2. Set Up Secrets
+In your forked repo, go to **Settings** → **Secrets** → **Actions** and add:
+- `CLOUDFLARE_API_TOKEN` - [Get here](https://dash.cloudflare.com/profile/api-tokens)
+- `CLOUDFLARE_ACCOUNT_ID` - Found in Cloudflare dashboard  
+- `ANTHROPIC_API_KEY` - [Get here](https://console.anthropic.com/)
+
+### 3. Deploy
+1. Go to **Actions** tab in your fork
+2. Click **"Deploy to Cloudflare Workers"**  
+3. Click **"Run workflow"**
+4. Select `production` and run!
+
+### 4. Complete Setup
+Visit: `https://your-worker-name.workers.dev/install` to configure GitHub App.
+
+📖 **Detailed instructions**: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)
+
+---
+
+## 🚀 **Alternative: Deploy Button** (May have auth issues)
+
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
+
+*Note: If you get "Unauthorized" errors, use the Fork method above.*
 
 **Automated GitHub issue processing system powered by Claude Code and Cloudflare Workers**
 
@@ -44,15 +112,48 @@ GitHub Webhooks → Worker (Hono Router) → Container (Node.js + Claude Code) �
 - **Container** (`container_src/src/main.ts`): HTTP server (port 8080) running Claude Code SDK + git operations
 - **Durable Objects**: `GitHubAppConfigDO` (encrypted credentials), `MyContainer` (lifecycle management)
 
-## 🚀 Quick Start
+## 🚀 Quick Start Options
 
-### Prerequisites
+<div align="center">
+
+### 🎯 Choose Your Deployment Method
+
+</div>
+
+### Option 1: One-Click Deploy (Recommended) ⚡
+
+The fastest way to get your own Claude Code Container system up and running:
+
+1. **Click the deploy button above** ☝️
+2. **Fork the repository** to your GitHub account (automatic)
+3. **Connect your Cloudflare account** (guided setup)
+4. **Add your Anthropic API key** (secure form)
+5. **Deploy!** System will be live in ~5 minutes
+
+**Perfect for:** Quick testing, personal projects, getting started immediately
+
+### Option 2: Use as Template 📋
+
+Create your own repository from this template for customization:
+
+1. **Click "Use this template"** at the top of this repository
+2. **Create your new repository** 
+3. **Follow the setup guide** in your new repo's README
+4. **Deploy using the button** in your repository
+
+**Perfect for:** Custom modifications, team projects, production deployments
+
+### Option 3: Manual Setup (Advanced) 🛠️
+
+Full control over the deployment process:
+
+#### Prerequisites
 - [Node.js](https://nodejs.org/) 22+ and npm
 - [Cloudflare account](https://dash.cloudflare.com/sign-up) with Workers enabled
 - [GitHub App](https://github.com/settings/developers) created and installed
 - [Anthropic API key](https://console.anthropic.com/) for Claude Code
 
-### 1. Clone and Install
+#### 1. Clone and Install
 
 ```bash
 git clone https://github.com/DefikitTeam/claude-code-container.git
@@ -65,7 +166,7 @@ npm install
 cd ..
 ```
 
-### 2. Environment Setup
+#### 2. Environment Setup
 
 ```bash
 # Copy environment template
@@ -75,7 +176,7 @@ cp .dev.vars.example .dev.vars
 # Required: ANTHROPIC_API_KEY
 ```
 
-### 3. Build Container
+#### 3. Build Container
 
 ```bash
 # Build TypeScript container code
@@ -84,7 +185,7 @@ npm run build
 cd ..
 ```
 
-### 4. Deploy
+#### 4. Deploy
 
 ```bash
 # Deploy to Cloudflare Workers
@@ -179,9 +280,14 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/process-prompt \
 | `/` | GET | System information |
 | `/health` | GET | Health check |
 | `/webhook/github` | POST | GitHub webhook endpoint |
-| `/process-prompt` | POST | **New!** Process prompt directly |
+| `/process-prompt` | POST | Process prompt directly |
 | `/config` | GET/POST | GitHub App configuration |
 | `/container/health` | GET | Container health check |
+| **🚀 Deployment API** | | **One-Click Deploy Features** |
+| `/api/deploy/initiate` | POST | **New!** Initiate repository deployment |
+| `/api/deploy/configure` | POST | **New!** Configure deployment credentials |
+| `/api/deploy/execute` | POST | **New!** Execute deployment process |
+| `/api/deploy/status/:id` | GET | **New!** Track deployment status |
 
 ### API Response Examples
 
@@ -204,6 +310,73 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/process-prompt \
 {
   "success": false,
   "error": "Repository user/nonexistent not found or not accessible"
+}
+```
+
+### 🚀 Deployment API Usage
+
+The deployment API enables the "Deploy on Cloudflare" button functionality:
+
+**1. Initiate Deployment:**
+```bash
+curl -X POST https://your-worker.your-subdomain.workers.dev/api/deploy/initiate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repositoryUrl": "https://github.com/yourusername/claudecode-modern-container"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "deploymentId": "uuid-deployment-id",
+  "status": "initiated",
+  "nextStep": "configure",
+  "configurationUrl": "https://your-worker.your-subdomain.workers.dev/api/deploy/configure?id=uuid-deployment-id",
+  "message": "Deployment initiated. Please configure your credentials."
+}
+```
+
+**2. Configure Deployment:**
+```bash
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/deploy/configure?id=uuid-deployment-id" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "anthropicApiKey": "sk-ant-your-key",
+    "githubToken": "ghp_your-token", 
+    "cloudflareApiToken": "your-cf-token",
+    "cloudflareAccountId": "your-cf-account-id"
+  }'
+```
+
+**3. Execute Deployment:**
+```bash
+curl -X POST "https://your-worker.your-subdomain.workers.dev/api/deploy/execute?id=uuid-deployment-id"
+```
+
+**4. Check Status:**
+```bash
+curl https://your-worker.your-subdomain.workers.dev/api/deploy/status/uuid-deployment-id
+```
+
+**Status Response:**
+```json
+{
+  "success": true,
+  "deployment": {
+    "id": "uuid-deployment-id",
+    "status": "completed",
+    "progress": 100,
+    "steps": {
+      "fork_repository": "completed",
+      "configure_secrets": "completed", 
+      "deploy_worker": "completed",
+      "verify_deployment": "completed"
+    },
+    "workerUrl": "https://uuid-deployment-id.your-subdomain.workers.dev",
+    "repositoryUrl": "https://github.com/username/uuid-deployment-id-claude-code-containers"
+  }
 }
 ```
 

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-deploy-button/main/deploy-button-schema.json",
+  "name": "Claude Code Container",
+  "description": "Automated GitHub issue processing system powered by Claude Code and Cloudflare Workers",
+  "repository": "https://github.com/DefikitTeam/claude-code-container",
+  "image": "https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/5ca0ca32-e897-4699-d4c1-6b680512f000/public",
+  "deployment": {
+    "compatibility_date": "2025-05-23",
+    "compatibility_flags": ["nodejs_compat"],
+    "build": {
+      "command": "npm run build:all"
+    },
+    "environment_variables": {
+      "ANTHROPIC_API_KEY": {
+        "type": "secret",
+        "description": "Anthropic Claude API key (get from https://console.anthropic.com/)"
+      },
+      "GITHUB_APP_PRIVATE_KEY": {
+        "type": "secret", 
+        "description": "GitHub App Private Key in PEM format"
+      },
+      "GITHUB_APP_ID": {
+        "type": "plain_text",
+        "description": "GitHub App ID number"
+      },
+      "GITHUB_WEBHOOK_SECRET": {
+        "type": "secret",
+        "description": "GitHub Webhook Secret"
+      },
+      "ENCRYPTION_KEY": {
+        "type": "secret",
+        "description": "32-byte hex encryption key (generate with: openssl rand -hex 32)"
+      }
+    },
+    "services": {
+      "durable_objects": [
+        {
+          "class_name": "MyContainer",
+          "script_name": "claude-code-containers"
+        },
+        {
+          "class_name": "GitHubAppConfigDO", 
+          "script_name": "claude-code-containers"
+        },
+        {
+          "class_name": "UserConfigDO",
+          "script_name": "claude-code-containers"
+        }
+      ],
+      "containers": [
+        {
+          "class_name": "MyContainer",
+          "image": "./Dockerfile"
+        }
+      ]
+    }
+  },
+  "setup": {
+    "post_deploy_url": "/install",
+    "instructions": [
+      "Your Claude Code Container is now deployed!",
+      "Visit the setup page to configure your GitHub App integration.",
+      "You'll need to create a GitHub App and configure webhook settings."
+    ]
+  }
+}

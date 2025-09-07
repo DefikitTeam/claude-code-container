@@ -1,0 +1,30 @@
+<svg width="200" height="40" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="buttonGradientDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d3748;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a202c;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadowDark" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  
+  <!-- Button background -->
+  <rect x="2" y="2" width="196" height="36" rx="6" fill="url(#buttonGradientDark)" 
+        stroke="#f38020" stroke-width="1" filter="url(#shadowDark)"/>
+  
+  <!-- Cloudflare logo/icon -->
+  <g transform="translate(12, 10)">
+    <circle cx="10" cy="10" r="8" fill="#f38020" opacity="0.9"/>
+    <path d="M6 10 L14 10 M10 6 L10 14" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Button text -->
+  <text x="100" y="25" font-family="Arial, sans-serif" font-size="14" font-weight="600" 
+        text-anchor="middle" fill="#f38020">
+    Deploy on Cloudflare
+  </text>
+  
+  <!-- Hover effect overlay -->
+  <rect x="2" y="2" width="196" height="36" rx="6" fill="rgba(243,128,32,0.1)" opacity="0" class="hover-overlay"/>
+</svg>

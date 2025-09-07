@@ -4,6 +4,32 @@
 
 This project implements an automated GitHub issue processing system powered by Claude Code, built on Cloudflare Workers with containerized execution environments. The system integrates GitHub webhooks, secure credential management, and AI-driven code analysis to automatically respond to GitHub issues with intelligent solutions and pull requests.
 
+
+## ✅ DO
+
+1. Update specifications when requirements change
+2. Link code to specification sections in comments
+3. Keep tasks.md current with progress
+4. Create integration specifications for cross-module features
+5. Run linters before committing (rubocop -A, pnpm lint:fix)
+6. Add tests for new functionality
+7. Follow project conventions in CLAUDE.md
+8. Manually test your changes
+
+## ❌ DON'T
+
+1. Write code without a specification
+2. Ignore specification constraints during implementation
+3. Leave specifications outdated after changes
+4. Skip the specification review process
+5. Commit debugging statements or commented code
+6. Use hardcoded values instead of constants
+7. Expose sensitive data in logs or commits
+8. Merge without passing CI checks
+9. Use legacy validation patterns for schedule events
+10. Create hardcoded schedule conversion logic
+11. Skip frequency-specific validation requirements
+
 ## Architecture
 
 ### High-Level Architecture

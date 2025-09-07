@@ -1,0 +1,19 @@
+{
+  "name": "Claude Code Container",
+  "description": "Automated GitHub issue processing system powered by Claude Code",
+  "repository": "https://github.com/DefikitTeam/claude-code-container",
+  "success_url": "/install",
+  "env": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Your Anthropic Claude API key from https://console.anthropic.com/",
+      "required": true
+    },
+    "ENCRYPTION_KEY": {
+      "description": "32-byte hex string (generate with: openssl rand -hex 32)",
+      "generator": "secret"
+    }
+  },
+  "formation": {},
+  "addons": [],
+  "buildpacks": []
+}

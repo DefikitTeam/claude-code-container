@@ -3,6 +3,9 @@ import { Container } from '@cloudflare/containers';
 import { Env, GitHubAppConfig, StoredGitHubConfig } from './types';
 import { CryptoUtils, EncryptedData } from './crypto';
 
+// Export the new UserConfigDO
+export { UserConfigDO } from './user-config-do';
+
 /**
  * Durable Object for secure GitHub App configuration storage
  */
@@ -209,9 +212,9 @@ export class MyContainer extends Container<Env> {
   // Time before container sleeps due to inactivity (allow time for GitHub issue processing)
   sleepAfter = "5m"; // 5 minutes - enough for most GitHub issue processing
   // Environment variables passed to the container
+  // Note: ANTHROPIC_API_KEY is now provided per-request in fetch() env parameter
   envVars = {
-    ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY || '',
-    NODE_ENV: 'development',
+    NODE_ENV: 'production',
     CONTAINER_ID: crypto.randomUUID(),
     PORT: "8080",
   };

@@ -1,0 +1,81 @@
+# GitHub Actions Deployment Template
+# Copy this to .github/workflows/deploy.yml and customize for your repository
+
+name: Deploy Claude Code Containers
+
+on:
+  # Deploy on pushes to main branch
+  push:
+    branches: [ main ]
+  
+  # Allow manual deployment
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production' 
+        type: choice
+        options:
+        - development
+        - staging
+        - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare Workers
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install container dependencies  
+      run: |
+        cd container_src
+        npm ci
+        
+    - name: Build container
+      run: |
+        cd container_src
+        npm run build
+        
+    - name: Deploy to Cloudflare Workers
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        command: deploy --env ${{ github.event.inputs.environment || 'production' }}
+      env:
+        # Pass secrets to the deployment
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+# Setup Instructions:
+# 
+# 1. Copy this file to .github/workflows/deploy.yml
+# 
+# 2. Set up the following secrets in your repository settings:
+#    - CLOUDFLARE_API_TOKEN: Your Cloudflare API token
+#    - CLOUDFLARE_ACCOUNT_ID: Your Cloudflare account ID  
+#    - ANTHROPIC_API_KEY: Your Anthropic API key
+#
+# 3. Get your Cloudflare credentials:
+#    - API Token: https://dash.cloudflare.com/profile/api-tokens
+#    - Account ID: Found in your Cloudflare dashboard sidebar
+#
+# 4. Optional: Add additional secrets for GitHub App configuration:
+#    - GITHUB_APP_ID: Your GitHub App ID
+#    - GITHUB_WEBHOOK_SECRET: Your webhook secret
+#
+# 5. Customize the workflow triggers and environments as needed
+#
+# 6. Push to main branch or run manually to deploy!
