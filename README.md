@@ -9,7 +9,7 @@
 
 ---
 
-## �🚀 One-Click Deploy
+## �🚀 One-Click Deploy 
 
 ### Method 1: Fork + Auto-Deploy (Recommended)
 
