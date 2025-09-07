@@ -334,7 +334,7 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
 /**
  * Helper function to get UserConfigDO instance
  */
-function getUserConfigDO(env: Env) {
+export function getUserConfigDO(env: Env) {
   const id = env.USER_CONFIG.idFromName("user-config");
   return env.USER_CONFIG.get(id);
 }

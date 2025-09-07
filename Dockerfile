@@ -9,8 +9,8 @@ WORKDIR /app
 # Copy container package files
 COPY container_src/package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including TypeScript for build)
+RUN npm ci
 
 # Copy container source code
 COPY container_src/src ./src

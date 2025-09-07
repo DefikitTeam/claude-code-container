@@ -24,21 +24,21 @@ npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
 - name: Setup Node.js
   uses: actions/setup-node@v4
   with:
-    node-version: '20'  # Changed from '18' to '20'
+    node-version: '22'  # Updated to '22' for full compatibility
     cache: 'npm'
 ```
 
 ### 2. **Updated Documentation**
 ```markdown
 # DEPLOYMENT_GUIDE.md
-- [Node.js 20+](https://nodejs.org/) (required for latest Wrangler)
+- [Node.js 22+](https://nodejs.org/) (required for latest Wrangler and container compatibility)
 ```
 
 ### 3. **Added Engine Requirements**
 ```json
 // package.json
 "engines": {
-  "node": ">=20.0.0"
+  "node": ">=22.0.0"
 }
 ```
 
@@ -53,8 +53,8 @@ npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
 
 | **Component** | **Node.js Version** | **Reason** |
 |---------------|-------------------|------------|
-| **GitHub Actions** | Node.js 20+ | Wrangler 3.90.0+ compatibility |
-| **Local Development** | Node.js 20+ | Wrangler CLI requirements |
+| **GitHub Actions** | Node.js 22+ | Full Wrangler + Container compatibility |
+| **Local Development** | Node.js 22+ | Wrangler CLI + Container requirements |
 | **Container Runtime** | Node.js 22+ | Cloudflare Container compatibility |
 
 ## 🔧 **For Users Who Fork**
@@ -73,7 +73,7 @@ If you forked before the fix:
 - name: Setup Node.js
   uses: actions/setup-node@v4
   with:
-    node-version: '20'  # Change from '18' to '20'
+    node-version: '22'  # Change to '22' for full compatibility
     cache: 'npm'
 ```
 
@@ -89,8 +89,8 @@ node --version
 
 # If < 20.0.0, upgrade Node.js
 # Using nvm (recommended):
-nvm install 20
-nvm use 20
+nvm install 22
+nvm use 22
 
 # Or download from: https://nodejs.org/
 ```
@@ -101,7 +101,7 @@ After applying the fix:
 
 ```bash
 # Verify Node.js version
-node --version  # Should show v20.x.x or higher
+node --version  # Should show v22.x.x or higher
 
 # Verify Wrangler works
 npx wrangler --version  # Should install without engine warnings
@@ -109,7 +109,7 @@ npx wrangler --version  # Should install without engine warnings
 
 ## 📋 **Deployment Process Now**
 
-1. **Fork repository** (gets latest workflow with Node.js 20)
+1. **Fork repository** (gets latest workflow with Node.js 22)
 2. **Add 4 secrets** (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, ANTHROPIC_API_KEY, ENCRYPTION_KEY)
 3. **Push change or run workflow manually** 
 4. **✅ Deployment succeeds** without engine warnings

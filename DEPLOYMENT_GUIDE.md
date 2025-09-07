@@ -75,7 +75,7 @@ After deployment:
 For developers who prefer command-line:
 
 ### Prerequisites
-- [Node.js 20+](https://nodejs.org/) (required for latest Wrangler)
+- [Node.js 22+](https://nodejs.org/) (required for latest Wrangler and container compatibility)
 - [Git](https://git-scm.com/)
 
 ### Steps
@@ -131,14 +131,14 @@ Once deployed successfully:
 4. **Manual trigger** - Push any small change (edit README.md) to trigger the workflow
 
 ### Node.js Engine Version Error
-**Error:** `npm warn EBADENGINE Unsupported engine... required: { node: '>= 20' }`
+**Error:** `npm warn EBADENGINE Unsupported engine... required: { node: '>= 22' }`
 
 **Solutions:**
-1. **Use latest workflow** - If you forked recently, the workflow should already use Node.js 20
-2. **Update workflow** - Change `node-version: '18'` to `node-version: '20'` in `.github/workflows/deploy.yml`
+1. **Use latest workflow** - If you forked recently, the workflow should already use Node.js 22
+2. **Update workflow** - Change `node-version: '18'` or `'20'` to `node-version: '22'` in `.github/workflows/deploy.yml`
 3. **Re-run workflow** - After fixing, manually trigger the workflow again
 
-**Details:** Wrangler 3.90.0+ requires Node.js 20+. See [NODEJS_VERSION_FIX.md](./NODEJS_VERSION_FIX.md) for complete details.
+**Details:** Container requires Node.js 22+ for full compatibility. See [NODEJS_VERSION_FIX.md](./NODEJS_VERSION_FIX.md) for complete details.
 
 ### "Unauthorized" Error
 - **Solution**: Use Method 1 (Fork + GitHub Actions)

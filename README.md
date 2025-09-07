@@ -2,7 +2,7 @@
 
 <div align="## � **Requirements**
 
-- **Node.js 20+** (for Wrangler CLI compatibility)
+- **Node.js 22+** (for Wrangler CLI and container compatibility)
 - **Cloudflare Account** (free tier works)
 - **Anthropic API Key** (for Claude integration)
 - **GitHub Repository** (for automation)

@@ -22,7 +22,7 @@
     "@types/node": "^22.0.0",
     "typescript": "5.8.3",
     "vitest": "^2.1.9",
-    "wrangler": "^4.25.0"
+    "wrangler": "^4.34.0"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.27",
