@@ -22,6 +22,36 @@
     "ENABLE_DEEP_REASONING": "false"
   },
   "env": {
+    "production": {
+      "name": "claude-code-containers-production",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ENABLE_DEEP_REASONING": "false"
+      },
+      "containers": [
+        {
+          "class_name": "MyContainer",
+          "image": "./Dockerfile",
+          "max_instances": 10
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "class_name": "MyContainer",
+            "name": "MY_CONTAINER"
+          },
+          {
+            "class_name": "GitHubAppConfigDO",
+            "name": "GITHUB_APP_CONFIG"
+          },
+          {
+            "class_name": "UserConfigDO",
+            "name": "USER_CONFIG"
+          }
+        ]
+      }
+    },
     "development": {
       "name": "claude-code-containers-dev",
       "vars": {
