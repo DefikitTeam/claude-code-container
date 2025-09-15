@@ -1,0 +1,81 @@
+openapi: 3.0.3
+info:
+  title: ACP Bridge API
+  version: 0.1.0
+  description: Minimal API surface for Zed ACP bridge (Worker endpoints)
+servers:
+  - url: https://{{worker_host}}
+paths:
+  /acp/initialize:
+    post:
+      summary: Initialize an ACP session (register agent)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agentId:
+                  type: string
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  sessionId:
+                    type: string
+  /acp/task/execute:
+    post:
+      summary: Execute ACP task message; forwards mapped payloads to container
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Acknowledged / forwarded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  forwarded:
+                    type: boolean
+                  status:
+                    type: integer
+  /acp/status:
+    get:
+      summary: Get bridge status and active sessions
+      responses:
+        '200':
+          description: Current sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        sessionId:
+                          type: string
+                        agentId:
+                          type: string

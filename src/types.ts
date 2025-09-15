@@ -167,3 +167,22 @@ export interface UserRegistrationRequest {
   anthropicApiKey: string;
   userId?: string; // Optional, can be generated if not provided
 }
+
+// --- ACP (Agent Client Protocol) types ---
+export interface ACPMessage {
+  id: string;
+  type: string;
+  sender: string;
+  target?: string;
+  timestamp: number;
+  payload?: any;
+  signature?: string;
+}
+
+export interface ACPSession {
+  sessionId: string;
+  agentId: string;
+  capabilities: string[];
+  createdAt: number;
+  lastSeenAt: number;
+}

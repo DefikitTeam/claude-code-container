@@ -278,3 +278,98 @@ export class MyContainer extends Container<Env> {
     }
   }
 }
+
+/**
+ * Durable Object: ACP session storage (minimal stub)
+ * Stores ACPSession and SessionAuditRecord per sessionId
+ */
+export class ACPSessionDO extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    try {
+      const url = new URL(request.url);
+      const method = request.method;
+
+      if (method === 'POST' && url.pathname === '/session/create') {
+        const body = await request.json() as any;
+        const sessionId = body.sessionId || crypto.randomUUID();
+        const session = {
+          sessionId,
+          agentId: body.agentId,
+          handshakeState: 'established',
+          negotiatedCapabilities: body.capabilities || [],
+          lastHeartbeat: Date.now()
+        } as any;
+        await this.ctx.storage.put(sessionId, session);
+        return new Response(JSON.stringify({ success: true, session }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      if (method === 'GET' && url.pathname.startsWith('/session/')) {
+        const sessionId = url.pathname.replace('/session/', '');
+        const session = await this.ctx.storage.get(sessionId);
+        if (!session) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(session), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      if (method === 'POST' && url.pathname.startsWith('/session/') && url.pathname.endsWith('/audit')) {
+        const parts = url.pathname.split('/');
+        const sessionId = parts[2];
+        const record = await request.json() as any;
+        const auditsKey = `audit:${sessionId}`;
+        const existing = (await this.ctx.storage.get(auditsKey)) as any[] || [];
+        existing.push({ ...record, timestamp: Date.now() });
+        await this.ctx.storage.put(auditsKey, existing);
+        return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      return new Response('Not found', { status: 404 });
+    } catch (err) {
+      console.error('ACPSessionDO error', err);
+      return new Response(JSON.stringify({ error: 'internal' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+}
+
+/**
+ * Durable Object: ACP outbound queue (minimal stub)
+ * Stores OutboundQueueItem objects and exposes enqueue/dequeue endpoints
+ */
+export class ACPQueueDO extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    try {
+      const url = new URL(request.url);
+      const method = request.method;
+
+      if (method === 'POST' && url.pathname === '/enqueue') {
+        const item = await request.json() as any;
+        const id = item.id || crypto.randomUUID();
+        const stored = { ...item, id, retries: 0, status: 'pending', nextAttemptAt: Date.now() } as any;
+        // store in a simple list
+        const list = (await this.ctx.storage.get('queue')) as any[] || [];
+        list.push(stored);
+        await this.ctx.storage.put('queue', list);
+        return new Response(JSON.stringify({ success: true, id }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      if (method === 'POST' && url.pathname === '/dequeue') {
+        const list = (await this.ctx.storage.get('queue')) as any[] || [];
+        if (list.length === 0) return new Response(JSON.stringify({ item: null }), { headers: { 'Content-Type': 'application/json' } });
+        const item = list.shift();
+        await this.ctx.storage.put('queue', list);
+        return new Response(JSON.stringify({ item }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      return new Response('Not found', { status: 404 });
+    } catch (err) {
+      console.error('ACPQueueDO error', err);
+      return new Response(JSON.stringify({ error: 'internal' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+}
