@@ -79,3 +79,50 @@ paths:
                           type: string
                         agentId:
                           type: string
+
+  /acp/rpc:
+    post:
+      summary: Generic JSON-RPC endpoint for ACP methods (initialize, session/new, session/prompt, etc.)
+      description: |
+        Accepts a JSON-RPC 2.0 envelope. This endpoint is the recommended first-step for ACP compatibility.
+        For streaming session.load and incremental session.update messages, implement `/acp/ws` WebSocket upgrade (see quickstart).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                jsonrpc:
+                  type: string
+                  example: "2.0"
+                id:
+                  oneOf:
+                    - type: string
+                    - type: integer
+                method:
+                  type: string
+                params:
+                  type: object
+      responses:
+        '200':
+          description: JSON-RPC response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+                  id:
+                    oneOf:
+                      - type: string
+                      - type: integer
+                  result:
+                    type: object
+                  error:
+                    type: object
+
+x-websocket-note: |
+  For full ACP compatibility, the Worker should support a WebSocket upgrade at `/acp/ws` that transports JSON-RPC messages bidirectionally. OpenAPI has limited WS support; document the WS protocol here and in `quickstart.md`.

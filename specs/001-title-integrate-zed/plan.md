@@ -3,26 +3,29 @@
 Branch: `001-title-integrate-zed` | Date: 2025-09-15 | Spec: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/spec.md`
 
 ## Summary
-Primary requirement: Replace the container's API-only communications with an ACP-capable bridge so the Claude Code agent can participate in multi-agent conversations over Zed ACP: perform handshake, route messages, share context, execute mapped workflows (e.g., GitHub issue -> container processing -> PR), and fall back to existing API flows when ACP is unreachable.
+Primary requirement: Transform the Claude Code container into an ACP-compliant agent that can participate in multi-agent conversations via Zed's Agent Client Protocol. The container will expose a stdio JSON-RPC interface for ACP communication while maintaining backward compatibility with existing HTTP API workflows.
+
+**Architecture Change**: The original plan incorrectly assumed HTTP-based ACP endpoints. ACP requires subprocess spawning with stdio JSON-RPC communication. This plan has been revised to implement the correct ACP protocol.
 
 This plan follows the repository's plan-template and produces Phase 0 (research) and Phase 1 (design/contracts) artifacts. Phase 2 (task generation) is described but not executed here.
 
 ## Checklist (what I'll produce in this plan)
-- [x] Phase 0 research artifacts: `research.md` (resolving NEEDS CLARIFICATION)
-- [x] Phase 1 design artifacts: `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`
-- [x] Phase 2 approach described (tasks.md will be produced by `/tasks` per template)
+- [x] Phase 0 research artifacts: `research.md` (UPDATED with correct ACP understanding)
+- [ ] Phase 1 design artifacts: `data-model.md`, `contracts/acp-schema.json`, `quickstart.md` (REVISED)
+- [ ] Phase 2 approach described (tasks.md will be produced by `/tasks` per template)
 
 ---
 
-## Technical Context (inferred / assumptions)
-- Language / Platform: TypeScript / Cloudflare Workers (existing repo)
-- Project type: Web/API (Cloudflare Worker + Durable Objects + container runtime)
-- Storage: Durable Objects for persistent state (recommended), in-memory only for demo
-- Testing: existing repo uses Vitest; contract tests and integration tests are required per constitution
+## Technical Context (CORRECTED)
+- Language / Platform: TypeScript / Cloudflare Workers + Container Runtime
+- Project type: Web/API (Cloudflare Worker + Durable Objects + container runtime + ACP agent)
+- Storage: Durable Objects for session persistence, file-based storage in container for ACP state
+- Testing: existing repo uses Vitest; JSON-RPC contract tests and integration tests required
 - Constraints / Assumptions:
-  - Zed ACP provides an HTTP or WebSocket-based agent protocol (assume HTTP-compatible endpoints)
-  - ACP identity material (keys) and mapping to GitHub installations must be provided by operator or via an admin UI
-  - For Phase 0 we choose conservative defaults (message size, retry/backoff) that can be tuned
+  - **ACP Protocol**: JSON-RPC 2.0 over stdio, subprocess spawning model (NOT HTTP endpoints)
+  - **Container Role**: Claude Code container becomes an ACP-compliant agent subprocess
+  - **Communication**: stdio JSON-RPC between Zed (client) and container (agent)
+  - **Backward Compatibility**: Maintain existing HTTP API while adding ACP stdio interface
 
 ## Constitution Check (initial)
 - Simplicity: Plan keeps implementation as a focused library module (`src/acp-bridge.ts`) and uses existing Durable Objects for persistence. No extra project splits.
@@ -46,58 +49,95 @@ Gate: all NEEDS CLARIFICATION items from spec must be resolved in `research.md` 
 
 ## Phase 1 (design & contracts)
 Artifacts generated:
-- `data-model.md` — entities, fields, validation and state transitions
-- `contracts/openapi.yaml` — minimal OpenAPI specification for ACP endpoints the Worker will expose
-- `quickstart.md` — minimal operator quickstart to configure and test ACP
+- `data-model.md` — JSON-RPC message types, session entities, and state transitions
+- `contracts/acp-schema.json` — JSON-RPC method schemas and message formats for ACP protocol
+- `quickstart.md` — operator guide to run container as ACP agent with Zed
 
-Design decisions (high level):
-- Expose an ACP HTTP bridge in the Worker at `/acp/*` that accepts ACP messages and forwards mapped messages to the same Durable Object container flow used by webhooks and prompt processing.
-- Use Durable Objects:
-  - `ACP_SESSION_DO` — store session records (sessionId, agentId, capabilities, lastSeen, trustLevel)
-  - `ACP_QUEUE_DO` — persistent outbound queue with retry/backoff metadata
-- Authorization model:
-  - Primary (safe) mode: operator maps ACP agent public key or id -> GitHub installation id / user. Actions requiring repository privileges require that mapping.
-  - Admin approval workflow required for new mappings.
-  - Optional: local allow-list for internal agents (dev/test only).
-- Context sharing policy:
-  - Small contexts inline (<= 8k tokens). Larger contexts referenced by artifact id (container-hosted workspace snapshot, pre-created repo patch) and fetched by agent on demand.
+Design decisions (CORRECTED):
+- **Container ACP Agent**: Transform Claude Code container into ACP-compliant agent subprocess
+- **Dual Interface**: Container supports both HTTP API (existing) and stdio JSON-RPC (new ACP)
+- **Session Management**: In-container session state with optional Durable Object persistence
+- **Authorization model**:
+  - ACP agents authenticate via GitHub installation tokens (inherited from container environment)
+  - Session isolation: each ACP session = isolated workspace within container
+  - Permission model: inherit GitHub App permissions for repository operations
+- **Communication Flow**:
+  ```
+  Zed Editor → spawn container → stdio JSON-RPC → Claude Code Agent
+                    ↓
+                GitHub API operations (via existing container logic)
+  ```
 
-Contracts highlights:
-- POST /acp/initialize — register session (returns sessionId)
-- POST /acp/task/execute — submit ACPMessage; if payload maps to GitHub issue flow, Worker forwards to container and returns forwarding status
-- GET /acp/status — debug sessions
+ACP Method Implementation:
+- `initialize` — return agent capabilities and protocol version
+- `session/new` — create isolated workspace session
+- `session/prompt` — process user prompt with Claude Code logic
+- `session/update` — stream progress notifications
+- `session/load` — restore previous session state
 
-See `contracts/openapi.yaml` for the OpenAPI shapes and schemas.
+See `contracts/acp-schema.json` for complete JSON-RPC schemas.
 
 Constitution re-check: design keeps feature as a focused library, includes contract tests (to add next), and preserves observability requirements.
+
+### ACP Protocol Implementation (JSON-RPC over stdio)
+
+**Transport Layer**:
+- **Primary**: JSON-RPC 2.0 over stdin/stdout (required by ACP spec)
+- **Process Model**: Container runs as subprocess spawned by Zed editor
+- **Message Format**: Newline-delimited JSON-RPC messages
+
+**Core ACP Methods**:
+```javascript
+// Initialize agent capabilities
+{ "jsonrpc": "2.0", "id": 1, "method": "initialize",
+  "params": { "protocolVersion": "0.3.1", "clientCapabilities": {...} } }
+
+// Create new session
+{ "jsonrpc": "2.0", "id": 2, "method": "session/new",
+  "params": { "workspaceUri": "file:///repo" } }
+
+// Send user prompt
+{ "jsonrpc": "2.0", "id": 3, "method": "session/prompt",
+  "params": { "sessionId": "uuid", "content": [...] } }
+
+// Stream updates (notification)
+{ "jsonrpc": "2.0", "method": "session/update",
+  "params": { "sessionId": "uuid", "content": [...] } }
+```
+
+**Container Integration**:
+- Add stdio JSON-RPC handler to existing container main.js
+- Route ACP sessions to isolated workspaces
+- Maintain existing HTTP API for backward compatibility
+- Use existing Claude Code SDK for prompt processing
 
 ---
 
 ## Phase 2 (task planning approach — description only)
-What `/tasks` must produce (summary):
-- Contract test tasks (one per OpenAPI operation) — mark as failing tests
-- Durable Object schema + migration tasks
-- Session and queue DO implementation tasks
-- Authorization mapping UI/API tasks
-- Container forwarding integration tests (mock container responses)
-- Integration tests for fallback behavior when ACP unavailable
+What `/tasks` must produce (CORRECTED):
+- JSON-RPC contract test tasks (one per ACP method) — mark as failing tests
+- Container stdio interface implementation tasks
+- ACP agent capability implementation tasks
+- Session management and workspace isolation tasks
+- Integration tests with Zed editor ACP client
+- Backward compatibility tests for existing HTTP API
 
-Estimated total tasks: 20–30. They will be ordered to follow TDD (contracts first, then DO models, then services, then integration tests).
+Estimated total tasks: 15–25. Ordered: JSON-RPC contracts → stdio handler → ACP methods → session management → integration tests.
 
 ---
 
 ## Outputs (file paths)
-- Implementation plan: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/plan.md` (this file)
-- Research: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/research.md`
-- Data model: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/data-model.md`
-- Quickstart: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/quickstart.md`
-- Contracts: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/contracts/openapi.yaml`
+- Implementation plan: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/plan.md` (this file - UPDATED)
+- Research: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/research.md` (TO UPDATE)
+- Data model: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/data-model.md` (TO UPDATE)
+- Quickstart: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/quickstart.md` (TO UPDATE)
+- Contracts: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed/contracts/acp-schema.json` (TO CREATE)
 
----
-
-If you want, I'll now:
-- Generate failing contract tests (Phase 1, TDD) and place them under `test/contract/` (recommended next step), or
-- Create Durable Object skeletons and wire the session/queue DOs into the Worker (bigger change).
+**Status**: Plan updated with correct ACP architecture. Next steps:
+1. Update research.md with ACP findings
+2. Redesign data-model.md for JSON-RPC messages
+3. Create acp-schema.json with method definitions
+4. Revise quickstart.md for container ACP agent usage
 # Implementation Plan: [FEATURE]
 
 
