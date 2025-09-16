@@ -10,6 +10,8 @@ import dotenv from 'dotenv';
 import { query, type SDKMessage } from '@anthropic-ai/claude-code';
 import { ContainerGitHubClient } from './github_client.js';
 import { createACPServer } from './acp-server.js';
+import { runAcp } from './zed-acp-agent.js';
+import { runGenericAcp } from './generic-acp-agent.js';
 
 // Load environment variables - suppress output in test environment
 if (process.env.NODE_ENV !== 'test') {
@@ -20,17 +22,23 @@ const PORT = parseInt(process.env.PORT || '8080', 10);
 const INSTANCE_ID = process.env.CONTAINER_ID || 'unknown';
 
 // Determine runtime mode based on environment and command line arguments
-function determineRuntimeMode(): 'http' | 'acp' {
+function determineRuntimeMode(): 'http' | 'acp' | 'generic-acp' {
   // Check command line arguments
   const args = process.argv.slice(2);
   if (args.includes('--acp') || args.includes('--stdio')) {
     return 'acp';
+  }
+  if (args.includes('--generic-acp') || args.includes('--agent-server')) {
+    return 'generic-acp';
   }
 
   // Check environment variable
   const acpMode = process.env.ACP_MODE?.toLowerCase();
   if (acpMode === 'stdio' || acpMode === 'acp') {
     return 'acp';
+  }
+  if (acpMode === 'generic' || acpMode === 'agent-server') {
+    return 'generic-acp';
   }
 
   // Default to HTTP mode
@@ -486,22 +494,42 @@ const server = http.createServer(async (req, res) => {
 const runtimeMode = determineRuntimeMode();
 
 if (runtimeMode === 'acp') {
-  // ACP stdio mode - suppress logs in test environment
+  // ACP stdio mode - use Zed's ACP agent implementation
   const isTestEnv = process.env.NODE_ENV === 'test';
 
   if (!isTestEnv) {
-    console.error(`[CONTAINER] Starting in ACP mode (instance: ${INSTANCE_ID})`);
+    console.error(`[CONTAINER] Starting in ACP mode with Zed agent (instance: ${INSTANCE_ID})`);
     console.error(`[CONTAINER] Process PID: ${process.pid}`);
     console.error(`[CONTAINER] Node version: ${process.version}`);
     console.error(`[CONTAINER] Working directory: ${process.cwd()}`);
     console.error(`[CONTAINER] ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
   }
 
-  const acpServer = createACPServer();
-  acpServer.start();
+  // Use Zed's ACP agent for stdout/stdin communication
+  runAcp();
 
   if (!isTestEnv) {
-    console.error('[CONTAINER] ACP server started, ready for JSON-RPC communication over stdio');
+    console.error('[CONTAINER] Zed ACP agent started, ready for JSON-RPC communication over stdio');
+  }
+} else if (runtimeMode === 'generic-acp') {
+  // Generic ACP mode - for client-server agent communication
+  const isTestEnv = process.env.NODE_ENV === 'test';
+
+  if (!isTestEnv) {
+    console.error(`[CONTAINER] Starting in Generic ACP mode (instance: ${INSTANCE_ID})`);
+    console.error(`[CONTAINER] Process PID: ${process.pid}`);
+    console.error(`[CONTAINER] Node version: ${process.version}`);
+    console.error(`[CONTAINER] Working directory: ${process.cwd()}`);
+    console.error(`[CONTAINER] ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
+  }
+
+  // Use generic ACP agent for any client system
+  runGenericAcp({
+    requireAuth: process.env.REQUIRE_CLIENT_AUTH === 'true'
+  });
+
+  if (!isTestEnv) {
+    console.error('[CONTAINER] Generic ACP agent started, ready for client-server communication over stdio');
   }
 } else {
   // HTTP server mode (existing behavior)

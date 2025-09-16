@@ -62,6 +62,8 @@ app.get("/", (c) => {
       // System
       "/": "System information",
       "/health": "Health check",
+      "/container/health": "GET - Container health check",
+      "/container/acp": "POST - Direct container ACP JSON-RPC endpoint",
       "/container/process": "Direct container processing",
     },
     setup_instructions: {
@@ -773,6 +775,60 @@ app.get("/container/health", async (c) => {
   } catch (error) {
     console.error("Container health check failed:", error);
     return c.json({ error: "Container health check failed" }, 500);
+  }
+});
+
+// Container ACP endpoint - direct access to container's ACP server
+app.post("/container/acp", async (c) => {
+  try {
+    const containerId = c.env.MY_CONTAINER.idFromName("health-check");
+    const container = c.env.MY_CONTAINER.get(containerId);
+    
+    // Get request body
+    const requestBody = await c.req.text();
+    
+    // Forward JSON-RPC request to container ACP server
+    const response = await container.fetch(
+      new Request("https://container/acp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-ACP-Direct": "true"
+        },
+        body: requestBody
+      })
+    );
+    
+    // Return response as-is
+    const responseText = await response.text();
+    
+    // Ensure it's valid JSON
+    try {
+      const jsonResponse = JSON.parse(responseText);
+      return c.json(jsonResponse, response.status as any);
+    } catch (parseError) {
+      console.error('Container ACP response is not valid JSON:', responseText.substring(0, 200));
+      return c.json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32700,
+          message: "Parse error - container returned invalid JSON",
+          data: { response: responseText.substring(0, 200) }
+        },
+        id: null
+      }, 500);
+    }
+  } catch (error) {
+    console.error("Container ACP request failed:", error);
+    return c.json({
+      jsonrpc: "2.0", 
+      error: {
+        code: -32603,
+        message: "Internal error - container ACP request failed",
+        data: { error: error instanceof Error ? error.message : String(error) }
+      },
+      id: null
+    }, 500);
   }
 });
 
