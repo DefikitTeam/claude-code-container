@@ -147,6 +147,7 @@ export interface SessionLoadResponse extends JSONRPCResponse {
       createdAt: number;
       lastActiveAt: number;
     };
+    workspaceInfo: WorkspaceInfo;
     historyAvailable: boolean;
     history?: ContentBlock[][];
   };

@@ -181,7 +181,7 @@ describe('ACP Cancel Method Contract', () => {
         content: [
           {
             type: 'text',
-            content: 'Please perform a comprehensive analysis of a large codebase (this should take some time).'
+            text: 'Please perform a comprehensive analysis of a large codebase (this should take some time).'
           }
         ]
       }

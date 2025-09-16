@@ -151,7 +151,7 @@ export class StdioJSONRPCServer extends EventEmitter {
       const handler = this.handlers.get(method);
 
       if (!handler) {
-        const error = this.createErrorResponse(id, ACP_ERROR_CODES.METHOD_NOT_FOUND, `Method '${method}' not found`);
+        const error = this.createErrorResponse(id, ACP_ERROR_CODES.METHOD_NOT_FOUND, `method not found: ${method}`);
         this.sendResponse(error);
         return;
       }

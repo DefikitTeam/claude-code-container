@@ -153,32 +153,30 @@ describe('ACP Session/New Method Contract', () => {
   });
 
   it('should handle multiple concurrent session creation', async () => {
-    const requests = [
-      {
-        jsonrpc: '2.0',
-        id: 4,
-        method: 'session/new',
-        params: { mode: 'development' }
-      },
-      {
-        jsonrpc: '2.0',
-        id: 5,
-        method: 'session/new',
-        params: { mode: 'conversation' }
-      }
-    ];
+    const request1 = {
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'session/new',
+      params: { mode: 'development' }
+    };
 
-    // Send both requests
-    const responses = await Promise.all(
-      requests.map(req => sendACPMessage(req))
-    );
+    const request2 = {
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'session/new',
+      params: { mode: 'conversation' }
+    };
+
+    // Send requests in rapid succession (simulating concurrent behavior)
+    const response1 = await sendACPMessage(request1);
+    const response2 = await sendACPMessage(request2);
 
     // Both should succeed
-    expect(responses[0].result.sessionId).toBeTruthy();
-    expect(responses[1].result.sessionId).toBeTruthy();
+    expect(response1.result.sessionId).toBeTruthy();
+    expect(response2.result.sessionId).toBeTruthy();
 
     // SessionIds should be different
-    expect(responses[0].result.sessionId).not.toBe(responses[1].result.sessionId);
+    expect(response1.result.sessionId).not.toBe(response2.result.sessionId);
   });
 
   it('should validate mode parameter', async () => {

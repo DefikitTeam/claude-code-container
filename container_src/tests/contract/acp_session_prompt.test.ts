@@ -132,7 +132,7 @@ describe('ACP Session/Prompt Method Contract', () => {
     const content: ContentBlock[] = [
       {
         type: 'text',
-        content: 'Hello, can you help me create a simple JavaScript function?'
+        text: 'Hello, can you help me create a simple JavaScript function?'
       }
     ];
 
@@ -181,7 +181,7 @@ describe('ACP Session/Prompt Method Contract', () => {
     const content: ContentBlock[] = [
       {
         type: 'text',
-        content: 'Please analyze the package.json file and suggest improvements.'
+        text: 'Please analyze the package.json file and suggest improvements.'
       }
     ];
 
@@ -213,7 +213,7 @@ describe('ACP Session/Prompt Method Contract', () => {
     const content: ContentBlock[] = [
       {
         type: 'text',
-        content: 'Fix the authentication issue in the login system.'
+        text: 'Fix the authentication issue in the login system.'
       }
     ];
 
@@ -245,7 +245,7 @@ describe('ACP Session/Prompt Method Contract', () => {
     const content: ContentBlock[] = [
       {
         type: 'text',
-        content: 'Please review this code for potential issues:'
+        text: 'Please review this code for potential issues:'
       },
       {
         type: 'file',
@@ -281,7 +281,7 @@ describe('ACP Session/Prompt Method Contract', () => {
       params: {
         sessionId: 'invalid-session-id',
         content: [
-          { type: 'text', content: 'Test prompt' }
+          { type: 'text', text: 'Test prompt' }
         ]
       }
     };
@@ -325,7 +325,7 @@ describe('ACP Session/Prompt Method Contract', () => {
     const content: ContentBlock[] = [
       {
         type: 'text',
-        content: 'Create a new README.md file with project description.'
+        text: 'Create a new README.md file with project description.'
       }
     ];
 
@@ -363,7 +363,7 @@ describe('ACP Session/Prompt Method Contract', () => {
     const content: ContentBlock[] = [
       {
         type: 'text',
-        content: 'Please analyze the entire codebase and provide a comprehensive architecture review.'
+        text: 'Please analyze the entire codebase and provide a comprehensive architecture review.'
       }
     ];
 
