@@ -8,7 +8,9 @@ Prerequisites (checked):
 - Feature dir: `/Users/duwm/Documents/LumiLink/claudecode-modern-container/specs/001-title-integrate-zed`
 - Updated docs: `plan.md`, `data-model.md`, `contracts/acp-schema.json`, `quickstart.md`
 
-Execution plan (CORRECTED):
+Execution plan (PHASED APPROACH):
+
+**Phase 1: Core ACP Implementation (Basic Single-Turn)**
 - Setup dev environment for container ACP development
 - Write failing JSON-RPC contract tests from `contracts/acp-schema.json`
 - Implement stdio JSON-RPC handler in container
@@ -16,6 +18,14 @@ Execution plan (CORRECTED):
 - Add session management with workspace isolation
 - Integration tests with Zed editor ACP client
 - Polish: unit tests, docs, performance
+
+**Phase 2: Advanced Conversational Features (Multi-Turn Intelligence)**
+- Conversational session state management
+- Question generation and clarification logic
+- Multiple response type handling (needs_clarification, ready_for_implementation, etc.)
+- Context accumulation across conversation turns
+- Interrupt and adaptation handling
+- Advanced conversational patterns and analytics
 
 Task ordering rules applied:
 - Setup tasks first
@@ -27,7 +37,7 @@ Task ordering rules applied:
 
 Parallel execution guidance: group all [P] tasks that reference different files; run JSON-RPC contract tests in parallel with model file creation.
 
-Tasks (numbered) - CORRECTED
+## Phase 1 Tasks: Core ACP Implementation (numbered) - CORRECTED
 
 T001 - Setup: Container development environment
 - Description: Ensure container development dependencies are present. Add ACP-related packages (@zed-industries/agent-client-protocol, JSON-RPC handling libraries).
@@ -159,7 +169,85 @@ T028 - Polish: Quickstart validation
 - Description: Validate quickstart.md instructions work end-to-end with implemented ACP agent.
 - Files/paths: `specs/001-title-integrate-zed/quickstart.md`
 
-Dependency notes (summary):
+---
+
+## Phase 2 Tasks: Advanced Conversational Features (Future Implementation)
+
+**Note**: These tasks implement the advanced conversational intelligence layer discussed in our analysis. They enable multi-turn conversations, clarification requests, and adaptive implementation based on real-time feedback from Context Agents.
+
+T029 [P] - Advanced: Conversational message types
+- Description: Extend JSON-RPC message types to support conversational patterns (clarification requests, multiple response types, conversation context).
+- Files/paths: `container_src/src/types/conversational-messages.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T008 (basic message types)
+
+T030 [P] - Advanced: Conversational session state
+- Description: Implement enhanced session management with conversation history, pending questions, and context accumulation across turns.
+- Files/paths: `container_src/src/types/conversational-session.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T009 (basic session types)
+
+T031 - Advanced: Question generation and clarification
+- Description: Implement intelligent question generation when prompts are ambiguous or lack sufficient context for implementation.
+- Files/paths: `container_src/src/conversational/question-generator.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T029, T030
+
+T032 - Advanced: Multiple response type handling
+- Description: Implement support for different conversation response types (needs_clarification, ready_for_implementation, awaiting_approval, etc.).
+- Files/paths: `container_src/src/conversational/response-handler.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T029, T031
+
+T033 - Advanced: Context accumulation across turns
+- Description: Implement conversation context manager that builds comprehensive understanding across multiple message exchanges.
+- Files/paths: `container_src/src/conversational/context-accumulator.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T030, T032
+
+T034 - Advanced: Interrupt and adaptation handling
+- Description: Handle mid-implementation interrupts from Context Agents with new requirements or priority changes.
+- Files/paths: `container_src/src/conversational/interrupt-handler.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T033, T015 (streaming)
+
+T035 - Advanced: Enhanced prompt processing with conversation
+- Description: Upgrade T014 prompt processing to support conversational patterns, clarification detection, and multi-turn workflows.
+- Files/paths: `container_src/src/acp-methods/conversational-prompt-handler.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T031, T032, T033, T034
+
+T036 - Advanced: Conversational streaming updates
+- Description: Upgrade T015 streaming to include conversation-aware updates (questioning, clarifying, adapting) with real-time context sharing.
+- Files/paths: `container_src/src/acp-methods/conversational-streaming.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T035, T015 (basic streaming)
+
+T037 [P] - Advanced: Conversational contract tests
+- Description: Create contract tests for conversational patterns (multi-turn workflows, clarification cycles, interrupt scenarios).
+- Files/paths: `container_src/tests/contract/conversational_*.test.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T029, T030
+
+T038 [P] - Advanced: Multi-turn integration tests
+- Description: Create integration tests that simulate complete conversational workflows between Context Agent and Claude Code Container.
+- Files/paths: `container_src/tests/integration/conversational_workflow.test.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T035, T036
+
+T039 - Advanced: Conversation analytics and optimization
+- Description: Implement conversation pattern analysis and optimization for better multi-agent collaboration over time.
+- Files/paths: `container_src/src/conversational/analytics.ts`
+- Phase: 2 (Advanced Features)
+- Depends on: T038
+
+T040 - Advanced: Conversational documentation and examples
+- Description: Document conversational features with examples of multi-turn workflows and best practices for Context Agents.
+- Files/paths: `container_src/docs/conversational-features.md`, example workflows
+- Phase: 2 (Advanced Features)
+- Depends on: T039
+
+## Phase 1 Dependency Notes (T001-T028):
 - Setup: T001, T002 must run first
 - Contract tests T003-T007 must be written and fail before implementation
 - Message types T008-T010 are prerequisites for method implementations
@@ -167,32 +255,85 @@ Dependency notes (summary):
 - Session management T013 must exist before prompt processing T014
 - Integration tests T019-T021 run after core implementation T017
 
-Parallel execution examples:
+## Phase 2 Dependency Notes (T029-T040):
+- Conversational types T029-T030 extend Phase 1 message/session types
+- Question generation T031 is prerequisite for conversational flows
+- Enhanced processing T035 upgrades T014 with conversational capabilities
+- Conversational streaming T036 upgrades T015 with conversation context
+- Phase 2 builds incrementally on completed Phase 1 foundation
+
+## Parallel Execution Examples:
+
+**Phase 1 Parallel Groups:**
 - Parallel group A: T003-T007 (contract tests) + T008-T010 (types)
 - Parallel group B: T019-T023 (tests) after T017 (core implementation)
 
+**Phase 2 Parallel Groups:**
+- Parallel group C: T029-T030 (conversational types) + T037 (conversational contract tests)
+- Parallel group D: T038-T040 (integration tests + docs) after T036 (conversational implementation)
+
 ```bash
-# Run JSON-RPC contract tests in parallel
+# Phase 1: Run JSON-RPC contract tests in parallel
 cd container_src
 pnpm vitest tests/contract/*.test.ts &
 pnpm vitest tests/unit/*.test.ts &
 wait
+
+# Phase 2: Run conversational tests in parallel (future)
+pnpm vitest tests/contract/conversational_*.test.ts &
+pnpm vitest tests/integration/conversational_*.test.ts &
+wait
 ```
 
-Sequential execution (critical path):
+## Sequential Execution (Critical Paths):
+
+**Phase 1 Critical Path:**
 T011 (stdio handler) → T012 (initialize) → T013 (session mgmt) → T014 (prompt) → T015 (streaming) → T016 (cancel) → T017 (integration)
 
-How to execute a task (example):
+**Phase 2 Critical Path:**
+T029 (conversational types) → T031 (question generation) → T032 (response types) → T033 (context accumulation) → T035 (enhanced processing) → T036 (conversational streaming)
+
+## How to Execute Tasks (Examples):
+
+**Phase 1 Examples:**
 - For T003: Create `container_src/tests/contract/acp_initialize.test.ts` with a test that sends JSON-RPC initialize message to container stdio and asserts response matches `contracts/acp-schema.json`. Use test helpers for stdio communication.
 - For T011: Create `container_src/src/acp-stdio-handler.ts` that reads stdin for JSON-RPC messages, validates format, routes to method handlers, and writes responses to stdout.
 
-Completion criteria:
-- All JSON-RPC contract tests created and initially failing
-- Container supports both stdio ACP interface and HTTP API
-- All ACP methods implemented per schema
-- Integration tests pass with Zed editor
-- Backward compatibility maintained
-- Performance acceptable for development workflows
+**Phase 2 Examples:**
+- For T031: Create `container_src/src/conversational/question-generator.ts` that analyzes prompts for ambiguities and generates clarification questions using Claude Code's analysis capabilities.
+- For T035: Extend T014's prompt handler to detect when clarification is needed and return `stopReason: "needs_clarification"` with generated questions.
 
-Next recommended immediate step:
-Create failing JSON-RPC contract tests (T003-T007) and implement message types (T008-T010) in parallel. This establishes clear TDD targets for ACP implementation.
+## Phase 1 Completion Criteria:
+- ✅ All JSON-RPC contract tests created and initially failing
+- ✅ Container supports both stdio ACP interface and HTTP API
+- ✅ All basic ACP methods implemented per schema
+- ✅ Integration tests pass with Zed editor
+- ✅ Backward compatibility maintained
+- ✅ Performance acceptable for development workflows
+- ✅ **Single-turn conversations work**: Context Agent → Claude → Result
+
+## Phase 2 Completion Criteria (Future):
+- ✅ Multi-turn conversations supported
+- ✅ Claude can ask clarification questions
+- ✅ Context accumulation across conversation turns
+- ✅ Real-time adaptation to Context Agent feedback
+- ✅ Advanced conversational patterns documented and tested
+
+## Implementation Strategy:
+
+**Phase 1 Focus (Immediate):**
+Start with Phase 1 tasks (T001-T028) to establish solid ACP foundation. This provides:
+- ✅ **Basic agent-to-agent communication** via ACP protocol
+- ✅ **Simple request-response patterns** that work with any Context Agent
+- ✅ **Proven integration** with Zed editor and other ACP clients
+- ✅ **Stable foundation** for future conversational enhancements
+
+**Phase 2 Migration (Future):**
+After Phase 1 is stable and proven, implement Phase 2 tasks (T029-T040) to add conversational intelligence. This provides:
+- 🚀 **Advanced multi-turn conversations** between agents
+- 🚀 **Intelligent clarification and question generation**
+- 🚀 **Real-time adaptation** to changing requirements
+- 🚀 **Sophisticated collaborative workflows**
+
+## Next Recommended Immediate Step:
+**Begin Phase 1**: Create failing JSON-RPC contract tests (T003-T007) and implement message types (T008-T010) in parallel. This establishes clear TDD targets for basic ACP implementation and gets the fundamental agent communication working first.

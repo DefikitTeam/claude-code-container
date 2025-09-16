@@ -30,6 +30,10 @@ This project implements an automated GitHub issue processing system powered by C
 10. Create hardcoded schedule conversion logic
 11. Skip frequency-specific validation requirements
 
+## CRITICAL
+- NEVER write a fallback case for graceful degradation for any function, code, flow,... unless explicitly specified.
+
+
 ## Architecture
 
 ### High-Level Architecture
