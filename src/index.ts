@@ -5,6 +5,7 @@ import { CryptoUtils } from "./crypto";
 import { addInstallationEndpoints } from "./installation-endpoints";
 import { addUserEndpoints } from "./user-endpoints";
 import { addDeploymentEndpoints } from "./deployment-endpoints";
+import { addACPEndpoints } from "./acp-bridge";
 import { getFixedGitHubAppConfig, validateFixedAppConfig } from "./app-config";
 import { validateWebhookSignature, createLegacyGitHubAppConfig, getInstallationRepositories, getRepositoryInfo, createGitHubIssue } from "./github-utils";
 import { getTokenManager } from "./token-manager";
@@ -48,10 +49,21 @@ app.get("/", (c) => {
       "/api/deploy/configure": "POST - Configure deployment credentials",
       "/api/deploy/execute": "POST - Execute deployment",
       "/api/deploy/status/:id": "GET - Check deployment status",
-      
+
+      // // Agent Client Protocol (ACP) API
+      // "/acp/initialize": "POST - Initialize ACP agent connection",
+      // "/acp/session/create": "POST - Create ACP session",
+      // "/acp/task/execute": "POST - Execute ACP task",
+      // "/acp/file/read": "POST - Read file via ACP",
+      // "/acp/file/write": "POST - Write file via ACP",
+      // "/acp/session/destroy": "POST - Destroy ACP session",
+      // "/acp/status": "GET - ACP agent status",
+
       // System
       "/": "System information",
       "/health": "Health check",
+      "/container/health": "GET - Container health check",
+      "/container/acp": "POST - Direct container ACP JSON-RPC endpoint",
       "/container/process": "Direct container processing",
     },
     setup_instructions: {
@@ -88,15 +100,44 @@ addUserEndpoints(app);
 // Add deployment endpoints with authentication
 addDeploymentEndpoints(app);
 
+// Add ACP endpoints (bridge for Agent Client Protocol)
+addACPEndpoints(app);
+
 // Process prompt endpoint - creates issue and processes it automatically (multi-tenant)
 app.post("/process-prompt", async (c) => {
   try {
     console.log("=== MULTI-TENANT PROCESS PROMPT REQUEST ===");
     
-    // Parse request body
-    const requestBody: PromptRequest & { userId?: string; installationId?: string } = await c.req.json();
-    
-    console.log("Prompt request:", {
+    // Parse request body - handle both old and new payload formats
+    const rawBody = await c.req.json();
+
+    console.log("Raw request body:", rawBody);
+
+    // Handle the forwarded payload format vs direct API format
+    let requestBody: PromptRequest & { userId?: string; installationId?: string };
+
+    if (rawBody.projectId && rawBody.promptLength && !rawBody.prompt) {
+      // This is a forwarded payload from your frontend system
+      console.log("Detected forwarded payload format, converting...");
+
+      // For now, create a default prompt since the actual prompt text is missing
+      // You'll need to modify your frontend to include the actual prompt
+      requestBody = {
+        prompt: `Process project ${rawBody.projectId} request`, // Default prompt
+        userId: rawBody.userId?.toString(),
+        installationId: rawBody.installationId?.toString(),
+        repository: undefined, // Add if available in your context
+        branch: undefined // Add if available in your context
+      };
+
+      console.log("⚠️ WARNING: Using default prompt because actual prompt text was not provided");
+      console.log("⚠️ Please modify your frontend to include 'prompt' field with actual text");
+    } else {
+      // Standard PromptRequest format
+      requestBody = rawBody;
+    }
+
+    console.log("Processed request:", {
       promptLength: requestBody.prompt?.length || 0,
       repository: requestBody.repository,
       branch: requestBody.branch,
@@ -107,9 +148,9 @@ app.post("/process-prompt", async (c) => {
 
     // Validate required fields
     if (!requestBody.prompt || requestBody.prompt.trim() === "") {
-      return c.json({ 
+      return c.json({
         success: false,
-        error: "Prompt is required and cannot be empty" 
+        error: "Prompt is required and cannot be empty. Please include 'prompt' field with actual text in your request."
       }, 400);
     }
 
@@ -734,6 +775,60 @@ app.get("/container/health", async (c) => {
   } catch (error) {
     console.error("Container health check failed:", error);
     return c.json({ error: "Container health check failed" }, 500);
+  }
+});
+
+// Container ACP endpoint - direct access to container's ACP server
+app.post("/container/acp", async (c) => {
+  try {
+    const containerId = c.env.MY_CONTAINER.idFromName("health-check");
+    const container = c.env.MY_CONTAINER.get(containerId);
+    
+    // Get request body
+    const requestBody = await c.req.text();
+    
+    // Forward JSON-RPC request to container ACP server
+    const response = await container.fetch(
+      new Request("https://container/acp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-ACP-Direct": "true"
+        },
+        body: requestBody
+      })
+    );
+    
+    // Return response as-is
+    const responseText = await response.text();
+    
+    // Ensure it's valid JSON
+    try {
+      const jsonResponse = JSON.parse(responseText);
+      return c.json(jsonResponse, response.status as any);
+    } catch (parseError) {
+      console.error('Container ACP response is not valid JSON:', responseText.substring(0, 200));
+      return c.json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32700,
+          message: "Parse error - container returned invalid JSON",
+          data: { response: responseText.substring(0, 200) }
+        },
+        id: null
+      }, 500);
+    }
+  } catch (error) {
+    console.error("Container ACP request failed:", error);
+    return c.json({
+      jsonrpc: "2.0", 
+      error: {
+        code: -32603,
+        message: "Internal error - container ACP request failed",
+        data: { error: error instanceof Error ? error.message : String(error) }
+      },
+      id: null
+    }, 500);
   }
 });
 

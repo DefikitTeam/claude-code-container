@@ -55,9 +55,13 @@ export function validateFixedAppConfig(): boolean {
  * This replaces the old dynamic configuration retrieval
  */
 export function getFixedGitHubAppConfig(): FixedGitHubAppConfig {
+  // In developer / self-hosted setups we may not have the fixed GitHub App
+  // configured. Avoid throwing here so runtime endpoints like /process-prompt
+  // can run in a degraded mode (they will surface clearer errors when they
+  // actually try to call GitHub APIs).
   if (!validateFixedAppConfig()) {
-    throw new Error("Fixed GitHub App configuration is not properly set up");
+    console.warn("⚠️ FIXED_GITHUB_APP_CONFIG is not fully configured - proceeding without strict validation");
   }
-  
+
   return FIXED_GITHUB_APP_CONFIG;
 }

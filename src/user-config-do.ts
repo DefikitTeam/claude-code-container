@@ -4,11 +4,28 @@ import { CryptoUtils } from "./crypto";
 import { UserConfig, StoredUserConfig, UserInstallationToken } from "./types";
 
 export class UserConfigDO extends DurableObject {
-  private crypto: CryptoUtils;
+  private encryptionKey: CryptoKey | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.crypto = new CryptoUtils();
+  }
+
+  /**
+   * Initialize or retrieve the encryption key for this Durable Object
+   */
+  private async getEncryptionKey(): Promise<CryptoKey> {
+    if (this.encryptionKey) return this.encryptionKey;
+
+    const storedKeyData = await this.ctx.storage.get<ArrayBuffer>('encryption_key');
+    if (storedKeyData) {
+      this.encryptionKey = await CryptoUtils.importKey(storedKeyData);
+    } else {
+      this.encryptionKey = await CryptoUtils.generateKey();
+      const keyData = await CryptoUtils.exportKey(this.encryptionKey);
+      await this.ctx.storage.put('encryption_key', keyData);
+    }
+
+    return this.encryptionKey;
   }
 
   /**
@@ -84,8 +101,9 @@ export class UserConfigDO extends DurableObject {
       );
     }
 
-    // Encrypt the Anthropic API key
-    const encryptedApiKey = await this.crypto.encrypt(data.anthropicApiKey);
+  // Encrypt the Anthropic API key
+  const key = await this.getEncryptionKey();
+  const encryptedApiKey = await CryptoUtils.encrypt(key, data.anthropicApiKey);
 
     const userConfig: StoredUserConfig = {
       userId,
@@ -136,8 +154,9 @@ export class UserConfigDO extends DurableObject {
       );
     }
 
-    // Decrypt the Anthropic API key
-    const anthropicApiKey = await this.crypto.decrypt(storedConfig.encryptedAnthropicApiKey);
+  // Decrypt the Anthropic API key
+  const key = await this.getEncryptionKey();
+  const anthropicApiKey = await CryptoUtils.decrypt(key, storedConfig.encryptedAnthropicApiKey);
 
     const userConfig: UserConfig = {
       userId: storedConfig.userId,
@@ -216,7 +235,8 @@ export class UserConfigDO extends DurableObject {
     };
 
     if (data.anthropicApiKey) {
-      updatedConfig.encryptedAnthropicApiKey = await this.crypto.encrypt(data.anthropicApiKey);
+      const key = await this.getEncryptionKey();
+      updatedConfig.encryptedAnthropicApiKey = await CryptoUtils.encrypt(key, data.anthropicApiKey);
     }
 
     if (data.repositoryAccess !== undefined) {
@@ -353,7 +373,8 @@ export class UserConfigDO extends DurableObject {
       if (typeof storedConfig === 'object' && storedConfig !== null) {
         const config = storedConfig as StoredUserConfig;
         try {
-          const anthropicApiKey = await this.crypto.decrypt(config.encryptedAnthropicApiKey);
+          const key = await this.getEncryptionKey();
+          const anthropicApiKey = await CryptoUtils.decrypt(key, config.encryptedAnthropicApiKey);
           users.push({
             userId: config.userId,
             installationId: config.installationId,
@@ -386,7 +407,8 @@ export class UserConfigDO extends DurableObject {
     if (!storedConfig) return null;
 
     try {
-      const anthropicApiKey = await this.crypto.decrypt(storedConfig.encryptedAnthropicApiKey);
+  const key = await this.getEncryptionKey();
+  const anthropicApiKey = await CryptoUtils.decrypt(key, storedConfig.encryptedAnthropicApiKey);
       return {
         userId: storedConfig.userId,
         installationId: storedConfig.installationId,

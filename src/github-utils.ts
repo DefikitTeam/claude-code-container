@@ -1,5 +1,5 @@
 // GitHub API utility functions
-import { getFixedGitHubAppConfig } from "./app-config";
+import { getFixedGitHubAppConfig, validateFixedAppConfig } from "./app-config";
 import { UserConfig, GitHubAppConfig } from "./types";
 
 /**
@@ -78,12 +78,53 @@ export async function createJWT(appId: string, privateKey: string): Promise<stri
 /**
  * Generate installation access token for a user
  */
-export async function generateInstallationToken(userConfig: UserConfig): Promise<string | null> {
+export async function generateInstallationToken(userConfig: UserConfig, env?: any): Promise<string | null> {
   try {
-    const appConfig = getFixedGitHubAppConfig();
-    
-    console.log(`Creating JWT for App ID: ${appConfig.appId}, Installation: ${userConfig.installationId}`);
-    
+    console.log('🔧 Starting generateInstallationToken - attempting user config first');
+
+    // For this system, users provide their own GitHub App credentials
+    // Try to get from user's configuration first, fall back to fixed only if needed
+    let appConfig: any = null;
+    let configSource = 'none';
+
+    // If we have env, try to get user-provided config first
+    if (env && env.GITHUB_APP_CONFIG) {
+      try {
+        console.log('📋 Attempting to get user-provided GitHub App config...');
+        const configDO = env.GITHUB_APP_CONFIG.idFromName("github-app-config");
+        const configInstance = env.GITHUB_APP_CONFIG.get(configDO);
+        const response = await configInstance.fetch(new Request("http://localhost/retrieve"));
+
+        if (response.ok) {
+          const userAppConfig = await response.json();
+          if (userAppConfig && userAppConfig.appId && userAppConfig.privateKey) {
+            console.log('✅ Found user-provided GitHub App configuration');
+            appConfig = userAppConfig;
+            configSource = 'user';
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Could not retrieve user config, will try fixed config:', error);
+      }
+    }
+
+    // If no user config found, try fixed config as fallback
+    if (!appConfig) {
+      console.log('📋 Trying fixed GitHub App config as fallback...');
+      const fixedConfig = getFixedGitHubAppConfig();
+      if (validateFixedAppConfig()) {
+        appConfig = fixedConfig;
+        configSource = 'fixed';
+        console.log('✅ Using fixed GitHub App configuration');
+      } else {
+        console.error('❌ No valid GitHub App configuration found (neither user-provided nor fixed)');
+        console.error('💡 Please configure GitHub App credentials via the /config endpoint');
+        return null;
+      }
+    }
+
+    console.log(`Creating JWT for App ID: ${appConfig.appId}, Installation: ${userConfig.installationId} (using ${configSource} config)`);
+
     // Create JWT token for GitHub App authentication
     const jwt = await createJWT(appConfig.appId, appConfig.privateKey);
     console.log(`JWT created successfully, length: ${jwt.length}`);

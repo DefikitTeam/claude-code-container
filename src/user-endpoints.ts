@@ -46,21 +46,13 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       console.log("✅ Anthropic API key validated successfully");
 
       // Validate the installation ID with GitHub
-      try {
-        const isValidInstallation = await validateInstallationId(registrationRequest.installationId);
-        if (!isValidInstallation) {
-          return c.json({
-            success: false,
-            error: "Invalid installation ID or installation not accessible"
-          }, 400);
-        }
-      } catch (error) {
-        console.error("Installation validation failed:", error);
-        return c.json({
-          success: false,
-          error: "Failed to validate installation ID with GitHub"
-        }, 500);
-      }
+  // NOTE: Installation validation via GitHub API has been intentionally
+  // disabled here. Operators should configure the GitHub App credentials
+  // using the operator `/config` endpoint (or environment variables) so
+  // the service can manage installation tokens centrally. This avoids
+  // requiring an outbound GitHub validation call at registration time
+  // which simplifies onboarding and offline registration flows.
+  console.log('📌 Skipping live GitHub installation validation for', registrationRequest.installationId);
 
       // Get UserConfigDO instance
       const userConfigDO = getUserConfigDO(c.env);
@@ -75,15 +67,15 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         return c.json({
           success: false,
-          error: error.error || "Registration failed",
+          error: error?.error || "Registration failed",
           details: error
-        }, response.status);
+        }, response.status as any);
       }
 
-      const result = await response.json();
+      const result = await response.json() as any;
       console.log(`✅ User registered successfully: ${result.userId}`);
 
       return c.json({
@@ -130,14 +122,14 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         return c.json({
           success: false,
-          error: error.error || "User not found"
-        }, response.status);
+          error: error?.error || "User not found"
+        }, { status: response.status });
       }
 
-      const userConfig: UserConfig = await response.json();
+  const userConfig: UserConfig = await response.json() as any;
       
       // Return safe user configuration (hide sensitive data)
       return c.json({
@@ -188,11 +180,11 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         return c.json({
           success: false,
-          error: error.error || "Update failed"
-        }, response.status);
+          error: error?.error || "Update failed"
+        }, response.status as any);
       }
 
       return c.json({
@@ -232,11 +224,11 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         return c.json({
           success: false,
-          error: error.error || "Delete failed"
-        }, response.status);
+          error: error?.error || "Delete failed"
+        }, response.status as any);
       }
 
       return c.json({
@@ -265,13 +257,10 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        return c.json({
-          success: false,
-          error: "Failed to list users"
-        }, 500);
+  return c.json({ success: false, error: "Failed to list users" }, 500 as any);
       }
 
-      const result = await response.json();
+  const result = await response.json() as any;
       return c.json({
         success: true,
         users: result.users,
@@ -308,14 +297,14 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json() as any;
         return c.json({
           success: false,
-          error: error.error || "User not found"
-        }, response.status);
+          error: error?.error || "User not found"
+        }, response.status as any);
       }
 
-      const userConfig: UserConfig = await response.json();
+      const userConfig: UserConfig = await response.json() as any;
       return c.json({
         success: true,
         user: userConfig
@@ -360,8 +349,8 @@ async function validateInstallationId(installationId: string): Promise<boolean> 
     });
 
     if (response.ok) {
-      const installation = await response.json();
-      console.log(`✅ Installation validated: ${installation.account.login} (${installation.account.type})`);
+      const installation = await response.json() as any;
+      console.log(`✅ Installation validated: ${installation?.account?.login} (${installation?.account?.type})`);
       return true;
     } else {
       console.error(`❌ Installation validation failed: ${response.status} ${response.statusText}`);

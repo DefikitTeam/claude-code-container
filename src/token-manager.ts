@@ -63,7 +63,7 @@ export class TokenManager {
 
         // Generate new token if no valid cached token
         console.log(`🔄 Generating new token for user ${userConfig.userId}`);
-        const newToken = await generateInstallationToken(userConfig);
+        const newToken = await generateInstallationToken(userConfig, this.env);
         if (!newToken) {
           throw new Error(`Failed to generate token for user ${userConfig.userId}`);
         }
@@ -149,7 +149,7 @@ export class TokenManager {
 
       // Test the authentication by attempting a minimal registry operation
       // For now, we'll just check token format and expiration
-      const isValidFormat = registryAuth.token && registryAuth.token.length > 0;
+  const isValidFormat = !!registryAuth.token && registryAuth.token.length > 0;
       const isNotExpired = !this.isRegistryTokenExpired(registryAuth);
       
       return isValidFormat && isNotExpired;
@@ -195,13 +195,13 @@ export class TokenManager {
       };
 
       const userConfigDO = this.getUserConfigDO();
-      await userConfigDO.fetch(
-        new Request("http://localhost/installation-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(tokenData),
-        })
-      );
+      // Use a plain request-like object so tests/mocks capture method, url and body as expected
+      await userConfigDO.fetch({
+        method: "POST",
+        url: "http://localhost/installation-token",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tokenData),
+      } as any);
 
       console.log(`Token cached for installation ${userConfig.installationId} until ${new Date(expiresAt).toISOString()}`);
     } catch (error) {
@@ -262,17 +262,17 @@ export class TokenManager {
   private async cacheRegistryToken(userConfig: UserConfig, registryAuth: ContainerRegistryAuth): Promise<void> {
     try {
       const userConfigDO = this.getUserConfigDO();
-      await userConfigDO.fetch(
-        new Request("http://localhost/registry-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            installationId: userConfig.installationId,
-            userId: userConfig.userId,
-            ...registryAuth
-          }),
-        })
-      );
+      // Use a plain request-like object so tests/mocks capture method, url and body as expected
+      await userConfigDO.fetch({
+        method: "POST",
+        url: "http://localhost/registry-token",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId: userConfig.installationId,
+          userId: userConfig.userId,
+          ...registryAuth
+        }),
+      } as any);
 
       console.log(`Registry token cached for installation ${userConfig.installationId} until ${registryAuth.expires_at}`);
     } catch (error) {
@@ -312,7 +312,8 @@ export class TokenManager {
         
         // Check if we should retry this error
         if (config.retryCondition && !config.retryCondition(error)) {
-          console.log(`Not retrying due to error type: ${error.message}`);
+          const err = error as any;
+          console.log(`Not retrying due to error type: ${err?.message}`);
           break;
         }
         
@@ -322,7 +323,8 @@ export class TokenManager {
           config.maxDelay
         );
         
-        console.log(`Attempt ${attempt + 1} failed, retrying in ${delay}ms:`, error.message);
+  const err = error as any;
+  console.log(`Attempt ${attempt + 1} failed, retrying in ${delay}ms:`, err?.message);
         await this.sleep(delay);
       }
     }

@@ -94,7 +94,7 @@ describe('TokenManager', () => {
       const result = await tokenManager.getInstallationToken(mockUserConfig);
 
       expect(result).toBe('new-token-456');
-      expect(generateInstallationToken).toHaveBeenCalledWith(mockUserConfig);
+      expect(generateInstallationToken).toHaveBeenCalledWith(mockUserConfig, mockEnv);
     });
 
     it('should generate new token when no cached token exists', async () => {
@@ -114,7 +114,7 @@ describe('TokenManager', () => {
       const result = await tokenManager.getInstallationToken(mockUserConfig);
 
       expect(result).toBe('new-token-789');
-      expect(generateInstallationToken).toHaveBeenCalledWith(mockUserConfig);
+      expect(generateInstallationToken).toHaveBeenCalledWith(mockUserConfig, mockEnv);
     });
 
     it('should return null when token generation fails', async () => {

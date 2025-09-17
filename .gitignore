@@ -45,5 +45,6 @@ next-env.d.ts
 /mcp-server/node_modules
 /mcp-server/dist
 /.wrangler
+/container_src/.acp-sessions
 
 .dev.vars

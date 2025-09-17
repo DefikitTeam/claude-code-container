@@ -9,9 +9,28 @@ import { promisify } from 'node:util';
 import dotenv from 'dotenv';
 import { query } from '@anthropic-ai/claude-code';
 import { ContainerGitHubClient } from './github_client.js';
-dotenv.config();
+import { createACPServer } from './acp-server.js';
+// Load environment variables - suppress output in test environment
+if (process.env.NODE_ENV !== 'test') {
+    dotenv.config();
+}
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const INSTANCE_ID = process.env.CONTAINER_ID || 'unknown';
+// Determine runtime mode based on environment and command line arguments
+function determineRuntimeMode() {
+    // Check command line arguments
+    const args = process.argv.slice(2);
+    if (args.includes('--acp') || args.includes('--stdio')) {
+        return 'acp';
+    }
+    // Check environment variable
+    const acpMode = process.env.ACP_MODE?.toLowerCase();
+    if (acpMode === 'stdio' || acpMode === 'acp') {
+        return 'acp';
+    }
+    // Default to HTTP mode
+    return 'http';
+}
 function logWithContext(context, message, data) {
     const ts = new Date().toISOString();
     if (data)
@@ -273,6 +292,104 @@ function sendJson(res, status, obj) {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(obj, null, 2));
 }
+async function acpJsonRpcHandler(req, res) {
+    try {
+        logWithContext('ACP-HTTP', 'Processing JSON-RPC request');
+        const body = await getRequestBody(req);
+        const jsonRpcRequest = JSON.parse(body || '{}');
+        logWithContext('ACP-HTTP', 'JSON-RPC request', {
+            method: jsonRpcRequest.method,
+            id: jsonRpcRequest.id,
+            hasParams: !!jsonRpcRequest.params
+        });
+        // Import ACP handlers dynamically to avoid circular dependencies
+        const { ACPHandlers } = await import('./handlers/acp-handlers.js');
+        let result;
+        let error = null;
+        try {
+            // Route to appropriate ACP handler based on method
+            const handler = ACPHandlers[jsonRpcRequest.method];
+            if (!handler) {
+                error = {
+                    code: -32601,
+                    message: `Method not found: ${jsonRpcRequest.method}`,
+                    data: { availableMethods: Object.keys(ACPHandlers) }
+                };
+            }
+            else {
+                // Create a proper RequestContext for the handlers
+                const requestContext = {
+                    requestId: jsonRpcRequest.id,
+                    timestamp: Date.now(),
+                    metadata: {
+                        bridge: 'http',
+                        containerInstance: INSTANCE_ID
+                    }
+                };
+                // Create notification sender function (optional for HTTP mode)
+                const notificationSender = (method, params) => {
+                    // In HTTP mode, we can't send real-time notifications
+                    // This is a no-op implementation
+                    logWithContext('ACP-HTTP', `Notification would be sent: ${method}`, params);
+                };
+                // Call the handler with proper parameters based on method signature
+                if (jsonRpcRequest.method === 'session/prompt') {
+                    // handleSessionPrompt expects (params, context, notificationSender)
+                    result = await handler(jsonRpcRequest.params, requestContext, notificationSender);
+                }
+                else {
+                    // Other handlers expect (params, context)
+                    result = await handler(jsonRpcRequest.params, requestContext);
+                }
+            }
+        }
+        catch (handlerError) {
+            logWithContext('ACP-HTTP', 'Handler error', {
+                method: jsonRpcRequest.method,
+                error: handlerError.message
+            });
+            error = {
+                code: -32603,
+                message: 'Internal error',
+                data: {
+                    error: handlerError.message,
+                    method: jsonRpcRequest.method
+                }
+            };
+        }
+        // Build JSON-RPC response
+        const jsonRpcResponse = {
+            jsonrpc: '2.0',
+            id: jsonRpcRequest.id
+        };
+        if (error) {
+            jsonRpcResponse.error = error;
+            logWithContext('ACP-HTTP', 'Sending error response', error);
+            return sendJson(res, 500, jsonRpcResponse);
+        }
+        else {
+            jsonRpcResponse.result = result;
+            logWithContext('ACP-HTTP', 'Sending success response', {
+                method: jsonRpcRequest.method,
+                hasResult: !!result
+            });
+            return sendJson(res, 200, jsonRpcResponse);
+        }
+    }
+    catch (error) {
+        logWithContext('ACP-HTTP', 'JSON-RPC processing failed', { error: error.message });
+        const errorResponse = {
+            jsonrpc: '2.0',
+            error: {
+                code: -32700,
+                message: 'Parse error',
+                data: { error: error.message }
+            },
+            id: null
+        };
+        return sendJson(res, 400, errorResponse);
+    }
+}
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://localhost:${PORT}`);
     if (req.method === 'POST' && url.pathname === '/process-issue') {
@@ -288,10 +405,48 @@ const server = http.createServer(async (req, res) => {
         }, 1000); // 1 second delay
         return;
     }
-    if (req.method === 'GET' && url.pathname === '/health')
-        return sendJson(res, 200, { status: 'healthy', instance: INSTANCE_ID });
+    if (req.method === 'POST' && url.pathname === '/acp') {
+        // Route to ACP server for JSON-RPC processing
+        await acpJsonRpcHandler(req, res);
+        return;
+    }
+    if (req.method === 'GET' && url.pathname === '/health') {
+        return sendJson(res, 200, {
+            status: 'healthy',
+            instance: INSTANCE_ID,
+            modes: ['http', 'acp'],
+            endpoints: {
+                '/process-issue': 'POST - GitHub issue processing',
+                '/acp': 'POST - Agent Client Protocol JSON-RPC',
+                '/health': 'GET - Health check'
+            },
+            timestamp: new Date().toISOString()
+        });
+    }
     return sendJson(res, 404, { success: false, message: 'not found' });
 });
-server.listen(PORT, '0.0.0.0', () => {
-    logWithContext('SERVER', 'Started', { port: PORT, instance: INSTANCE_ID });
-});
+// Main startup logic - determine mode and start appropriate server
+const runtimeMode = determineRuntimeMode();
+if (runtimeMode === 'acp') {
+    // ACP stdio mode - suppress logs in test environment
+    const isTestEnv = process.env.NODE_ENV === 'test';
+    if (!isTestEnv) {
+        console.error(`[CONTAINER] Starting in ACP mode (instance: ${INSTANCE_ID})`);
+        console.error(`[CONTAINER] Process PID: ${process.pid}`);
+        console.error(`[CONTAINER] Node version: ${process.version}`);
+        console.error(`[CONTAINER] Working directory: ${process.cwd()}`);
+        console.error(`[CONTAINER] ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
+    }
+    const acpServer = createACPServer();
+    acpServer.start();
+    if (!isTestEnv) {
+        console.error('[CONTAINER] ACP server started, ready for JSON-RPC communication over stdio');
+    }
+}
+else {
+    // HTTP server mode (existing behavior)
+    console.error(`[CONTAINER] Starting in HTTP mode (instance: ${INSTANCE_ID})`);
+    server.listen(PORT, '0.0.0.0', () => {
+        logWithContext('SERVER', 'Started', { port: PORT, instance: INSTANCE_ID });
+    });
+}
