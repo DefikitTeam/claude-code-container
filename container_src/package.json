@@ -1,37 +1,46 @@
 {
-  "name": "claude-code-container",
-  "version": "1.0.0",
-  "description": "Claude Code container for processing GitHub issues",
-  "main": "dist/main.js",
-  "scripts": {
-    "start": "node dist/main.js",
-    "dev": "tsc --watch",
-    "build": "tsc",
-    "test": "vitest",
-    "test:contract": "vitest tests/contract",
-    "test:unit": "vitest tests/unit",
-    "test:integration": "vitest tests/integration",
-    "acp:agent": "node dist/main.js --acp",
-    "acp:stdio": "node dist/main.js --stdio",
-    "acp:example": "node dist/examples/example-agent.js"
+  "name": "@defikitteam/claude-acp-client",
+  "version": "0.1.0",
+  "description": "Lightweight ACP client for Claude Code with remote worker communication",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-acp-client": "./dist/index.js"
   },
+  "type": "module",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npm run build && npm run start",
+    "acp": "node dist/index.js",
+    "http-bridge": "node dist/index.js --http-bridge",
+    "test": "vitest"
+  },
+  "keywords": [
+    "claude",
+    "acp",
+    "agent",
+    "anthropic",
+    "typescript",
+    "sdk",
+    "code",
+    "lightweight",
+    "client"
+  ],
   "dependencies": {
     "@anthropic-ai/claude-code": "1.0.113",
-    "@anthropic-ai/sdk": "^0.29.0",
     "@modelcontextprotocol/sdk": "1.18.0",
-    "@octokit/auth-app": "^7.1.3",
-    "@octokit/rest": "^22.0.0",
     "@zed-industries/agent-client-protocol": "0.3.1",
     "diff": "8.0.2",
-    "dotenv": "^17.2.1",
-    "express": "5.1.0",
     "minimist": "1.2.8",
-    "simple-git": "^3.28.0",
-    "uuid": "13.0.0",
-    "zod": "^3.22.4"
+    "uuid": "13.0.0"
   },
   "devDependencies": {
-    "@types/express": "5.0.3",
     "@types/minimist": "1.2.5",
     "@types/node": "24.4.0",
     "@types/uuid": "10.0.0",
@@ -40,6 +49,5 @@
   },
   "engines": {
     "node": ">=22.0.0"
-  },
-  "type": "module"
+  }
 }
