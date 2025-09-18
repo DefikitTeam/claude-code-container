@@ -27,7 +27,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8080
 
 # Set default environment for mode detection
-ENV ACP_MODE=auto
+ENV ACP_MODE=http-server
+ENV PORT=8080
 
 # Start the container server with automatic mode detection
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/index.js"]

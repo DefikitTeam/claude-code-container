@@ -217,6 +217,7 @@ export class MyContainer extends Container<Env> {
     NODE_ENV: 'production',
     CONTAINER_ID: crypto.randomUUID(),
     PORT: "8080",
+    ACP_MODE: "http-server",
   };
   // Specify the command to run in the container
   cmd = ["npm", "start"];
