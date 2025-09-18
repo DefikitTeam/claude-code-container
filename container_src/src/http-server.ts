@@ -69,6 +69,110 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
+// ACP JSON-RPC handler
+async function acpHandler(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  logWithContext('ACP', 'ACP JSON-RPC request received');
+
+  try {
+    const body = await readRequestBody(req);
+    let jsonRpcRequest;
+    
+    try {
+      jsonRpcRequest = JSON.parse(body);
+    } catch (parseError) {
+      logWithContext('ACP', 'Invalid JSON in request body', { error: parseError });
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32700, message: "Parse error" },
+        id: null
+      }));
+      return;
+    }
+
+    logWithContext('ACP', 'Processing ACP method', { 
+      method: jsonRpcRequest.method, 
+      id: jsonRpcRequest.id 
+    });
+
+    // Handle ACP methods
+    let result;
+    switch (jsonRpcRequest.method) {
+      case 'initialize':
+        result = {
+          agentId: "claude-code-container",
+          version: "1.0.0",
+          protocolVersion: "0.3.1",
+          capabilities: {
+            sessionManagement: true,
+            fileOperations: true,
+            codeGeneration: true,
+            taskExecution: true
+          }
+        };
+        break;
+
+      case 'session/new':
+        const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        result = {
+          sessionId: sessionId,
+          status: "created"
+        };
+        logWithContext('ACP', 'Created new session', { sessionId });
+        break;
+
+      case 'session/prompt':
+        // This would integrate with Claude Code SDK
+        result = {
+          response: "ACP prompt processing not fully implemented yet",
+          stopReason: "success"
+        };
+        break;
+
+      default:
+        logWithContext('ACP', 'Unknown ACP method', { method: jsonRpcRequest.method });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32601, message: "Method not found" },
+          id: jsonRpcRequest.id
+        }));
+        return;
+    }
+
+    // Send successful response
+    const response = {
+      jsonrpc: "2.0",
+      result: result,
+      id: jsonRpcRequest.id
+    };
+
+    logWithContext('ACP', 'ACP method processed successfully', { 
+      method: jsonRpcRequest.method,
+      resultKeys: Object.keys(result)
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(response));
+
+  } catch (error) {
+    logWithContext('ACP', 'Error processing ACP request', { error });
+    
+    const errorResponse = {
+      jsonrpc: "2.0",
+      error: {
+        code: -32603,
+        message: "Internal error",
+        data: error instanceof Error ? error.message : String(error) 
+      },
+      id: null
+    };
+
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(errorResponse));
+  }
+}
+
 // Process request handler (placeholder for now)
 async function processHandler(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   logWithContext('PROCESS', 'Process request received');
@@ -136,6 +240,8 @@ async function requestHandler(req: http.IncomingMessage, res: http.ServerRespons
       await healthHandler(req, res);
     } else if (url === '/process' && method === 'POST') {
       await processHandler(req, res);
+    } else if (url === '/acp' && method === 'POST') {
+      await acpHandler(req, res);
     } else {
       logWithContext('HTTP', 'Route not found', { method, url });
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -165,7 +271,7 @@ export async function runHttpServer(argv: any): Promise<void> {
 
   server.listen(port, '0.0.0.0', () => {
     logWithContext('SERVER', `HTTP Server listening on http://0.0.0.0:${port}`);
-    logWithContext('SERVER', 'Routes available: GET /health, POST /process');
+    logWithContext('SERVER', 'Routes available: GET /health, POST /process, POST /acp');
   });
 
   server.on('error', (error) => {
