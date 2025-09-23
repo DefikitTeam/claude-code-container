@@ -228,56 +228,68 @@ export class ClaudeClient implements IClaudeClient {
         }
       }
 
-      // Try SDK dynamic import
+      // Allow tests / callers to force-disable SDK or CLI usage for deterministic behavior
+      const disableSdk = process.env.CLAUDE_CLIENT_DISABLE_SDK === '1';
+      const disableCli = process.env.CLAUDE_CLIENT_DISABLE_CLI === '1';
+
+      // Try SDK dynamic import (unless disabled)
       let usedSdk = false;
-      try {
-        // attempt dynamic import; not all environments will have this package
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const sdk = await import('@anthropic-ai/claude-code').catch(() => null as any);
-        const queryFn = sdk?.query ?? sdk?.default?.query ?? null;
-        if (queryFn && typeof queryFn === 'function') {
-          usedSdk = true;
-          // call query and handle possible async iterable
-          const qResult = queryFn({ input: prompt, model: opts.model ?? this.model, stream: true });
-          // qResult might be an async iterable
-          if (qResult && typeof qResult[Symbol.asyncIterator] === 'function') {
-            for await (const part of qResult) {
-              if (abortController.signal.aborted) throw new Error('cancelled');
-              // part may be string or object
-              const text = typeof part === 'string' ? part : (part?.text ?? part?.content ?? JSON.stringify(part));
-              fullText += text;
-              const deltaTokens = this.estimateTokens(text);
-              outputTokens += deltaTokens;
-              callbacks.onDelta?.({ text, tokens: deltaTokens });
+      if (!disableSdk) {
+        try {
+          // attempt dynamic import; not all environments will have this package
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const sdk = await import('@anthropic-ai/claude-code').catch(() => null as any);
+            const queryFn = sdk?.query ?? sdk?.default?.query ?? null;
+            if (queryFn && typeof queryFn === 'function') {
+              usedSdk = true;
+              // call query and handle possible async iterable
+              const qResult = queryFn({ input: prompt, model: opts.model ?? this.model, stream: true });
+              // qResult might be an async iterable
+              if (qResult && typeof qResult[Symbol.asyncIterator] === 'function') {
+                for await (const part of qResult) {
+                  if (abortController.signal.aborted) throw new Error('cancelled');
+                  // part may be string or object
+                  const text = typeof part === 'string' ? part : (part?.text ?? part?.content ?? JSON.stringify(part));
+                  fullText += text;
+                  const deltaTokens = this.estimateTokens(text);
+                  outputTokens += deltaTokens;
+                  callbacks.onDelta?.({ text, tokens: deltaTokens });
+                }
+              } else if (qResult && typeof qResult.then === 'function') {
+                const awaited = await qResult;
+                const text = String(awaited?.text ?? awaited?.content ?? awaited ?? '');
+                fullText = text;
+                outputTokens = this.estimateTokens(text);
+                callbacks.onDelta?.({ text, tokens: outputTokens });
+              } else {
+                // unknown shape, stringify
+                const text = String(qResult ?? '');
+                fullText = text;
+                outputTokens = this.estimateTokens(text);
+                callbacks.onDelta?.({ text, tokens: outputTokens });
+              }
             }
-          } else if (qResult && typeof qResult.then === 'function') {
-            const awaited = await qResult;
-            const text = String(awaited?.text ?? awaited?.content ?? awaited ?? '');
-            fullText = text;
-            outputTokens = this.estimateTokens(text);
-            callbacks.onDelta?.({ text, tokens: outputTokens });
-          } else {
-            // unknown shape, stringify
-            const text = String(qResult ?? '');
-            fullText = text;
-            outputTokens = this.estimateTokens(text);
-            callbacks.onDelta?.({ text, tokens: outputTokens });
-          }
+        } catch (sdkErr) {
+          // SDK attempt failed - we'll fall back to CLI check
+          usedSdk = false;
         }
-      } catch (sdkErr) {
-        // SDK attempt failed - we'll fall back to CLI check
-        usedSdk = false;
       }
 
       if (!usedSdk) {
-        // Check for CLI presence
-        try {
-          await execFileAsync('claude-code', ['--version']);
-        } catch (e) {
+        if (disableCli) {
           const diag = await this.collectClaudeDiagnostics();
           const err = new Error('claude_runtime_missing');
-          (err as any).detail = { diagnostics: diag, original: e };
+          (err as any).detail = { diagnostics: diag, original: 'cli_disabled' };
           throw err;
+        }
+        // Check for CLI presence (unless disabled above)
+        try {
+            await execFileAsync('claude-code', ['--version']);
+        } catch (e) {
+            const diag = await this.collectClaudeDiagnostics();
+            const err = new Error('claude_runtime_missing');
+            (err as any).detail = { diagnostics: diag, original: e };
+            throw err;
         }
 
         // If CLI exists we would normally spawn it and stream. Because CLI argument sets
