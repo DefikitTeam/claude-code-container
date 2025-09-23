@@ -1,17 +1,19 @@
 # API Specification
 
-This is the API specification for the spec detailed in @.agent-os/specs/2025-09-05-cloudflare-deploy-button/spec.md
+This is the API specification for the spec detailed in
+@.agent-os/specs/2025-09-05-cloudflare-deploy-button/spec.md
 
-> Created: 2025-09-05
-> Version: 1.0.0
+> Created: 2025-09-05 Version: 1.0.0
 
 ## Endpoints
 
 ### Deploy API Endpoints
 
 #### `POST /api/deploy/initiate`
-**Purpose**: Initialize deployment process and create repository fork
-**Request Body**:
+
+**Purpose**: Initialize deployment process and create repository fork **Request
+Body**:
+
 ```json
 {
   "githubToken": "string",
@@ -19,7 +21,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
   "description": "string"
 }
 ```
+
 **Response**:
+
 ```json
 {
   "deploymentId": "string",
@@ -29,8 +33,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ```
 
 #### `POST /api/deploy/configure`
-**Purpose**: Configure deployment with user credentials
-**Request Body**:
+
+**Purpose**: Configure deployment with user credentials **Request Body**:
+
 ```json
 {
   "deploymentId": "string",
@@ -47,7 +52,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
   }
 }
 ```
+
 **Response**:
+
 ```json
 {
   "deploymentId": "string",
@@ -61,14 +68,17 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ```
 
 #### `POST /api/deploy/execute`
-**Purpose**: Execute the actual deployment to Cloudflare
-**Request Body**:
+
+**Purpose**: Execute the actual deployment to Cloudflare **Request Body**:
+
 ```json
 {
   "deploymentId": "string"
 }
 ```
+
 **Response**:
+
 ```json
 {
   "deploymentId": "string",
@@ -78,8 +88,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ```
 
 #### `GET /api/deploy/status/{deploymentId}`
-**Purpose**: Get real-time deployment status
-**Response**:
+
+**Purpose**: Get real-time deployment status **Response**:
+
 ```json
 {
   "deploymentId": "string",
@@ -102,8 +113,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ### GitHub Integration Endpoints
 
 #### `POST /api/github/fork`
-**Purpose**: Create repository fork for user
-**Request Body**:
+
+**Purpose**: Create repository fork for user **Request Body**:
+
 ```json
 {
   "githubToken": "string",
@@ -111,7 +123,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
   "description": "string"
 }
 ```
+
 **Response**:
+
 ```json
 {
   "forkUrl": "string",
@@ -121,8 +135,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ```
 
 #### `POST /api/github/validate-app`
-**Purpose**: Validate GitHub App credentials
-**Request Body**:
+
+**Purpose**: Validate GitHub App credentials **Request Body**:
+
 ```json
 {
   "appId": "string",
@@ -130,7 +145,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
   "installationId": "string"
 }
 ```
+
 **Response**:
+
 ```json
 {
   "valid": true,
@@ -142,15 +159,18 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ### Cloudflare Integration Endpoints
 
 #### `POST /api/cloudflare/validate-token`
-**Purpose**: Validate Cloudflare API token and permissions
-**Request Body**:
+
+**Purpose**: Validate Cloudflare API token and permissions **Request Body**:
+
 ```json
 {
   "apiToken": "string",
   "accountId": "string"
 }
 ```
+
 **Response**:
+
 ```json
 {
   "valid": true,
@@ -160,8 +180,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ```
 
 #### `POST /api/cloudflare/deploy-worker`
-**Purpose**: Deploy worker to Cloudflare
-**Request Body**:
+
+**Purpose**: Deploy worker to Cloudflare **Request Body**:
+
 ```json
 {
   "deploymentId": "string",
@@ -169,7 +190,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
   "environment": "production|staging"
 }
 ```
+
 **Response**:
+
 ```json
 {
   "workerUrl": "string",
@@ -181,8 +204,9 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 ## Controllers
 
 ### DeploymentController
-**Purpose**: Orchestrate the entire deployment process
-**Methods**:
+
+**Purpose**: Orchestrate the entire deployment process **Methods**:
+
 - `initiateDeployment()`: Start deployment workflow
 - `configureDeployment()`: Set up credentials and configuration
 - `executeDeployment()`: Deploy to Cloudflare
@@ -190,32 +214,36 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-09-
 - `handleDeploymentError()`: Error handling and recovery
 
 ### GitHubController
-**Purpose**: Handle GitHub API interactions
-**Methods**:
+
+**Purpose**: Handle GitHub API interactions **Methods**:
+
 - `createFork()`: Fork repository for user
 - `validateGitHubApp()`: Verify GitHub App credentials
 - `setupWebhook()`: Configure webhook endpoints
 - `checkPermissions()`: Validate required permissions
 
 ### CloudflareController
-**Purpose**: Manage Cloudflare API operations
-**Methods**:
+
+**Purpose**: Manage Cloudflare API operations **Methods**:
+
 - `validateCredentials()`: Verify API token and account access
 - `deployWorker()`: Deploy worker to Cloudflare Workers
 - `configureDurableObjects()`: Set up Durable Object bindings
 - `setupCustomDomain()`: Configure custom domain (optional)
 
 ### ValidationController
-**Purpose**: Validate user inputs and external service credentials
-**Methods**:
+
+**Purpose**: Validate user inputs and external service credentials **Methods**:
+
 - `validateAnthropicApiKey()`: Test Anthropic API key
 - `validateGitHubCredentials()`: Test GitHub API access
 - `validateCloudflareToken()`: Test Cloudflare API access
 - `validateDeploymentConfig()`: Ensure complete configuration
 
 ### ProgressController
-**Purpose**: Track and report deployment progress
-**Methods**:
+
+**Purpose**: Track and report deployment progress **Methods**:
+
 - `updateProgress()`: Update deployment status
 - `logStep()`: Add step to deployment log
 - `handleError()`: Process and report errors

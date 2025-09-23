@@ -9,13 +9,15 @@ import { spawn } from 'child_process';
 
 class ACPTestClient {
   async testBinaryExecution() {
-    console.log('🚀 Testing @defikitteam/claudecode-container-acp binary execution...');
-    
+    console.log(
+      '🚀 Testing @defikitteam/claudecode-container-acp binary execution...',
+    );
+
     try {
       // Test that binary can start
       const agentProcess = spawn('node', ['dist/index.js'], {
         stdio: ['pipe', 'pipe', 'inherit'], // stdin, stdout, stderr
-        cwd: process.cwd()
+        cwd: process.cwd(),
       });
 
       console.log('📡 Agent binary started successfully');
@@ -26,12 +28,12 @@ class ACPTestClient {
         id: 1,
         method: 'initialize',
         params: {
-          clientCapabilities: {}
-        }
+          clientCapabilities: {},
+        },
       };
 
       console.log('📤 Sending test message...');
-      
+
       // Write test message
       agentProcess.stdin.write(JSON.stringify(testMessage) + '\n');
 
@@ -45,9 +47,13 @@ class ACPTestClient {
       // Test timeout
       setTimeout(() => {
         if (hasOutput) {
-          console.log('✅ SUCCESS: Binary executable works and responds to JSON-RPC!');
+          console.log(
+            '✅ SUCCESS: Binary executable works and responds to JSON-RPC!',
+          );
         } else {
-          console.log('⚠️  Binary started but no output received (this is expected for ACP protocol)');
+          console.log(
+            '⚠️  Binary started but no output received (this is expected for ACP protocol)',
+          );
         }
         console.log('✅ Test completed - binary is functional!');
         agentProcess.kill();
@@ -59,7 +65,6 @@ class ACPTestClient {
         console.error('❌ Binary execution failed:', error);
         process.exit(1);
       });
-
     } catch (error) {
       console.error('❌ Test failed:', error);
       process.exit(1);

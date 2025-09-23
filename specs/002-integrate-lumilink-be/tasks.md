@@ -5,12 +5,14 @@
 ### Core Infrastructure (Setup & Dependencies)
 
 **Task 1: Environment Setup**
+
 - Install @defikitteam/claude-acp-client package
 - Install @zed-industries/agent-client-protocol package
 - Configure TypeScript paths and imports
 - Update project dependencies in package.json
 
 **Task 2: Database Schema Updates**
+
 - Create AcpConnection model in Prisma schema
 - Extend ContainerSession model with protocol fields
 - Create ProtocolMigration model
@@ -22,6 +24,7 @@
 ### Base Implementation
 
 **Task 3: Core ACP Client Service**
+
 - Create src/services/acp-client.service.ts
 - Implement connection establishment logic
 - Implement connection state management
@@ -31,6 +34,7 @@
 - Add basic unit tests
 
 **Task 4: ACP Connection Service**
+
 - Create src/services/acp-connection.service.ts
 - Implement connection management (create, update, close)
 - Add connection monitoring and health checks
@@ -40,6 +44,7 @@
 - Create unit tests for connection management
 
 **Task 5: Message Types & Interfaces**
+
 - Create src/types/acp-message.types.ts
 - Define message interfaces based on contract schema
 - Implement message validation utilities
@@ -48,6 +53,7 @@
 - Create unit tests for message validation
 
 **Task 6: Container Communication Adaptation**
+
 - Update src/services/container-communication.service.ts
 - Add ACP protocol support alongside HTTP
 - Implement protocol selection logic
@@ -59,6 +65,7 @@
 ### Advanced Features
 
 **Task 7: Protocol Migration Service**
+
 - Create src/services/protocol-migration.service.ts
 - Implement migration between protocols
 - Add migration status tracking
@@ -68,6 +75,7 @@
 - Create tests for protocol migration
 
 **Task 8: Container Health Monitoring**
+
 - Update src/services/container-health-monitor.service.ts
 - Add ACP-specific health checks
 - Implement real-time status monitoring
@@ -77,6 +85,7 @@
 - Create integration tests for health monitoring
 
 **Task 9: ACP Durable Object**
+
 - Create src/durable-objects/acp-connection-do.ts
 - Implement connection state persistence
 - Add distributed connection tracking
@@ -86,6 +95,7 @@
 - Create tests for durable object
 
 **Task 10: API Endpoints & Routes**
+
 - Update src/route/containers.ts
 - Add ACP-specific endpoints
 - Create migration control endpoints
@@ -97,6 +107,7 @@
 ### Testing & Validation
 
 **Task 11: Unit Testing Suite**
+
 - Create tests for ACP client service
 - Create tests for connection management
 - Create tests for message handling
@@ -105,6 +116,7 @@
 - Add code coverage for ACP components
 
 **Task 12: Integration Testing Suite**
+
 - Create container lifecycle tests with ACP
 - Create protocol switching tests
 - Create performance comparison tests
@@ -113,6 +125,7 @@
 - Add end-to-end test scenarios
 
 **Task 13: Performance Testing**
+
 - Create latency comparison benchmarks
 - Implement throughput testing
 - Create connection scaling tests
@@ -123,6 +136,7 @@
 ### Deployment & Migration
 
 **Task 14: Feature Flags & Controls**
+
 - Create feature flag system for ACP
 - Implement gradual rollout controls
 - Add protocol preference settings
@@ -131,6 +145,7 @@
 - Add monitoring dashboard for protocol usage
 
 **Task 15: Documentation & Training**
+
 - Create user documentation
 - Update API reference
 - Create migration guide for existing users
@@ -157,35 +172,35 @@ Task 6, Task 7, Task 13, Task 14 → Task 15
 
 ## Estimated Effort
 
-| Task | Complexity | Estimated Time | Priority |
-|------|------------|----------------|----------|
-| 1: Environment Setup | Low | 2 hours | High |
-| 2: Database Schema Updates | Medium | 4 hours | High |
-| 3: Core ACP Client Service | High | 8 hours | High |
-| 4: ACP Connection Service | High | 8 hours | High |
-| 5: Message Types & Interfaces | Medium | 4 hours | High |
-| 6: Container Communication Adaptation | High | 10 hours | High |
-| 7: Protocol Migration Service | High | 8 hours | Medium |
-| 8: Container Health Monitoring | Medium | 6 hours | Medium |
-| 9: ACP Durable Object | High | 8 hours | Medium |
-| 10: API Endpoints & Routes | Medium | 6 hours | Medium |
-| 11: Unit Testing Suite | Medium | 8 hours | High |
-| 12: Integration Testing Suite | High | 10 hours | High |
-| 13: Performance Testing | Medium | 6 hours | Medium |
-| 14: Feature Flags & Controls | Medium | 6 hours | Low |
-| 15: Documentation & Training | Medium | 8 hours | Medium |
-| **Total** | | **102 hours** | |
+| Task                                  | Complexity | Estimated Time | Priority |
+| ------------------------------------- | ---------- | -------------- | -------- |
+| 1: Environment Setup                  | Low        | 2 hours        | High     |
+| 2: Database Schema Updates            | Medium     | 4 hours        | High     |
+| 3: Core ACP Client Service            | High       | 8 hours        | High     |
+| 4: ACP Connection Service             | High       | 8 hours        | High     |
+| 5: Message Types & Interfaces         | Medium     | 4 hours        | High     |
+| 6: Container Communication Adaptation | High       | 10 hours       | High     |
+| 7: Protocol Migration Service         | High       | 8 hours        | Medium   |
+| 8: Container Health Monitoring        | Medium     | 6 hours        | Medium   |
+| 9: ACP Durable Object                 | High       | 8 hours        | Medium   |
+| 10: API Endpoints & Routes            | Medium     | 6 hours        | Medium   |
+| 11: Unit Testing Suite                | Medium     | 8 hours        | High     |
+| 12: Integration Testing Suite         | High       | 10 hours       | High     |
+| 13: Performance Testing               | Medium     | 6 hours        | Medium   |
+| 14: Feature Flags & Controls          | Medium     | 6 hours        | Low      |
+| 15: Documentation & Training          | Medium     | 8 hours        | Medium   |
+| **Total**                             |            | **102 hours**  |          |
 
 ## Risk Assessment
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|------------|------------|
-| ACP client compatibility issues | High | Medium | Thorough testing, fallback mechanism |
-| Performance not meeting targets | Medium | Low | Early benchmarking, optimization phase |
-| Migration failures | High | Medium | Robust rollback, gradual deployment |
-| Connection scaling issues | High | Medium | Load testing, incremental scaling |
-| Cloudflare Workers limitations | Medium | Low | Design within platform constraints |
-| Database schema migration issues | Medium | Low | Test migrations, backup strategy |
+| Risk                             | Impact | Probability | Mitigation                             |
+| -------------------------------- | ------ | ----------- | -------------------------------------- |
+| ACP client compatibility issues  | High   | Medium      | Thorough testing, fallback mechanism   |
+| Performance not meeting targets  | Medium | Low         | Early benchmarking, optimization phase |
+| Migration failures               | High   | Medium      | Robust rollback, gradual deployment    |
+| Connection scaling issues        | High   | Medium      | Load testing, incremental scaling      |
+| Cloudflare Workers limitations   | Medium | Low         | Design within platform constraints     |
+| Database schema migration issues | Medium | Low         | Test migrations, backup strategy       |
 
 ## Success Criteria
 

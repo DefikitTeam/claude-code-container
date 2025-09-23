@@ -20,7 +20,13 @@
     },
     "MigrationReason": {
       "type": "string",
-      "enum": ["user-requested", "automatic", "performance", "error-recovery", "system-initiated"],
+      "enum": [
+        "user-requested",
+        "automatic",
+        "performance",
+        "error-recovery",
+        "system-initiated"
+      ],
       "description": "Reason for initiating the migration"
     }
   },

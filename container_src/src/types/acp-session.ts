@@ -3,7 +3,11 @@
  * Session management and state tracking for ACP protocol
  */
 
-import { ContentBlock, AgentCapabilities, WorkspaceInfo } from './acp-messages.js';
+import {
+  ContentBlock,
+  AgentCapabilities,
+  WorkspaceInfo,
+} from './acp-messages.js';
 
 // ===== Session State Management =====
 
@@ -42,7 +46,14 @@ export interface ACPSession {
 export interface SessionEvent {
   sessionId: string;
   timestamp: number;
-  type: 'created' | 'loaded' | 'prompt_received' | 'update_sent' | 'completed' | 'error' | 'cancelled';
+  type:
+    | 'created'
+    | 'loaded'
+    | 'prompt_received'
+    | 'update_sent'
+    | 'completed'
+    | 'error'
+    | 'cancelled';
   data?: unknown;
 }
 
@@ -63,7 +74,10 @@ export interface SessionManager {
 
   listSessions(): Promise<string[]>;
 
-  addMessageToHistory(sessionId: string, content: ContentBlock[]): Promise<void>;
+  addMessageToHistory(
+    sessionId: string,
+    content: ContentBlock[],
+  ): Promise<void>;
 
   updateLastActiveTime(sessionId: string): Promise<void>;
 }
@@ -122,7 +136,10 @@ export function createSessionId(): string {
   return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function isSessionExpired(session: ACPSession, maxDuration: number): boolean {
+export function isSessionExpired(
+  session: ACPSession,
+  maxDuration: number,
+): boolean {
   return Date.now() - session.lastActiveAt > maxDuration;
 }
 
@@ -150,4 +167,8 @@ export function validateSessionState(state: string): state is SessionState {
 
 // ===== Re-export from messages for convenience =====
 
-export type { ContentBlock, AgentCapabilities, WorkspaceInfo } from './acp-messages.js';
+export type {
+  ContentBlock,
+  AgentCapabilities,
+  WorkspaceInfo,
+} from './acp-messages.js';

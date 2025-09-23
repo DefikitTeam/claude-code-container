@@ -1,6 +1,6 @@
 // Per-user token management system with container registry authentication support
-import { Env, UserConfig, UserInstallationToken } from "./types";
-import { generateInstallationToken } from "./github-utils";
+import { Env, UserConfig, UserInstallationToken } from './types';
+import { generateInstallationToken } from './github-utils';
 
 /**
  * Container Registry Authentication Result
@@ -27,7 +27,7 @@ export interface RetryConfig {
 export class TokenManager {
   private env: Env;
   private defaultRetryConfig: RetryConfig;
-  
+
   constructor(env: Env, retryConfig?: Partial<RetryConfig>) {
     this.env = env;
     this.defaultRetryConfig = {
@@ -36,12 +36,14 @@ export class TokenManager {
       maxDelay: 10000,
       retryCondition: (error: any) => {
         // Retry on network errors, timeouts, and temporary server errors
-        return error?.message?.includes('network') ||
-               error?.message?.includes('timeout') ||
-               (error?.status >= 500 && error?.status < 600) ||
-               error?.status === 429; // Rate limit
+        return (
+          error?.message?.includes('network') ||
+          error?.message?.includes('timeout') ||
+          (error?.status >= 500 && error?.status < 600) ||
+          error?.status === 429
+        ); // Rate limit
       },
-      ...retryConfig
+      ...retryConfig,
     };
   }
 
@@ -49,13 +51,18 @@ export class TokenManager {
    * Get a valid installation token for a user with retry logic
    * Returns cached token if valid, otherwise generates a new one
    */
-  async getInstallationToken(userConfig: UserConfig, retryConfig?: Partial<RetryConfig>): Promise<string | null> {
+  async getInstallationToken(
+    userConfig: UserConfig,
+    retryConfig?: Partial<RetryConfig>,
+  ): Promise<string | null> {
     const config = { ...this.defaultRetryConfig, ...retryConfig };
-    
+
     return this.executeWithRetry(async () => {
       try {
         // Try to get cached token first
-        const cachedToken = await this.getCachedToken(userConfig.installationId);
+        const cachedToken = await this.getCachedToken(
+          userConfig.installationId,
+        );
         if (cachedToken && !this.isTokenExpired(cachedToken.expiresAt)) {
           console.log(`✅ Using cached token for user ${userConfig.userId}`);
           return cachedToken.token;
@@ -65,16 +72,22 @@ export class TokenManager {
         console.log(`🔄 Generating new token for user ${userConfig.userId}`);
         const newToken = await generateInstallationToken(userConfig, this.env);
         if (!newToken) {
-          throw new Error(`Failed to generate token for user ${userConfig.userId}`);
+          throw new Error(
+            `Failed to generate token for user ${userConfig.userId}`,
+          );
         }
 
         // Cache the new token
         await this.cacheToken(userConfig, newToken);
-        console.log(`✅ Token generated and cached for user ${userConfig.userId}`);
+        console.log(
+          `✅ Token generated and cached for user ${userConfig.userId}`,
+        );
         return newToken;
-
       } catch (error) {
-        console.error(`Token management error for user ${userConfig.userId}:`, error);
+        console.error(
+          `Token management error for user ${userConfig.userId}:`,
+          error,
+        );
         throw error;
       }
     }, config);
@@ -84,7 +97,9 @@ export class TokenManager {
    * Get container registry authentication for Cloudflare
    * This handles the specific authentication needed for container deployment
    */
-  async getContainerRegistryAuth(userConfig: UserConfig): Promise<ContainerRegistryAuth | null> {
+  async getContainerRegistryAuth(
+    userConfig: UserConfig,
+  ): Promise<ContainerRegistryAuth | null> {
     try {
       const installationToken = await this.getInstallationToken(userConfig);
       if (!installationToken) {
@@ -93,10 +108,16 @@ export class TokenManager {
 
       // For Cloudflare container registry, we need to authenticate with GitHub token
       // and get a registry-specific token
-      const registryAuth = await this.getCloudflareRegistryToken(installationToken, userConfig);
+      const registryAuth = await this.getCloudflareRegistryToken(
+        installationToken,
+        userConfig,
+      );
       return registryAuth;
     } catch (error) {
-      console.error(`Container registry auth error for user ${userConfig.userId}:`, error);
+      console.error(
+        `Container registry auth error for user ${userConfig.userId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -104,34 +125,51 @@ export class TokenManager {
   /**
    * Get Cloudflare container registry token using GitHub installation token
    */
-  private async getCloudflareRegistryToken(installationToken: string, userConfig: UserConfig): Promise<ContainerRegistryAuth | null> {
+  private async getCloudflareRegistryToken(
+    installationToken: string,
+    userConfig: UserConfig,
+  ): Promise<ContainerRegistryAuth | null> {
     return this.executeWithRetry(async () => {
       try {
         // Check if we have a cached registry token
-        const cachedRegistryToken = await this.getCachedRegistryToken(userConfig.installationId);
-        if (cachedRegistryToken && !this.isRegistryTokenExpired(cachedRegistryToken)) {
-          console.log(`✅ Using cached registry token for user ${userConfig.userId}`);
+        const cachedRegistryToken = await this.getCachedRegistryToken(
+          userConfig.installationId,
+        );
+        if (
+          cachedRegistryToken &&
+          !this.isRegistryTokenExpired(cachedRegistryToken)
+        ) {
+          console.log(
+            `✅ Using cached registry token for user ${userConfig.userId}`,
+          );
           return cachedRegistryToken;
         }
 
         // Generate new registry token
-        console.log(`🔄 Generating new registry token for user ${userConfig.userId}`);
-        
+        console.log(
+          `🔄 Generating new registry token for user ${userConfig.userId}`,
+        );
+
         // For now, use the GitHub installation token directly
         // In production, this would involve calling Cloudflare's registry API
         const registryAuth: ContainerRegistryAuth = {
           token: installationToken,
-          expires_at: new Date(Date.now() + (50 * 60 * 1000)).toISOString(), // 50 minutes
-          registry_url: 'registry.cloudflare.com'
+          expires_at: new Date(Date.now() + 50 * 60 * 1000).toISOString(), // 50 minutes
+          registry_url: 'registry.cloudflare.com',
         };
 
         // Cache the registry token
         await this.cacheRegistryToken(userConfig, registryAuth);
-        console.log(`✅ Registry token generated and cached for user ${userConfig.userId}`);
-        
+        console.log(
+          `✅ Registry token generated and cached for user ${userConfig.userId}`,
+        );
+
         return registryAuth;
       } catch (error) {
-        console.error(`Registry token generation error for user ${userConfig.userId}:`, error);
+        console.error(
+          `Registry token generation error for user ${userConfig.userId}:`,
+          error,
+        );
         throw error;
       }
     }, this.defaultRetryConfig);
@@ -149,12 +187,16 @@ export class TokenManager {
 
       // Test the authentication by attempting a minimal registry operation
       // For now, we'll just check token format and expiration
-  const isValidFormat = !!registryAuth.token && registryAuth.token.length > 0;
+      const isValidFormat =
+        !!registryAuth.token && registryAuth.token.length > 0;
       const isNotExpired = !this.isRegistryTokenExpired(registryAuth);
-      
+
       return isValidFormat && isNotExpired;
     } catch (error) {
-      console.error(`Container auth validation error for user ${userConfig.userId}:`, error);
+      console.error(
+        `Container auth validation error for user ${userConfig.userId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -162,20 +204,24 @@ export class TokenManager {
   /**
    * Get cached token from Durable Object storage
    */
-  private async getCachedToken(installationId: string): Promise<UserInstallationToken | null> {
+  private async getCachedToken(
+    installationId: string,
+  ): Promise<UserInstallationToken | null> {
     try {
       const userConfigDO = this.getUserConfigDO();
       const response = await userConfigDO.fetch(
-        new Request(`http://localhost/installation-token?installationId=${installationId}`)
+        new Request(
+          `http://localhost/installation-token?installationId=${installationId}`,
+        ),
       );
 
       if (response.ok) {
-        return await response.json() as UserInstallationToken;
+        return (await response.json()) as UserInstallationToken;
       }
-      
+
       return null;
     } catch (error) {
-      console.error("Error getting cached token:", error);
+      console.error('Error getting cached token:', error);
       return null;
     }
   }
@@ -183,29 +229,34 @@ export class TokenManager {
   /**
    * Cache token in Durable Object storage
    */
-  private async cacheToken(userConfig: UserConfig, token: string): Promise<void> {
+  private async cacheToken(
+    userConfig: UserConfig,
+    token: string,
+  ): Promise<void> {
     try {
-      const expiresAt = Date.now() + (60 * 60 * 1000); // 1 hour from now
-      
+      const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour from now
+
       const tokenData: UserInstallationToken = {
         installationId: userConfig.installationId,
         token,
         expiresAt,
-        userId: userConfig.userId
+        userId: userConfig.userId,
       };
 
       const userConfigDO = this.getUserConfigDO();
       // Use a plain request-like object so tests/mocks capture method, url and body as expected
       await userConfigDO.fetch({
-        method: "POST",
-        url: "http://localhost/installation-token",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        url: 'http://localhost/installation-token',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(tokenData),
       } as any);
 
-      console.log(`Token cached for installation ${userConfig.installationId} until ${new Date(expiresAt).toISOString()}`);
+      console.log(
+        `Token cached for installation ${userConfig.installationId} until ${new Date(expiresAt).toISOString()}`,
+      );
     } catch (error) {
-      console.error("Error caching token:", error);
+      console.error('Error caching token:', error);
     }
   }
 
@@ -225,33 +276,40 @@ export class TokenManager {
     try {
       const userConfigDO = this.getUserConfigDO();
       await userConfigDO.fetch(
-        new Request(`http://localhost/installation-token?installationId=${installationId}`, {
-          method: "DELETE"
-        })
+        new Request(
+          `http://localhost/installation-token?installationId=${installationId}`,
+          {
+            method: 'DELETE',
+          },
+        ),
       );
       console.log(`Token invalidated for installation ${installationId}`);
     } catch (error) {
-      console.error("Error invalidating token:", error);
+      console.error('Error invalidating token:', error);
     }
   }
 
   /**
    * Get cached registry token from Durable Object storage
    */
-  private async getCachedRegistryToken(installationId: string): Promise<ContainerRegistryAuth | null> {
+  private async getCachedRegistryToken(
+    installationId: string,
+  ): Promise<ContainerRegistryAuth | null> {
     try {
       const userConfigDO = this.getUserConfigDO();
       const response = await userConfigDO.fetch(
-        new Request(`http://localhost/registry-token?installationId=${installationId}`)
+        new Request(
+          `http://localhost/registry-token?installationId=${installationId}`,
+        ),
       );
 
       if (response.ok) {
-        return await response.json() as ContainerRegistryAuth;
+        return (await response.json()) as ContainerRegistryAuth;
       }
-      
+
       return null;
     } catch (error) {
-      console.error("Error getting cached registry token:", error);
+      console.error('Error getting cached registry token:', error);
       return null;
     }
   }
@@ -259,24 +317,29 @@ export class TokenManager {
   /**
    * Cache registry token in Durable Object storage
    */
-  private async cacheRegistryToken(userConfig: UserConfig, registryAuth: ContainerRegistryAuth): Promise<void> {
+  private async cacheRegistryToken(
+    userConfig: UserConfig,
+    registryAuth: ContainerRegistryAuth,
+  ): Promise<void> {
     try {
       const userConfigDO = this.getUserConfigDO();
       // Use a plain request-like object so tests/mocks capture method, url and body as expected
       await userConfigDO.fetch({
-        method: "POST",
-        url: "http://localhost/registry-token",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        url: 'http://localhost/registry-token',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           installationId: userConfig.installationId,
           userId: userConfig.userId,
-          ...registryAuth
+          ...registryAuth,
         }),
       } as any);
 
-      console.log(`Registry token cached for installation ${userConfig.installationId} until ${registryAuth.expires_at}`);
+      console.log(
+        `Registry token cached for installation ${userConfig.installationId} until ${registryAuth.expires_at}`,
+      );
     } catch (error) {
-      console.error("Error caching registry token:", error);
+      console.error('Error caching registry token:', error);
     }
   }
 
@@ -295,40 +358,43 @@ export class TokenManager {
    */
   private async executeWithRetry<T>(
     fn: () => Promise<T>,
-    config: RetryConfig
+    config: RetryConfig,
   ): Promise<T | null> {
     let lastError: any;
-    
+
     for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
       try {
         return await fn();
       } catch (error) {
         lastError = error;
-        
+
         // Don't retry on the last attempt
         if (attempt === config.maxRetries) {
           break;
         }
-        
+
         // Check if we should retry this error
         if (config.retryCondition && !config.retryCondition(error)) {
           const err = error as any;
           console.log(`Not retrying due to error type: ${err?.message}`);
           break;
         }
-        
+
         // Calculate delay with exponential backoff
         const delay = Math.min(
           config.baseDelay * Math.pow(2, attempt),
-          config.maxDelay
+          config.maxDelay,
         );
-        
-  const err = error as any;
-  console.log(`Attempt ${attempt + 1} failed, retrying in ${delay}ms:`, err?.message);
+
+        const err = error as any;
+        console.log(
+          `Attempt ${attempt + 1} failed, retrying in ${delay}ms:`,
+          err?.message,
+        );
         await this.sleep(delay);
       }
     }
-    
+
     console.error(`All retry attempts failed:`, lastError);
     return null;
   }
@@ -337,7 +403,7 @@ export class TokenManager {
    * Sleep utility for retry delays
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -346,28 +412,37 @@ export class TokenManager {
   async refreshUserTokens(userConfig: UserConfig): Promise<boolean> {
     try {
       console.log(`🔄 Refreshing tokens for user ${userConfig.userId}`);
-      
+
       // Invalidate cached tokens
       await this.invalidateToken(userConfig.installationId);
       await this.invalidateRegistryToken(userConfig.installationId);
-      
+
       // Generate fresh tokens
       const newInstallationToken = await this.getInstallationToken(userConfig);
       if (!newInstallationToken) {
-        console.error(`❌ Failed to refresh installation token for user ${userConfig.userId}`);
+        console.error(
+          `❌ Failed to refresh installation token for user ${userConfig.userId}`,
+        );
         return false;
       }
-      
+
       const newRegistryAuth = await this.getContainerRegistryAuth(userConfig);
       if (!newRegistryAuth) {
-        console.error(`❌ Failed to refresh registry auth for user ${userConfig.userId}`);
+        console.error(
+          `❌ Failed to refresh registry auth for user ${userConfig.userId}`,
+        );
         return false;
       }
-      
-      console.log(`✅ Tokens refreshed successfully for user ${userConfig.userId}`);
+
+      console.log(
+        `✅ Tokens refreshed successfully for user ${userConfig.userId}`,
+      );
       return true;
     } catch (error) {
-      console.error(`Token refresh error for user ${userConfig.userId}:`, error);
+      console.error(
+        `Token refresh error for user ${userConfig.userId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -379,13 +454,18 @@ export class TokenManager {
     try {
       const userConfigDO = this.getUserConfigDO();
       await userConfigDO.fetch(
-        new Request(`http://localhost/registry-token?installationId=${installationId}`, {
-          method: "DELETE"
-        })
+        new Request(
+          `http://localhost/registry-token?installationId=${installationId}`,
+          {
+            method: 'DELETE',
+          },
+        ),
       );
-      console.log(`Registry token invalidated for installation ${installationId}`);
+      console.log(
+        `Registry token invalidated for installation ${installationId}`,
+      );
     } catch (error) {
-      console.error("Error invalidating registry token:", error);
+      console.error('Error invalidating registry token:', error);
     }
   }
 
@@ -393,7 +473,7 @@ export class TokenManager {
    * Get UserConfigDO instance
    */
   private getUserConfigDO() {
-    const id = this.env.USER_CONFIG.idFromName("user-config");
+    const id = this.env.USER_CONFIG.idFromName('user-config');
     return this.env.USER_CONFIG.get(id);
   }
 }

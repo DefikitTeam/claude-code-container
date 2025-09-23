@@ -13,7 +13,15 @@
     "type": {
       "type": "string",
       "description": "Type of message",
-      "enum": ["connect", "message", "event", "command", "status", "disconnect", "error"]
+      "enum": [
+        "connect",
+        "message",
+        "event",
+        "command",
+        "status",
+        "disconnect",
+        "error"
+      ]
     },
     "timestamp": {
       "type": "string",
@@ -152,7 +160,14 @@
               "status": {
                 "type": "string",
                 "description": "Container status",
-                "enum": ["starting", "running", "paused", "stopping", "stopped", "error"]
+                "enum": [
+                  "starting",
+                  "running",
+                  "paused",
+                  "stopping",
+                  "stopped",
+                  "error"
+                ]
               },
               "metrics": {
                 "type": "object",

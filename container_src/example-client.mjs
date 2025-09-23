@@ -2,7 +2,7 @@
 
 /**
  * Example Client Agent demonstrating communication with Claude Code Container
- * 
+ *
  * This shows how any external agent system can communicate with the container
  * to perform GitHub operations and code analysis.
  */
@@ -19,11 +19,11 @@ class ACPClient {
 
   async connect() {
     console.log('🚀 Connecting to Claude Code Container...');
-    
+
     // Spawn container in generic ACP mode
     this.container = spawn('node', ['dist/main.js', '--generic-acp'], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: process.cwd()
+      cwd: process.cwd(),
     });
 
     this.container.stderr.on('data', (data) => {
@@ -36,9 +36,9 @@ class ACPClient {
       clientCapabilities: {
         fs: {
           readTextFile: true,
-          writeTextFile: true
-        }
-      }
+          writeTextFile: true,
+        },
+      },
     });
 
     console.log('✅ Connection established:', initResponse.result);
@@ -47,10 +47,10 @@ class ACPClient {
 
   async createSession(workspaceUri = process.cwd()) {
     console.log(`📁 Creating session for workspace: ${workspaceUri}`);
-    
+
     const response = await this.sendRequest('session/new', {
       cwd: workspaceUri,
-      mcpServers: []
+      mcpServers: [],
     });
 
     this.sessionId = response.result.sessionId;
@@ -71,9 +71,9 @@ class ACPClient {
       prompt: [
         {
           type: 'text',
-          text: prompt
-        }
-      ]
+          text: prompt,
+        },
+      ],
     });
 
     return response;
@@ -82,24 +82,28 @@ class ACPClient {
   async sendRequest(method, params) {
     return new Promise((resolve, reject) => {
       const id = this.messageId++;
-      const message = JSON.stringify({
-        jsonrpc: '2.0',
-        method,
-        id,
-        params
-      }) + '\n';
+      const message =
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method,
+          id,
+          params,
+        }) + '\n';
 
       // Set up response handler
       const responseHandler = (data) => {
-        const lines = data.toString().split('\n').filter(line => line.trim());
-        
+        const lines = data
+          .toString()
+          .split('\n')
+          .filter((line) => line.trim());
+
         for (const line of lines) {
           try {
             const response = JSON.parse(line);
-            
+
             if (response.id === id) {
               this.container.stdout.off('data', responseHandler);
-              
+
               if (response.error) {
                 reject(new Error(`ACP Error: ${response.error.message}`));
               } else {
@@ -107,7 +111,7 @@ class ACPClient {
               }
               return;
             }
-            
+
             // Handle notifications (updates during processing)
             if (response.method === 'session/update') {
               this.handleUpdate(response.params);
@@ -119,10 +123,10 @@ class ACPClient {
       };
 
       this.container.stdout.on('data', responseHandler);
-      
+
       // Send request
       this.container.stdin.write(message);
-      
+
       // Timeout after 30 seconds
       setTimeout(() => {
         this.container.stdout.off('data', responseHandler);
@@ -133,22 +137,24 @@ class ACPClient {
 
   handleUpdate(params) {
     const { sessionId, update } = params;
-    
+
     switch (update.sessionUpdate) {
       case 'agent_message_chunk':
         if (update.content.type === 'text') {
           process.stdout.write(update.content.text);
         }
         break;
-        
+
       case 'agent_thought_chunk':
         console.log(`[THINKING] ${update.content.text}`);
         break;
-        
+
       case 'tool_call':
-        console.log(`[TOOL] ${update.toolName}: ${JSON.stringify(update.rawInput)}`);
+        console.log(
+          `[TOOL] ${update.toolName}: ${JSON.stringify(update.rawInput)}`,
+        );
         break;
-        
+
       case 'tool_call_update':
         if (update.status === 'completed') {
           console.log(`[TOOL COMPLETE] ${update.toolName}`);
@@ -156,7 +162,7 @@ class ACPClient {
           console.log(`[TOOL FAILED] ${update.toolName}`);
         }
         break;
-        
+
       default:
         console.log(`[UPDATE] ${update.sessionUpdate}:`, update);
     }
@@ -172,19 +178,19 @@ class ACPClient {
 // Example usage
 async function main() {
   const client = new ACPClient();
-  
+
   try {
     // Connect to container
     await client.connect();
-    
+
     // Create session
     await client.createSession();
-    
+
     // Example prompts
     const prompts = [
-      "Hello! Can you tell me about your capabilities?",
-      "What GitHub operations can you perform?",
-      "Can you help me understand the current working directory structure?"
+      'Hello! Can you tell me about your capabilities?',
+      'What GitHub operations can you perform?',
+      'Can you help me understand the current working directory structure?',
     ];
 
     for (const prompt of prompts) {
@@ -193,7 +199,6 @@ async function main() {
       console.log('\n✅ Prompt completed:', response.result.stopReason);
       console.log('='.repeat(60));
     }
-    
   } catch (error) {
     console.error('❌ Error:', error.message);
   } finally {

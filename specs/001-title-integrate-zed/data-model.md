@@ -5,6 +5,7 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 ## JSON-RPC Message Types
 
 ### 1) InitializeRequest
+
 ```typescript
 {
   jsonrpc: "2.0",
@@ -23,6 +24,7 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 ```
 
 ### 2) InitializeResponse
+
 ```typescript
 {
   jsonrpc: "2.0",
@@ -45,6 +47,7 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 ```
 
 ### 3) SessionNewRequest
+
 ```typescript
 {
   jsonrpc: "2.0",
@@ -58,6 +61,7 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 ```
 
 ### 4) SessionPromptRequest
+
 ```typescript
 {
   jsonrpc: "2.0",
@@ -72,6 +76,7 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 ```
 
 ### 5) SessionUpdateNotification
+
 ```typescript
 {
   jsonrpc: "2.0",
@@ -87,6 +92,7 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 ## Session Management Entities
 
 ### 6) ACPSession
+
 - sessionId: string (UUID)
 - workspaceUri?: string
 - mode: 'conversation' | 'development'
@@ -97,11 +103,13 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 - workspaceState?: { currentBranch?: string, modifiedFiles?: string[] }
 
 ### 7) ContentBlock
+
 - type: 'text' | 'image' | 'diff' | 'file' | 'thought'
 - content: string
 - metadata?: { [key: string]: any }
 
 ### 8) AgentCapabilities
+
 - editWorkspace: boolean (can modify files)
 - filesRead: boolean (can read repository files)
 - filesWrite: boolean (can create/update files)
@@ -112,29 +120,34 @@ JSON-RPC message types and session entities for ACP protocol implementation:
 ## Storage Strategy (Container-based)
 
 **In-Container Storage** (primary):
+
 - Session state in memory with file backup
 - Message history in temporary files
 - Workspace isolation via Docker volumes
 
 **Optional Durable Object Persistence** (for multi-container scenarios):
+
 - `ACP_SESSION_DO`: Session metadata and history references
 - `WORKSPACE_STATE_DO`: Persistent workspace state
 
 ## Message Flow Examples
 
 **Initialization Flow**:
+
 ```
 Zed → initialize(clientCapabilities) → Container
 Zed ← initialize_response(agentCapabilities) ← Container
 ```
 
 **Session Creation**:
+
 ```
 Zed → session/new(workspaceUri) → Container
 Zed ← session_id ← Container
 ```
 
 **Prompt Processing**:
+
 ```
 Zed → session/prompt(sessionId, content) → Container
 Zed ← session/update(thinking) ← Container (notification)
@@ -154,6 +167,7 @@ Zed ← prompt_response(result) ← Container
 ## State Transitions
 
 **Session States**:
+
 - active: Currently processing or waiting for input
 - paused: Suspended, can be resumed
 - completed: Successfully finished

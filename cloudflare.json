@@ -16,7 +16,7 @@
         "description": "Anthropic Claude API key (get from https://console.anthropic.com/)"
       },
       "GITHUB_APP_PRIVATE_KEY": {
-        "type": "secret", 
+        "type": "secret",
         "description": "GitHub App Private Key in PEM format"
       },
       "GITHUB_APP_ID": {
@@ -39,7 +39,7 @@
           "script_name": "claude-code-containers"
         },
         {
-          "class_name": "GitHubAppConfigDO", 
+          "class_name": "GitHubAppConfigDO",
           "script_name": "claude-code-containers"
         },
         {

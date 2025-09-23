@@ -7,11 +7,13 @@ Get started with Claude Code Container integration in under 5 minutes.
 ### Step 1: Choose Your Integration Method
 
 **Option A: NPM Package (Recommended)**
+
 ```bash
 npm install @defikitteam/claude-acp-client
 ```
 
 **Option B: Direct HTTP API**
+
 ```bash
 curl -X POST https://your-worker.com/acp/jsonrpc
 ```
@@ -45,23 +47,23 @@ import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
 async function askClaude(question: string): Promise<string> {
   const client = new ClaudeHTTPClient({
     baseURL: process.env.WORKER_URL!,
-    apiKey: process.env.ANTHROPIC_API_KEY!
+    apiKey: process.env.ANTHROPIC_API_KEY!,
   });
-  
+
   // Initialize
   await client.initialize();
-  
+
   // Create session
   const session = await client.createSession(process.cwd());
-  
+
   // Ask question
   await client.sendPrompt(session.sessionId, question);
-  
-  return "Response received"; // Actual response via notifications
+
+  return 'Response received'; // Actual response via notifications
 }
 
 // Usage
-const answer = await askClaude("How do I create a React component?");
+const answer = await askClaude('How do I create a React component?');
 console.log(answer);
 ```
 
@@ -72,15 +74,15 @@ import fs from 'fs';
 
 async function reviewCode(filePath: string): Promise<void> {
   const code = fs.readFileSync(filePath, 'utf8');
-  
+
   const client = new ClaudeHTTPClient({
     baseURL: process.env.WORKER_URL!,
-    apiKey: process.env.ANTHROPIC_API_KEY!
+    apiKey: process.env.ANTHROPIC_API_KEY!,
   });
-  
+
   await client.initialize();
   const session = await client.createSession(process.cwd());
-  
+
   const prompt = `Please review this code for best practices, bugs, and improvements:
 
 \`\`\`typescript
@@ -108,9 +110,9 @@ program
   .action(async (question) => {
     const client = new ClaudeHTTPClient({
       baseURL: process.env.WORKER_URL || 'https://your-worker.com',
-      apiKey: process.env.ANTHROPIC_API_KEY!
+      apiKey: process.env.ANTHROPIC_API_KEY!,
     });
-    
+
     await client.initialize();
     const session = await client.createSession(process.cwd());
     await client.sendPrompt(session.sessionId, question);
@@ -130,24 +132,28 @@ claude-cli ask "How do I optimize this React app?"
 ## 📋 Integration Checklist
 
 ### ✅ Basic Setup
+
 - [ ] Install package or setup HTTP client
 - [ ] Configure API key
 - [ ] Test connectivity
 - [ ] Verify worker URL
 
 ### ✅ Core Integration
+
 - [ ] Initialize ACP connection
 - [ ] Create session
 - [ ] Send test prompt
 - [ ] Handle responses
 
 ### ✅ Error Handling
+
 - [ ] API key validation
 - [ ] Network error handling
 - [ ] Rate limit handling
 - [ ] Session lifecycle management
 
 ### ✅ Production Ready
+
 - [ ] Logging setup
 - [ ] Health checks
 - [ ] Monitoring
@@ -163,24 +169,24 @@ claude-cli ask "How do I optimize this React app?"
 class UserClaudeSession {
   private sessions = new Map<string, string>();
   private client: ClaudeHTTPClient;
-  
+
   constructor() {
     this.client = new ClaudeHTTPClient({
       baseURL: process.env.WORKER_URL!,
-      apiKey: process.env.ANTHROPIC_API_KEY!
+      apiKey: process.env.ANTHROPIC_API_KEY!,
     });
   }
-  
+
   async getOrCreateSession(userId: string): Promise<string> {
     if (!this.sessions.has(userId)) {
       await this.client.initialize();
       const session = await this.client.createSession('/workspace');
       this.sessions.set(userId, session.sessionId);
     }
-    
+
     return this.sessions.get(userId)!;
   }
-  
+
   async askQuestion(userId: string, question: string): Promise<void> {
     const sessionId = await this.getOrCreateSession(userId);
     await this.client.sendPrompt(sessionId, question);
@@ -192,26 +198,26 @@ class UserClaudeSession {
 
 ```typescript
 class ClaudeQueue {
-  private queue: Array<{prompt: string, resolve: Function}> = [];
+  private queue: Array<{ prompt: string; resolve: Function }> = [];
   private processing = false;
-  
+
   async addToQueue(prompt: string): Promise<string> {
     return new Promise((resolve) => {
       this.queue.push({ prompt, resolve });
       this.processQueue();
     });
   }
-  
+
   private async processQueue() {
     if (this.processing || this.queue.length === 0) return;
-    
+
     this.processing = true;
     const { prompt, resolve } = this.queue.shift()!;
-    
+
     // Process with Claude
     const response = await this.client.sendPrompt(this.sessionId, prompt);
     resolve(response);
-    
+
     this.processing = false;
     this.processQueue(); // Process next item
   }
@@ -223,16 +229,16 @@ class ClaudeQueue {
 ```typescript
 class ContextAwareClaude {
   private context: string[] = [];
-  
+
   addContext(type: string, content: string) {
     this.context.push(`[${type}] ${content}`);
-    
+
     // Keep only last 10 context items
     if (this.context.length > 10) {
       this.context.shift();
     }
   }
-  
+
   async askWithContext(question: string): Promise<void> {
     const contextPrompt = `
 Context:
@@ -240,7 +246,7 @@ ${this.context.join('\n')}
 
 Question: ${question}
     `.trim();
-    
+
     await this.client.sendPrompt(this.sessionId, contextPrompt);
   }
 }
@@ -307,13 +313,13 @@ CMD ["node", "your-agent.js"]
 
 ### Quick Fixes
 
-| Problem | Quick Fix |
-|---------|-----------|
-| **401 Unauthorized** | Check `ANTHROPIC_API_KEY` |
-| **Connection refused** | Verify `WORKER_URL` |
-| **Timeout errors** | Increase timeout, check network |
-| **Session not found** | Create new session |
-| **Rate limited** | Implement backoff |
+| Problem                | Quick Fix                       |
+| ---------------------- | ------------------------------- |
+| **401 Unauthorized**   | Check `ANTHROPIC_API_KEY`       |
+| **Connection refused** | Verify `WORKER_URL`             |
+| **Timeout errors**     | Increase timeout, check network |
+| **Session not found**  | Create new session              |
+| **Rate limited**       | Implement backoff               |
 
 ### Debug Commands
 
@@ -336,6 +342,7 @@ curl -v -X POST https://your-worker.com/acp/jsonrpc \
 ## 📊 Performance Tips
 
 ### 1. **Connection Reuse**
+
 ```typescript
 // Good: Reuse client instance
 const client = new ClaudeHTTPClient(config);
@@ -345,6 +352,7 @@ const client = new ClaudeHTTPClient(config); // Don't do this repeatedly
 ```
 
 ### 2. **Session Management**
+
 ```typescript
 // Good: Long-lived sessions
 const sessionId = await client.createSession('/workspace');
@@ -355,10 +363,11 @@ await client.createSession('/workspace'); // Don't do this for each prompt
 ```
 
 ### 3. **Batch Requests**
+
 ```typescript
 // Good: Batch multiple prompts
 const prompts = ['Question 1', 'Question 2', 'Question 3'];
-const promises = prompts.map(prompt => client.sendPrompt(sessionId, prompt));
+const promises = prompts.map((prompt) => client.sendPrompt(sessionId, prompt));
 await Promise.all(promises);
 ```
 
@@ -366,9 +375,12 @@ await Promise.all(promises);
 
 ## 📚 Next Steps
 
-1. **Read Full Documentation**: [CLIENT_INTEGRATION_GUIDE.md](./CLIENT_INTEGRATION_GUIDE.md)
+1. **Read Full Documentation**:
+   [CLIENT_INTEGRATION_GUIDE.md](./CLIENT_INTEGRATION_GUIDE.md)
 2. **API Reference**: [HTTP_API_REFERENCE.md](./HTTP_API_REFERENCE.md)
-3. **Examples Repository**: [GitHub Examples](https://github.com/DefikitTeam/claude-acp-examples)
-4. **Join Community**: [Discussions](https://github.com/DefikitTeam/claude-code-container/discussions)
+3. **Examples Repository**:
+   [GitHub Examples](https://github.com/DefikitTeam/claude-acp-examples)
+4. **Join Community**:
+   [Discussions](https://github.com/DefikitTeam/claude-code-container/discussions)
 
 Happy coding! 🎉

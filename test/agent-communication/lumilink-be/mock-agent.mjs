@@ -21,19 +21,19 @@ class LumiLinkBEMockAgent {
 
   async initialize() {
     console.log('🚀 Initializing LumiLink-BE Mock Agent...');
-    
+
     // Start Claude Code container process
     await this.startClaudeCodeContainer();
-    
+
     // Establish ACP connection
     await this.establishACPConnection();
-    
+
     console.log('✅ LumiLink-BE Mock Agent initialized successfully');
   }
 
   async startClaudeCodeContainer() {
     console.log('🐳 Starting Claude Code container...');
-    
+
     // Start the container process
     this.containerProcess = spawn('node', ['container_src/dist/index.js'], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -41,8 +41,8 @@ class LumiLinkBEMockAgent {
       env: {
         ...process.env,
         NODE_ENV: 'test',
-        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || 'test-key'
-      }
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || 'test-key',
+      },
     });
 
     // Set up process communication
@@ -59,13 +59,13 @@ class LumiLinkBEMockAgent {
     });
 
     // Wait a bit for container to start
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     console.log('✅ Claude Code container started');
   }
 
   async establishACPConnection() {
     console.log('🔗 Establishing ACP connection...');
-    
+
     const initMessage = {
       jsonrpc: '2.0',
       id: 'init-' + randomUUID(),
@@ -73,8 +73,8 @@ class LumiLinkBEMockAgent {
       params: {
         clientCapabilities: this.config.capabilities,
         agentId: this.config.agentId,
-        protocolVersion: this.config.acpConfig.protocolVersion
-      }
+        protocolVersion: this.config.acpConfig.protocolVersion,
+      },
     };
 
     await this.sendMessage(initMessage);
@@ -84,17 +84,17 @@ class LumiLinkBEMockAgent {
   async sendMessage(message) {
     const messageStr = JSON.stringify(message) + '\n';
     this.containerProcess.stdin.write(messageStr);
-    
+
     // Log the message
     await this.logMessage('SENT', message);
   }
 
   handleContainerMessage(data) {
     const lines = data.trim().split('\n');
-    
+
     for (const line of lines) {
       if (!line.trim()) continue;
-      
+
       try {
         const message = JSON.parse(line);
         this.processReceivedMessage(message);
@@ -107,7 +107,7 @@ class LumiLinkBEMockAgent {
 
   async processReceivedMessage(message) {
     await this.logMessage('RECEIVED', message);
-    
+
     // Handle different message types
     if (message.id && this.responseHandlers.has(message.id)) {
       const handler = this.responseHandlers.get(message.id);
@@ -121,7 +121,7 @@ class LumiLinkBEMockAgent {
 
   async handleContainerRequest(message) {
     console.log(`📥 Handling container request: ${message.method}`);
-    
+
     switch (message.method) {
       case 'session/started':
         this.sessionId = message.params?.sessionId;
@@ -144,23 +144,30 @@ class LumiLinkBEMockAgent {
     const logEntry = {
       timestamp,
       direction,
-      message
+      message,
     };
-    
-    const logPath = path.join('test', 'agent-communication', 'logs', 'lumilink-be.log');
-    await fs.appendFile(logPath, JSON.stringify(logEntry) + '\n').catch(() => {});
+
+    const logPath = path.join(
+      'test',
+      'agent-communication',
+      'logs',
+      'lumilink-be.log',
+    );
+    await fs
+      .appendFile(logPath, JSON.stringify(logEntry) + '\n')
+      .catch(() => {});
   }
 
   // Test scenarios
   async runBasicConnectionTest() {
     console.log('\n🧪 Running Basic Connection Test...');
-    
+
     const testId = 'test-' + randomUUID();
     const message = {
       jsonrpc: '2.0',
       id: testId,
       method: 'ping',
-      params: { timestamp: Date.now() }
+      params: { timestamp: Date.now() },
     };
 
     return new Promise((resolve) => {
@@ -168,9 +175,9 @@ class LumiLinkBEMockAgent {
         console.log('✅ Basic connection test passed');
         resolve(response);
       });
-      
+
       this.sendMessage(message);
-      
+
       // Timeout after 5 seconds
       setTimeout(() => {
         if (this.responseHandlers.has(testId)) {
@@ -184,7 +191,7 @@ class LumiLinkBEMockAgent {
 
   async runCodeAnalysisTest() {
     console.log('\n🧪 Running Code Analysis Test...');
-    
+
     const testId = 'analysis-' + randomUUID();
     const message = {
       jsonrpc: '2.0',
@@ -192,15 +199,15 @@ class LumiLinkBEMockAgent {
       method: 'session/new',
       params: {
         sessionId: 'analysis-session-' + randomUUID(),
-        mode: 'code-analysis'
-      }
+        mode: 'code-analysis',
+      },
     };
 
     return new Promise((resolve) => {
       this.responseHandlers.set(testId, async (response) => {
         if (response.result?.sessionId) {
           console.log('✅ Session created, sending analysis request...');
-          
+
           const analysisId = 'prompt-' + randomUUID();
           const analysisMessage = {
             jsonrpc: '2.0',
@@ -208,8 +215,9 @@ class LumiLinkBEMockAgent {
             method: 'session/prompt',
             params: {
               sessionId: response.result.sessionId,
-              prompt: 'Analyze this simple JavaScript function: function add(a, b) { return a + b; }'
-            }
+              prompt:
+                'Analyze this simple JavaScript function: function add(a, b) { return a + b; }',
+            },
           };
 
           this.responseHandlers.set(analysisId, (analysisResponse) => {
@@ -223,9 +231,9 @@ class LumiLinkBEMockAgent {
           resolve(null);
         }
       });
-      
+
       this.sendMessage(message);
-      
+
       // Timeout after 30 seconds
       setTimeout(() => {
         if (this.responseHandlers.has(testId)) {
@@ -239,27 +247,29 @@ class LumiLinkBEMockAgent {
 
   async runErrorHandlingTest() {
     console.log('\n🧪 Running Error Handling Test...');
-    
+
     const testId = 'error-' + randomUUID();
     const message = {
       jsonrpc: '2.0',
       id: testId,
       method: 'invalid/method',
-      params: { invalidParam: 'test' }
+      params: { invalidParam: 'test' },
     };
 
     return new Promise((resolve) => {
       this.responseHandlers.set(testId, (response) => {
         if (response.error) {
-          console.log('✅ Error handling test passed - error properly returned');
+          console.log(
+            '✅ Error handling test passed - error properly returned',
+          );
         } else {
           console.log('❌ Error handling test failed - no error returned');
         }
         resolve(response);
       });
-      
+
       this.sendMessage(message);
-      
+
       // Timeout after 5 seconds
       setTimeout(() => {
         if (this.responseHandlers.has(testId)) {
@@ -281,33 +291,39 @@ class LumiLinkBEMockAgent {
 
 // Main execution
 async function main() {
-  const configPath = path.join('test', 'agent-communication', 'lumilink-be', 'agent-config.json');
-  
+  const configPath = path.join(
+    'test',
+    'agent-communication',
+    'lumilink-be',
+    'agent-config.json',
+  );
+
   try {
     const configData = await fs.readFile(configPath, 'utf-8');
     const config = JSON.parse(configData);
-    
+
     const agent = new LumiLinkBEMockAgent(config);
-    
+
     // Set up cleanup on exit
     process.on('SIGINT', async () => {
       await agent.cleanup();
       process.exit(0);
     });
-    
+
     await agent.initialize();
-    
+
     // Run test scenarios
     await agent.runBasicConnectionTest();
     await agent.runCodeAnalysisTest();
     await agent.runErrorHandlingTest();
-    
+
     console.log('\n🎉 All tests completed!');
-    console.log('📋 Check logs in: test/agent-communication/logs/lumilink-be.log');
-    
+    console.log(
+      '📋 Check logs in: test/agent-communication/logs/lumilink-be.log',
+    );
+
     // Keep running for manual testing
     console.log('\n🔄 Agent running... Press Ctrl+C to exit');
-    
   } catch (error) {
     console.error('❌ Failed to start LumiLink-BE Mock Agent:', error);
     process.exit(1);

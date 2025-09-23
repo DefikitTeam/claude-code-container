@@ -28,9 +28,9 @@ const pExecFile = promisify(execFile);
 export interface LegacyFlowOptions {
   prompt: string;
   workspacePath?: string; // If provided, chdir before running
-  apiKey?: string;        // Optional explicit apiKey override
-  modelHint?: string;     // Optional model override
-  timeoutMs?: number;     // Soft timeout for iteration
+  apiKey?: string; // Optional explicit apiKey override
+  modelHint?: string; // Optional model override
+  timeoutMs?: number; // Soft timeout for iteration
   collectDiagnostics?: boolean; // If true, includes runtime diagnostics
 }
 
@@ -49,7 +49,10 @@ function extractMessageText(message: SDKMessage): string {
   // @ts-ignore
   if (typeof message.content === 'string') return message.content;
   // @ts-ignore
-  if (Array.isArray(message.content)) return message.content.map((c: any) => (c.text || JSON.stringify(c))).join('\n');
+  if (Array.isArray(message.content))
+    return message.content
+      .map((c: any) => c.text || JSON.stringify(c))
+      .join('\n');
   return JSON.stringify(message);
 }
 
@@ -61,20 +64,41 @@ async function runtimeDiagnostics(): Promise<Record<string, any>> {
     hasAuthFile: false,
     hasLegacyFile: false,
     gitVersion: null as string | null,
-    claudeVersion: null as string | null
+    claudeVersion: null as string | null,
   };
   const home = os.homedir();
   const authFile = path.join(home, '.config', 'claude-code', 'auth.json');
   const legacyFile = path.join(home, '.claude.json');
-  try { await fs.access(authFile); diag.hasAuthFile = true; } catch {}
-  try { await fs.access(legacyFile); diag.hasLegacyFile = true; } catch {}
-  try { const { stdout } = await pExecFile('git', ['--version']); diag.gitVersion = stdout.trim(); } catch {}
-  try { const { stdout } = await pExecFile('claude', ['--version']); diag.claudeVersion = stdout.trim(); } catch {}
+  try {
+    await fs.access(authFile);
+    diag.hasAuthFile = true;
+  } catch {}
+  try {
+    await fs.access(legacyFile);
+    diag.hasLegacyFile = true;
+  } catch {}
+  try {
+    const { stdout } = await pExecFile('git', ['--version']);
+    diag.gitVersion = stdout.trim();
+  } catch {}
+  try {
+    const { stdout } = await pExecFile('claude', ['--version']);
+    diag.claudeVersion = stdout.trim();
+  } catch {}
   return diag;
 }
 
-export async function runLegacyClaudeFlow(options: LegacyFlowOptions): Promise<LegacyFlowResult> {
-  const { prompt, workspacePath, apiKey, modelHint, timeoutMs = 120000, collectDiagnostics } = options;
+export async function runLegacyClaudeFlow(
+  options: LegacyFlowOptions,
+): Promise<LegacyFlowResult> {
+  const {
+    prompt,
+    workspacePath,
+    apiKey,
+    modelHint,
+    timeoutMs = 120000,
+    collectDiagnostics,
+  } = options;
   const messages: SDKMessage[] = [];
   const originalCwd = process.cwd();
   let timeoutHandle: NodeJS.Timeout | null = null;
@@ -85,18 +109,27 @@ export async function runLegacyClaudeFlow(options: LegacyFlowOptions): Promise<L
   }
 
   if (workspacePath) {
-    try { process.chdir(workspacePath); } catch (e) { console.warn('[LegacyFlow] Failed to chdir workspace:', (e as Error).message); }
+    try {
+      process.chdir(workspacePath);
+    } catch (e) {
+      console.warn(
+        '[LegacyFlow] Failed to chdir workspace:',
+        (e as Error).message,
+      );
+    }
   }
 
   const restoreEnv: Record<string, string | undefined> = {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-    ANTHROPIC_LOG: process.env.ANTHROPIC_LOG
+    ANTHROPIC_LOG: process.env.ANTHROPIC_LOG,
   };
 
   if (apiKey) process.env.ANTHROPIC_API_KEY = apiKey;
   if (!process.env.ANTHROPIC_LOG) process.env.ANTHROPIC_LOG = 'debug';
 
-  const diagnostics: Record<string, any> = collectDiagnostics ? await runtimeDiagnostics() : {};
+  const diagnostics: Record<string, any> = collectDiagnostics
+    ? await runtimeDiagnostics()
+    : {};
 
   try {
     console.log('[LegacyFlow] Starting Claude Code query (fallback path)');
@@ -104,8 +137,11 @@ export async function runLegacyClaudeFlow(options: LegacyFlowOptions): Promise<L
       prompt,
       options: {
         permissionMode: 'bypassPermissions',
-        model: modelHint || process.env.CLAUDE_CODE_MODEL || 'claude-3-5-sonnet-20240620'
-      }
+        model:
+          modelHint ||
+          process.env.CLAUDE_CODE_MODEL ||
+          'claude-3-5-sonnet-20240620',
+      },
     });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -124,10 +160,17 @@ export async function runLegacyClaudeFlow(options: LegacyFlowOptions): Promise<L
     await Promise.race([iteratePromise, timeoutPromise]);
 
     if (messages.length === 0) {
-      return { success: false, error: 'No messages received from Claude Code', diagnostics };
+      return {
+        success: false,
+        error: 'No messages received from Claude Code',
+        diagnostics,
+      };
     }
 
-    const summary = extractMessageText(messages[messages.length - 1]).substring(0, 2000);
+    const summary = extractMessageText(messages[messages.length - 1]).substring(
+      0,
+      2000,
+    );
     return { success: true, messages, summary, diagnostics };
   } catch (err: any) {
     diagnostics.errorMessage = err?.message;
@@ -138,7 +181,11 @@ export async function runLegacyClaudeFlow(options: LegacyFlowOptions): Promise<L
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
     process.chdir(originalCwd);
-    if (restoreEnv.ANTHROPIC_API_KEY !== undefined) process.env.ANTHROPIC_API_KEY = restoreEnv.ANTHROPIC_API_KEY; else delete process.env.ANTHROPIC_API_KEY;
-    if (restoreEnv.ANTHROPIC_LOG !== undefined) process.env.ANTHROPIC_LOG = restoreEnv.ANTHROPIC_LOG; else delete process.env.ANTHROPIC_LOG;
+    if (restoreEnv.ANTHROPIC_API_KEY !== undefined)
+      process.env.ANTHROPIC_API_KEY = restoreEnv.ANTHROPIC_API_KEY;
+    else delete process.env.ANTHROPIC_API_KEY;
+    if (restoreEnv.ANTHROPIC_LOG !== undefined)
+      process.env.ANTHROPIC_LOG = restoreEnv.ANTHROPIC_LOG;
+    else delete process.env.ANTHROPIC_LOG;
   }
 }

@@ -1,18 +1,20 @@
 # API Specification
 
-This is the API specification for the spec detailed in @.agent-os/specs/2025-01-05-deployment-auth-fix/spec.md
+This is the API specification for the spec detailed in
+@.agent-os/specs/2025-01-05-deployment-auth-fix/spec.md
 
-> Created: 2025-09-05
-> Version: 1.0.0
+> Created: 2025-09-05 Version: 1.0.0
 
 ## Endpoints
 
 ### New Deployment Authentication Endpoints
 
 #### `POST /deploy/validate`
+
 **Purpose**: Validate deployment credentials before attempting deployment
 
 **Request**:
+
 ```json
 {
   "environment": "staging|production",
@@ -24,6 +26,7 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Response**:
+
 ```json
 {
   "valid": true,
@@ -41,14 +44,17 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Error Codes**:
+
 - `401`: Invalid API token
 - `403`: Insufficient permissions
 - `422`: Invalid account ID format
 
 #### `POST /deploy/prepare`
+
 **Purpose**: Prepare deployment with pre-flight checks
 
 **Request**:
+
 ```json
 {
   "environment": "staging|production",
@@ -64,6 +70,7 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Response**:
+
 ```json
 {
   "prepared": true,
@@ -81,6 +88,7 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Error Codes**:
+
 - `402`: Quota exceeded
 - `409`: Resource conflict
 - `424`: Dependency check failed
@@ -88,9 +96,11 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ### Modified Deployment Endpoints
 
 #### `POST /deploy` (Enhanced)
+
 **Purpose**: Execute deployment with improved error handling
 
 **Request**:
+
 ```json
 {
   "deploymentId": "string",
@@ -104,6 +114,7 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Response**:
+
 ```json
 {
   "deploymentId": "string",
@@ -129,6 +140,7 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Error Codes**:
+
 - `400`: Invalid deployment configuration
 - `401`: Authentication failed during deployment
 - `403`: Insufficient permissions for target environment
@@ -139,9 +151,11 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ### Authentication Flow Endpoints
 
 #### `POST /auth/github-app/token`
+
 **Purpose**: Generate installation access token for GitHub operations
 
 **Request**:
+
 ```json
 {
   "installationId": "string",
@@ -154,6 +168,7 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Response**:
+
 ```json
 {
   "token": "string",
@@ -167,9 +182,11 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 #### `POST /auth/cloudflare/verify`
+
 **Purpose**: Verify Cloudflare API token and permissions
 
 **Request**:
+
 ```json
 {
   "apiToken": "string",
@@ -178,6 +195,7 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 **Response**:
+
 ```json
 {
   "valid": true,
@@ -199,9 +217,11 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ### Status and Monitoring Endpoints
 
 #### `GET /deploy/{deploymentId}/status`
+
 **Purpose**: Get detailed deployment status
 
 **Response**:
+
 ```json
 {
   "deploymentId": "string",
@@ -233,9 +253,11 @@ This is the API specification for the spec detailed in @.agent-os/specs/2025-01-
 ```
 
 #### `GET /deploy/{deploymentId}/logs`
+
 **Purpose**: Stream deployment logs
 
 **Response** (Server-Sent Events):
+
 ```
 data: {"timestamp": "ISO8601", "level": "info", "message": "Starting deployment validation"}
 data: {"timestamp": "ISO8601", "level": "warn", "message": "Large container size detected"}
@@ -243,9 +265,11 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ```
 
 #### `GET /health/deployment`
+
 **Purpose**: Check deployment system health
 
 **Response**:
+
 ```json
 {
   "healthy": true,
@@ -275,9 +299,11 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ### Error Handling Endpoints
 
 #### `POST /deploy/{deploymentId}/rollback`
+
 **Purpose**: Rollback failed deployment
 
 **Request**:
+
 ```json
 {
   "reason": "string",
@@ -286,6 +312,7 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ```
 
 **Response**:
+
 ```json
 {
   "rollbackId": "string",
@@ -296,9 +323,11 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ```
 
 #### `POST /deploy/{deploymentId}/retry`
+
 **Purpose**: Retry failed deployment step
 
 **Request**:
+
 ```json
 {
   "stepName": "string",
@@ -307,6 +336,7 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ```
 
 **Response**:
+
 ```json
 {
   "retryId": "string",
@@ -319,9 +349,11 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ## Controllers
 
 ### DeploymentController
+
 **Location**: `src/controllers/DeploymentController.ts`
 
 **Methods**:
+
 - `validateCredentials()`: Validate deployment credentials
 - `prepareDeployment()`: Run pre-flight checks
 - `executeDeploy()`: Execute deployment with retry logic
@@ -331,18 +363,22 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 - `retryFailedStep()`: Retry specific deployment step
 
 ### AuthController
+
 **Location**: `src/controllers/AuthController.ts`
 
 **Methods**:
+
 - `generateGitHubToken()`: Create GitHub installation access token
 - `verifyCloudflareToken()`: Validate Cloudflare API credentials
 - `refreshTokens()`: Refresh expired authentication tokens
 - `validatePermissions()`: Check required permissions
 
 ### MonitoringController
+
 **Location**: `src/controllers/MonitoringController.ts`
 
 **Methods**:
+
 - `getHealthStatus()`: System health check
 - `getDeploymentMetrics()`: Deployment performance metrics
 - `getErrorMetrics()`: Error rates and patterns
@@ -351,6 +387,7 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ## Request/Response Formats
 
 ### Standard Error Response
+
 ```json
 {
   "error": {
@@ -368,6 +405,7 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ```
 
 ### Standard Success Response
+
 ```json
 {
   "success": true,
@@ -385,6 +423,7 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 ## Error Codes
 
 ### Authentication Errors
+
 - `AUTH_001`: Invalid GitHub App credentials
 - `AUTH_002`: GitHub installation access denied
 - `AUTH_003`: Cloudflare API token invalid
@@ -392,6 +431,7 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 - `AUTH_005`: Token expired during operation
 
 ### Deployment Errors
+
 - `DEPLOY_001`: Configuration validation failed
 - `DEPLOY_002`: Resource quota exceeded
 - `DEPLOY_003`: Container upload failed
@@ -401,6 +441,7 @@ data: {"timestamp": "ISO8601", "level": "error", "message": "Authentication fail
 - `DEPLOY_007`: Rollback failed
 
 ### System Errors
+
 - `SYS_001`: Internal server error
 - `SYS_002`: Service temporarily unavailable
 - `SYS_003`: Rate limit exceeded

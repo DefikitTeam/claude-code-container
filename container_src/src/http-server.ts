@@ -1,11 +1,11 @@
 import * as http from 'http';
 import { query, type SDKMessage } from '@anthropic-ai/claude-code';
-import { 
-  handleInitialize, 
-  handleSessionNew, 
-  handleSessionPrompt, 
-  handleSessionLoad, 
-  handleCancel 
+import {
+  handleInitialize,
+  handleSessionNew,
+  handleSessionPrompt,
+  handleSessionLoad,
+  handleCancel,
 } from './handlers/acp-handlers.js';
 import { RequestContext } from './services/stdio-jsonrpc.js';
 
@@ -42,7 +42,10 @@ function logWithContext(context: string, message: string, data?: any): void {
 }
 
 // Basic health check handler
-async function healthHandler(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+async function healthHandler(
+  _req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
   logWithContext('HEALTH', 'Health check requested');
 
   // Check Claude CLI availability
@@ -52,21 +55,26 @@ async function healthHandler(_req: http.IncomingMessage, res: http.ServerRespons
     execSync('claude --version', { timeout: 5000, stdio: 'pipe' });
     claudeCliAvailable = true;
   } catch (error) {
-    console.warn('[HEALTH] Claude CLI not available:', (error as Error).message);
+    console.warn(
+      '[HEALTH] Claude CLI not available:',
+      (error as Error).message,
+    );
   }
 
   const response: HealthStatus = {
     status: claudeCliAvailable ? 'healthy' : 'degraded',
-    message: claudeCliAvailable ? 'Claude Code Container HTTP Server' : 'Claude Code Container HTTP Server (Claude CLI not authenticated)',
+    message: claudeCliAvailable
+      ? 'Claude Code Container HTTP Server'
+      : 'Claude Code Container HTTP Server (Claude CLI not authenticated)',
     timestamp: new Date().toISOString(),
     claudeCodeAvailable: claudeCliAvailable,
-    apiKeyAvailable: false // API keys are passed per-request, not in environment
+    apiKeyAvailable: false, // API keys are passed per-request, not in environment
   };
 
   logWithContext('HEALTH', 'Health check response', {
     status: response.status,
     claudeCodeAvailable: response.claudeCodeAvailable,
-    apiKeyAvailable: response.apiKeyAvailable
+    apiKeyAvailable: response.apiKeyAvailable,
   });
 
   res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -77,7 +85,7 @@ async function healthHandler(_req: http.IncomingMessage, res: http.ServerRespons
 function readRequestBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', chunk => {
+    req.on('data', (chunk) => {
       body += chunk.toString();
     });
     req.on('end', () => {
@@ -88,34 +96,41 @@ function readRequestBody(req: http.IncomingMessage): Promise<string> {
 }
 
 // ACP JSON-RPC handler
-async function acpHandler(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+async function acpHandler(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
   logWithContext('ACP', 'ACP JSON-RPC request received');
 
   try {
     const body = await readRequestBody(req);
     let jsonRpcRequest;
-    
+
     try {
       jsonRpcRequest = JSON.parse(body);
     } catch (parseError) {
-      logWithContext('ACP', 'Invalid JSON in request body', { error: parseError });
+      logWithContext('ACP', 'Invalid JSON in request body', {
+        error: parseError,
+      });
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        jsonrpc: "2.0",
-        error: { code: -32700, message: "Parse error" },
-        id: null
-      }));
+      res.end(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32700, message: 'Parse error' },
+          id: null,
+        }),
+      );
       return;
     }
 
-    logWithContext('ACP', 'Processing ACP method', { 
-      method: jsonRpcRequest.method, 
-      id: jsonRpcRequest.id 
+    logWithContext('ACP', 'Processing ACP method', {
+      method: jsonRpcRequest.method,
+      id: jsonRpcRequest.id,
     });
 
     // Handle ACP methods using real implementations
     let result;
-    
+
     // Create request context for handlers
     const requestContext: RequestContext = {
       requestId: jsonRpcRequest.id,
@@ -123,11 +138,13 @@ async function acpHandler(req: http.IncomingMessage, res: http.ServerResponse): 
       metadata: {
         userId: jsonRpcRequest.params?.userId || 'http-server',
         sessionId: jsonRpcRequest.params?.sessionId,
-        anthropicApiKey: jsonRpcRequest.params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY, // Use API key from request or fallback to env
+        anthropicApiKey:
+          jsonRpcRequest.params?.anthropicApiKey ||
+          process.env.ANTHROPIC_API_KEY, // Use API key from request or fallback to env
         workspaceUri: jsonRpcRequest.params?.configuration?.workspaceUri,
         repository: jsonRpcRequest.params?.context?.repository,
-        operation: jsonRpcRequest.params?.context?.operation
-      }
+        operation: jsonRpcRequest.params?.context?.operation,
+      },
     };
 
     try {
@@ -135,14 +152,14 @@ async function acpHandler(req: http.IncomingMessage, res: http.ServerResponse): 
         case 'initialize':
           result = await handleInitialize(
             jsonRpcRequest.params || {},
-            requestContext
+            requestContext,
           );
           break;
 
         case 'session/new':
           result = await handleSessionNew(
             jsonRpcRequest.params || {},
-            requestContext
+            requestContext,
           );
           break;
 
@@ -152,83 +169,94 @@ async function acpHandler(req: http.IncomingMessage, res: http.ServerResponse): 
             logWithContext('ACP', `Notification: ${method}`, params);
             // In a real implementation, this would send WebSocket updates
           };
-          
+
           result = await handleSessionPrompt(
             jsonRpcRequest.params || {},
             requestContext,
-            notificationSender
+            notificationSender,
           );
           break;
 
         case 'session/load':
           result = await handleSessionLoad(
             jsonRpcRequest.params || {},
-            requestContext
+            requestContext,
           );
           break;
 
         case 'cancel':
           result = await handleCancel(
             jsonRpcRequest.params || {},
-            requestContext
+            requestContext,
           );
           break;
 
         default:
-          logWithContext('ACP', 'Unknown ACP method', { method: jsonRpcRequest.method });
+          logWithContext('ACP', 'Unknown ACP method', {
+            method: jsonRpcRequest.method,
+          });
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            jsonrpc: "2.0",
-            error: { code: -32601, message: "Method not found" },
-            id: jsonRpcRequest.id
-          }));
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32601, message: 'Method not found' },
+              id: jsonRpcRequest.id,
+            }),
+          );
           return;
       }
     } catch (handlerError) {
-      logWithContext('ACP', 'Handler error', { 
+      logWithContext('ACP', 'Handler error', {
         method: jsonRpcRequest.method,
-        error: handlerError instanceof Error ? handlerError.message : String(handlerError)
+        error:
+          handlerError instanceof Error
+            ? handlerError.message
+            : String(handlerError),
       });
-      
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        jsonrpc: "2.0",
-        error: { 
-          code: -32603, 
-          message: "Internal error",
-          data: handlerError instanceof Error ? handlerError.message : String(handlerError)
-        },
-        id: jsonRpcRequest.id
-      }));
+      res.end(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal error',
+            data:
+              handlerError instanceof Error
+                ? handlerError.message
+                : String(handlerError),
+          },
+          id: jsonRpcRequest.id,
+        }),
+      );
       return;
     }
 
     // Send successful response
     const response = {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       result: result,
-      id: jsonRpcRequest.id
+      id: jsonRpcRequest.id,
     };
 
-    logWithContext('ACP', 'ACP method processed successfully', { 
+    logWithContext('ACP', 'ACP method processed successfully', {
       method: jsonRpcRequest.method,
-      resultKeys: Object.keys(result)
+      resultKeys: Object.keys(result),
     });
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(response));
-
   } catch (error) {
     logWithContext('ACP', 'Error processing ACP request', { error });
-    
+
     const errorResponse = {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       error: {
         code: -32603,
-        message: "Internal error",
-        data: error instanceof Error ? error.message : String(error) 
+        message: 'Internal error',
+        data: error instanceof Error ? error.message : String(error),
       },
-      id: null
+      id: null,
     };
 
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -237,19 +265,29 @@ async function acpHandler(req: http.IncomingMessage, res: http.ServerResponse): 
 }
 
 // Process request handler (placeholder for now)
-async function processHandler(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+async function processHandler(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
   logWithContext('PROCESS', 'Process request received');
 
   try {
     const body = await readRequestBody(req);
     let requestData;
-    
+
     try {
       requestData = JSON.parse(body);
     } catch (parseError) {
-      logWithContext('PROCESS', 'Invalid JSON in request body', { error: parseError });
+      logWithContext('PROCESS', 'Invalid JSON in request body', {
+        error: parseError,
+      });
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: 'Invalid JSON in request body' }));
+      res.end(
+        JSON.stringify({
+          success: false,
+          message: 'Invalid JSON in request body',
+        }),
+      );
       return;
     }
 
@@ -259,7 +297,7 @@ async function processHandler(req: http.IncomingMessage, res: http.ServerRespons
     const response: ContainerResponse = {
       success: true,
       message: 'Request processed successfully',
-      logs: [`Processed request of type: ${requestData.type || 'unknown'}`]
+      logs: [`Processed request of type: ${requestData.type || 'unknown'}`],
     };
 
     logWithContext('PROCESS', 'Request processed successfully');
@@ -268,11 +306,11 @@ async function processHandler(req: http.IncomingMessage, res: http.ServerRespons
     res.end(JSON.stringify(response));
   } catch (error) {
     logWithContext('PROCESS', 'Error processing request', { error });
-    
+
     const errorResponse: ContainerResponse = {
       success: false,
       message: 'Error processing request',
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     };
 
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -281,7 +319,10 @@ async function processHandler(req: http.IncomingMessage, res: http.ServerRespons
 }
 
 // Request handler
-async function requestHandler(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+async function requestHandler(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
   const url = req.url || '';
   const method = req.method || 'GET';
 
@@ -289,7 +330,10 @@ async function requestHandler(req: http.IncomingMessage, res: http.ServerRespons
 
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS',
+  );
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (method === 'OPTIONS') {
@@ -313,11 +357,13 @@ async function requestHandler(req: http.IncomingMessage, res: http.ServerRespons
   } catch (error) {
     logWithContext('HTTP', 'Unhandled error in request handler', { error });
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ 
-      success: false, 
-      message: 'Internal server error',
-      error: error instanceof Error ? error.message : String(error)
-    }));
+    res.end(
+      JSON.stringify({
+        success: false,
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
   }
 }
 
@@ -334,7 +380,10 @@ export async function runHttpServer(argv: any): Promise<void> {
 
   server.listen(port, '0.0.0.0', () => {
     logWithContext('SERVER', `HTTP Server listening on http://0.0.0.0:${port}`);
-    logWithContext('SERVER', 'Routes available: GET /health, POST /process, POST /acp');
+    logWithContext(
+      'SERVER',
+      'Routes available: GET /health, POST /process, POST /acp',
+    );
   });
 
   server.on('error', (error) => {

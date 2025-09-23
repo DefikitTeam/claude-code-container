@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { loadManagedSettings, applyEnvironmentSettings } from "./utils.js";
+import { loadManagedSettings, applyEnvironmentSettings } from './utils.js';
 import minimist from 'minimist';
 
 // Load managed settings and apply environment variables
@@ -21,22 +21,26 @@ if (!argv['http-bridge']) {
   console.debug = console.error;
 }
 
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Choose mode based on command line arguments or environment
 if (argv['http-bridge']) {
   // HTTP Bridge mode: Acts as HTTP client to communicate with remote worker
-  const { runHttpBridge } = await import("./http-bridge.js");
+  const { runHttpBridge } = await import('./http-bridge.js');
   await runHttpBridge(argv);
-} else if (argv['http-server'] || process.env.ACP_MODE === 'http-server' || process.env.PORT) {
+} else if (
+  argv['http-server'] ||
+  process.env.ACP_MODE === 'http-server' ||
+  process.env.PORT
+) {
   // HTTP Server mode: For Cloudflare Workers to call the container
-  const { runHttpServer } = await import("./http-server.js");
+  const { runHttpServer } = await import('./http-server.js');
   await runHttpServer(argv);
 } else {
   // Standard ACP mode: stdin/stdout communication (compatible with Zed)
-  const { runAcp } = await import("./acp-agent.js");
+  const { runAcp } = await import('./acp-agent.js');
   runAcp();
 }
 

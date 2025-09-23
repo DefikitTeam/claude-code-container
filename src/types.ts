@@ -10,7 +10,7 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   GITHUB_APP_ID?: string;
   GITHUB_WEBHOOK_SECRET?: string;
-  
+
   // Fixed GitHub App configuration (service provider controlled)
   FIXED_GITHUB_APP_ID?: string;
   FIXED_GITHUB_PRIVATE_KEY?: string;

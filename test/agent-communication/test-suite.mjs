@@ -19,12 +19,16 @@ class AgentCommunicationTestSuite {
 
   async initialize() {
     console.log('🚀 Initializing Agent-to-Agent Communication Test Suite...');
-    
+
     // Ensure all directories exist
     await fs.mkdir(this.logDir, { recursive: true });
-    await fs.mkdir(path.join('test', 'agent-communication', 'lumilink-be'), { recursive: true });
-    await fs.mkdir(path.join('test', 'agent-communication', 'claude-code'), { recursive: true });
-    
+    await fs.mkdir(path.join('test', 'agent-communication', 'lumilink-be'), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join('test', 'agent-communication', 'claude-code'), {
+      recursive: true,
+    });
+
     // Clear previous logs
     const logFiles = await fs.readdir(this.logDir).catch(() => []);
     for (const file of logFiles) {
@@ -32,7 +36,7 @@ class AgentCommunicationTestSuite {
         await fs.unlink(path.join(this.logDir, file)).catch(() => {});
       }
     }
-    
+
     console.log('✅ Test suite initialized');
   }
 
@@ -46,7 +50,7 @@ class AgentCommunicationTestSuite {
       { name: 'Bidirectional Communication', method: 'testBidirectionalComm' },
       { name: 'Error Handling', method: 'testErrorHandling' },
       { name: 'Concurrent Sessions', method: 'testConcurrentSessions' },
-      { name: 'Performance Metrics', method: 'testPerformanceMetrics' }
+      { name: 'Performance Metrics', method: 'testPerformanceMetrics' },
     ];
 
     for (const test of tests) {
@@ -57,7 +61,7 @@ class AgentCommunicationTestSuite {
           name: test.name,
           status: 'PASSED',
           result,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
         console.log(`✅ ${test.name}: PASSED`);
       } catch (error) {
@@ -65,7 +69,7 @@ class AgentCommunicationTestSuite {
           name: test.name,
           status: 'FAILED',
           error: error.message,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
         console.log(`❌ ${test.name}: FAILED - ${error.message}`);
       }
@@ -76,12 +80,12 @@ class AgentCommunicationTestSuite {
 
   async testContainerStartup() {
     console.log('  🐳 Testing container startup...');
-    
+
     return new Promise((resolve, reject) => {
       const containerProcess = spawn('node', ['dist/index.js'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: 'container_src',
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { ...process.env, NODE_ENV: 'test' },
       });
 
       let hasStarted = false;
@@ -98,9 +102,9 @@ class AgentCommunicationTestSuite {
           hasStarted = true;
           clearTimeout(timeout);
           containerProcess.kill();
-          resolve({ 
-            startupTime: Date.now(), 
-            output: data.toString().substring(0, 200) 
+          resolve({
+            startupTime: Date.now(),
+            output: data.toString().substring(0, 200),
           });
         }
       });
@@ -110,9 +114,9 @@ class AgentCommunicationTestSuite {
           hasStarted = true;
           clearTimeout(timeout);
           containerProcess.kill();
-          resolve({ 
-            startupTime: Date.now(), 
-            error: data.toString().substring(0, 200) 
+          resolve({
+            startupTime: Date.now(),
+            error: data.toString().substring(0, 200),
           });
         }
       });
@@ -128,7 +132,7 @@ class AgentCommunicationTestSuite {
           jsonrpc: '2.0',
           id: 'startup-test',
           method: 'initialize',
-          params: { clientCapabilities: {} }
+          params: { clientCapabilities: {} },
         };
         containerProcess.stdin.write(JSON.stringify(initMessage) + '\n');
       }, 1000);
@@ -137,12 +141,12 @@ class AgentCommunicationTestSuite {
 
   async testBasicHandshake() {
     console.log('  🤝 Testing basic ACP handshake...');
-    
+
     return new Promise((resolve, reject) => {
       const containerProcess = spawn('node', ['dist/index.js'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: 'container_src',
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { ...process.env, NODE_ENV: 'test' },
       });
 
       let responseReceived = false;
@@ -166,7 +170,7 @@ class AgentCommunicationTestSuite {
               resolve({
                 handshakeSuccess: true,
                 response,
-                capabilities: response.result.capabilities || {}
+                capabilities: response.result.capabilities || {},
               });
               return;
             }
@@ -186,9 +190,9 @@ class AgentCommunicationTestSuite {
             clientCapabilities: {
               agentId: 'lumilink-be-test',
               version: '1.0.0',
-              supportedProtocols: ['acp']
-            }
-          }
+              supportedProtocols: ['acp'],
+            },
+          },
         };
         containerProcess.stdin.write(JSON.stringify(handshakeMessage) + '\n');
       }, 1000);
@@ -197,18 +201,18 @@ class AgentCommunicationTestSuite {
 
   async testSessionManagement() {
     console.log('  📊 Testing session management...');
-    
+
     return new Promise((resolve, reject) => {
       const containerProcess = spawn('node', ['dist/index.js'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: 'container_src',
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { ...process.env, NODE_ENV: 'test' },
       });
 
       let initDone = false;
       let sessionCreated = false;
       const sessionId = 'test-session-' + randomUUID();
-      
+
       const timeout = setTimeout(() => {
         containerProcess.kill();
         reject(new Error('Session management test timeout'));
@@ -220,7 +224,7 @@ class AgentCommunicationTestSuite {
           if (!line.trim()) continue;
           try {
             const response = JSON.parse(line);
-            
+
             if (response.id === 'init-session-test' && !initDone) {
               initDone = true;
               // Send session creation request
@@ -228,17 +232,22 @@ class AgentCommunicationTestSuite {
                 jsonrpc: '2.0',
                 id: 'session-create-test',
                 method: 'session/new',
-                params: { sessionId }
+                params: { sessionId },
               };
-              containerProcess.stdin.write(JSON.stringify(sessionMessage) + '\n');
-            } else if (response.id === 'session-create-test' && !sessionCreated) {
+              containerProcess.stdin.write(
+                JSON.stringify(sessionMessage) + '\n',
+              );
+            } else if (
+              response.id === 'session-create-test' &&
+              !sessionCreated
+            ) {
               sessionCreated = true;
               clearTimeout(timeout);
               containerProcess.kill();
               resolve({
                 sessionCreated: true,
                 sessionId: response.result?.sessionId || sessionId,
-                response
+                response,
               });
               return;
             }
@@ -254,7 +263,7 @@ class AgentCommunicationTestSuite {
           jsonrpc: '2.0',
           id: 'init-session-test',
           method: 'initialize',
-          params: { clientCapabilities: {} }
+          params: { clientCapabilities: {} },
         };
         containerProcess.stdin.write(JSON.stringify(initMessage) + '\n');
       }, 1000);
@@ -263,17 +272,17 @@ class AgentCommunicationTestSuite {
 
   async testBidirectionalComm() {
     console.log('  🔄 Testing bidirectional communication...');
-    
+
     return new Promise((resolve, reject) => {
       const containerProcess = spawn('node', ['dist/index.js'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: 'container_src',
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { ...process.env, NODE_ENV: 'test' },
       });
 
       let messagesReceived = 0;
       const expectedMessages = 2; // init response + prompt response
-      
+
       const timeout = setTimeout(() => {
         containerProcess.kill();
         reject(new Error('Bidirectional communication test timeout'));
@@ -286,13 +295,13 @@ class AgentCommunicationTestSuite {
           try {
             const response = JSON.parse(line);
             messagesReceived++;
-            
+
             if (messagesReceived >= expectedMessages) {
               clearTimeout(timeout);
               containerProcess.kill();
               resolve({
                 messagesExchanged: messagesReceived,
-                bidirectionalSuccess: true
+                bidirectionalSuccess: true,
               });
               return;
             }
@@ -309,7 +318,7 @@ class AgentCommunicationTestSuite {
             jsonrpc: '2.0',
             id: 'bidir-init',
             method: 'initialize',
-            params: { clientCapabilities: {} }
+            params: { clientCapabilities: {} },
           },
           {
             jsonrpc: '2.0',
@@ -317,9 +326,9 @@ class AgentCommunicationTestSuite {
             method: 'session/prompt',
             params: {
               sessionId: 'bidir-session',
-              prompt: 'Simple test prompt'
-            }
-          }
+              prompt: 'Simple test prompt',
+            },
+          },
         ];
 
         messages.forEach((msg, i) => {
@@ -333,16 +342,16 @@ class AgentCommunicationTestSuite {
 
   async testErrorHandling() {
     console.log('  🚨 Testing error handling...');
-    
+
     return new Promise((resolve, reject) => {
       const containerProcess = spawn('node', ['dist/index.js'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: 'container_src',
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { ...process.env, NODE_ENV: 'test' },
       });
 
       let errorReceived = false;
-      
+
       const timeout = setTimeout(() => {
         containerProcess.kill();
         if (!errorReceived) {
@@ -362,7 +371,7 @@ class AgentCommunicationTestSuite {
               containerProcess.kill();
               resolve({
                 errorHandled: true,
-                errorResponse: response
+                errorResponse: response,
               });
               return;
             }
@@ -378,7 +387,7 @@ class AgentCommunicationTestSuite {
           jsonrpc: '2.0',
           id: 'error-test',
           method: 'invalid/method',
-          params: { invalid: 'data' }
+          params: { invalid: 'data' },
         };
         containerProcess.stdin.write(JSON.stringify(invalidMessage) + '\n');
       }, 1000);
@@ -387,14 +396,14 @@ class AgentCommunicationTestSuite {
 
   async testConcurrentSessions() {
     console.log('  🔀 Testing concurrent sessions...');
-    
+
     // This would be a more complex test involving multiple session IDs
     return new Promise((resolve) => {
       // Simplified for now - just resolve with placeholder
       setTimeout(() => {
         resolve({
           concurrentSessions: 2,
-          allSessionsHandled: true
+          allSessionsHandled: true,
         });
       }, 1000);
     });
@@ -402,18 +411,18 @@ class AgentCommunicationTestSuite {
 
   async testPerformanceMetrics() {
     console.log('  📈 Testing performance metrics...');
-    
+
     const startTime = Date.now();
-    
+
     return new Promise((resolve, reject) => {
       const containerProcess = spawn('node', ['dist/index.js'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: 'container_src',
-        env: { ...process.env, NODE_ENV: 'test' }
+        env: { ...process.env, NODE_ENV: 'test' },
       });
 
       let responseTime = null;
-      
+
       const timeout = setTimeout(() => {
         containerProcess.kill();
         reject(new Error('Performance test timeout'));
@@ -427,7 +436,8 @@ class AgentCommunicationTestSuite {
           resolve({
             responseTime,
             startupTime: responseTime,
-            performanceGrade: responseTime < 5000 ? 'A' : responseTime < 10000 ? 'B' : 'C'
+            performanceGrade:
+              responseTime < 5000 ? 'A' : responseTime < 10000 ? 'B' : 'C',
           });
         }
       });
@@ -438,7 +448,7 @@ class AgentCommunicationTestSuite {
           jsonrpc: '2.0',
           id: 'perf-test',
           method: 'initialize',
-          params: { clientCapabilities: {} }
+          params: { clientCapabilities: {} },
         };
         containerProcess.stdin.write(JSON.stringify(perfMessage) + '\n');
       }, 1000);
@@ -447,9 +457,9 @@ class AgentCommunicationTestSuite {
 
   async generateTestReport() {
     console.log('\n📊 Generating test report...');
-    
-    const passed = this.testResults.filter(t => t.status === 'PASSED').length;
-    const failed = this.testResults.filter(t => t.status === 'FAILED').length;
+
+    const passed = this.testResults.filter((t) => t.status === 'PASSED').length;
+    const failed = this.testResults.filter((t) => t.status === 'FAILED').length;
     const total = this.testResults.length;
 
     const report = {
@@ -458,14 +468,17 @@ class AgentCommunicationTestSuite {
         passed,
         failed,
         successRate: `${Math.round((passed / total) * 100)}%`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       },
       tests: this.testResults,
-      recommendations: this.generateRecommendations()
+      recommendations: this.generateRecommendations(),
     };
 
     // Save detailed report
-    const reportPath = path.join(this.logDir, 'agent-communication-test-report.json');
+    const reportPath = path.join(
+      this.logDir,
+      'agent-communication-test-report.json',
+    );
     await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
 
     // Generate summary
@@ -481,22 +494,28 @@ class AgentCommunicationTestSuite {
 
   generateRecommendations() {
     const recommendations = [];
-    
-    const failedTests = this.testResults.filter(t => t.status === 'FAILED');
-    
+
+    const failedTests = this.testResults.filter((t) => t.status === 'FAILED');
+
     if (failedTests.length === 0) {
-      recommendations.push('🎉 All tests passed! Agent communication is working correctly.');
-      recommendations.push('✅ Consider running load testing for production scenarios.');
+      recommendations.push(
+        '🎉 All tests passed! Agent communication is working correctly.',
+      );
+      recommendations.push(
+        '✅ Consider running load testing for production scenarios.',
+      );
     } else {
       recommendations.push('⚠️ Some tests failed. Review the following:');
-      failedTests.forEach(test => {
+      failedTests.forEach((test) => {
         recommendations.push(`  - ${test.name}: ${test.error}`);
       });
     }
 
     recommendations.push('📈 Monitor performance metrics in production.');
-    recommendations.push('🔒 Implement proper authentication for production use.');
-    
+    recommendations.push(
+      '🔒 Implement proper authentication for production use.',
+    );
+
     return recommendations;
   }
 
@@ -513,19 +532,18 @@ class AgentCommunicationTestSuite {
 // Main execution
 async function main() {
   const testSuite = new AgentCommunicationTestSuite();
-  
+
   try {
     // Set up cleanup on exit
     process.on('SIGINT', async () => {
       await testSuite.cleanup();
       process.exit(0);
     });
-    
+
     await testSuite.initialize();
     await testSuite.runFullTestSuite();
-    
+
     console.log('\n🎉 Agent communication test suite completed!');
-    
   } catch (error) {
     console.error('❌ Test suite failed:', error);
     await testSuite.cleanup();

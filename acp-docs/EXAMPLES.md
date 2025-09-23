@@ -1,6 +1,7 @@
 # Example Integrations - Real-World Use Cases
 
-This document provides complete, production-ready examples of integrating Claude Code Container with various external systems.
+This document provides complete, production-ready examples of integrating Claude
+Code Container with various external systems.
 
 ## 🎯 Table of Contents
 
@@ -20,6 +21,7 @@ This document provides complete, production-ready examples of integrating Claude
 ### VS Code Extension
 
 **File: `extension.ts`**
+
 ```typescript
 import * as vscode from 'vscode';
 import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
@@ -27,23 +29,27 @@ import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
 export function activate(context: vscode.ExtensionContext) {
   const client = new ClaudeHTTPClient({
     baseURL: process.env.CLAUDE_WORKER_URL || 'https://your-worker.com',
-    apiKey: vscode.workspace.getConfiguration('claude').get('apiKey')
+    apiKey: vscode.workspace.getConfiguration('claude').get('apiKey'),
   });
 
   // Command: Ask Claude about current file
-  const askAboutFile = vscode.commands.registerCommand('claude.askAboutFile', async () => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
+  const askAboutFile = vscode.commands.registerCommand(
+    'claude.askAboutFile',
+    async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
 
-    const document = editor.document;
-    const code = document.getText();
-    const language = document.languageId;
+      const document = editor.document;
+      const code = document.getText();
+      const language = document.languageId;
 
-    try {
-      await client.initialize();
-      const session = await client.createSession(vscode.workspace.rootPath || '');
-      
-      const prompt = `Please analyze this ${language} code and provide insights:
+      try {
+        await client.initialize();
+        const session = await client.createSession(
+          vscode.workspace.rootPath || '',
+        );
+
+        const prompt = `Please analyze this ${language} code and provide insights:
 
 \`\`\`${language}
 ${code}
@@ -55,52 +61,66 @@ Focus on:
 - Performance optimizations
 - Suggested improvements`;
 
-      await client.sendPrompt(session.sessionId, prompt);
-      
-      vscode.window.showInformationMessage('Claude is analyzing your code...');
-    } catch (error) {
-      vscode.window.showErrorMessage(`Claude error: ${error.message}`);
-    }
-  });
+        await client.sendPrompt(session.sessionId, prompt);
+
+        vscode.window.showInformationMessage(
+          'Claude is analyzing your code...',
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Claude error: ${error.message}`);
+      }
+    },
+  );
 
   // Command: Explain selection
-  const explainSelection = vscode.commands.registerCommand('claude.explainSelection', async () => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
+  const explainSelection = vscode.commands.registerCommand(
+    'claude.explainSelection',
+    async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
 
-    const selection = editor.selection;
-    const selectedText = editor.document.getText(selection);
+      const selection = editor.selection;
+      const selectedText = editor.document.getText(selection);
 
-    if (!selectedText) {
-      vscode.window.showWarningMessage('Please select some code first');
-      return;
-    }
+      if (!selectedText) {
+        vscode.window.showWarningMessage('Please select some code first');
+        return;
+      }
 
-    try {
-      await client.initialize();
-      const session = await client.createSession(vscode.workspace.rootPath || '');
-      
-      await client.sendPrompt(session.sessionId, `Explain this code:\n\`\`\`\n${selectedText}\n\`\`\``);
-      
-    } catch (error) {
-      vscode.window.showErrorMessage(`Claude error: ${error.message}`);
-    }
-  });
+      try {
+        await client.initialize();
+        const session = await client.createSession(
+          vscode.workspace.rootPath || '',
+        );
+
+        await client.sendPrompt(
+          session.sessionId,
+          `Explain this code:\n\`\`\`\n${selectedText}\n\`\`\``,
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(`Claude error: ${error.message}`);
+      }
+    },
+  );
 
   // Command: Generate tests
-  const generateTests = vscode.commands.registerCommand('claude.generateTests', async () => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
+  const generateTests = vscode.commands.registerCommand(
+    'claude.generateTests',
+    async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
 
-    const document = editor.document;
-    const code = document.getText();
-    const language = document.languageId;
+      const document = editor.document;
+      const code = document.getText();
+      const language = document.languageId;
 
-    try {
-      await client.initialize();
-      const session = await client.createSession(vscode.workspace.rootPath || '');
-      
-      const prompt = `Generate comprehensive unit tests for this ${language} code:
+      try {
+        await client.initialize();
+        const session = await client.createSession(
+          vscode.workspace.rootPath || '',
+        );
+
+        const prompt = `Generate comprehensive unit tests for this ${language} code:
 
 \`\`\`${language}
 ${code}
@@ -112,18 +132,19 @@ Requirements:
 - Include setup and teardown if needed
 - Add descriptive test names and comments`;
 
-      await client.sendPrompt(session.sessionId, prompt);
-      
-    } catch (error) {
-      vscode.window.showErrorMessage(`Claude error: ${error.message}`);
-    }
-  });
+        await client.sendPrompt(session.sessionId, prompt);
+      } catch (error) {
+        vscode.window.showErrorMessage(`Claude error: ${error.message}`);
+      }
+    },
+  );
 
   context.subscriptions.push(askAboutFile, explainSelection, generateTests);
 }
 ```
 
 **File: `package.json`**
+
 ```json
 {
   "name": "claude-code-assistant",
@@ -188,6 +209,7 @@ Requirements:
 ### React Hook for Claude Integration
 
 **File: `hooks/useClaude.ts`**
+
 ```typescript
 import { useState, useEffect, useRef } from 'react';
 import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
@@ -205,12 +227,16 @@ interface UseClaudeOptions {
   autoInit?: boolean;
 }
 
-export function useClaude({ apiKey, workerUrl, autoInit = true }: UseClaudeOptions) {
+export function useClaude({
+  apiKey,
+  workerUrl,
+  autoInit = true,
+}: UseClaudeOptions) {
   const [messages, setMessages] = useState<ClaudeMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const clientRef = useRef<ClaudeHTTPClient | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -227,18 +253,19 @@ export function useClaude({ apiKey, workerUrl, autoInit = true }: UseClaudeOptio
 
       const client = new ClaudeHTTPClient({
         baseURL: workerUrl,
-        apiKey: apiKey
+        apiKey: apiKey,
       });
 
       await client.initialize();
       const session = await client.createSession('/workspace');
-      
+
       clientRef.current = client;
       sessionIdRef.current = session.sessionId;
       setIsConnected(true);
-      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initialize Claude');
+      setError(
+        err instanceof Error ? err.message : 'Failed to initialize Claude',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -253,26 +280,26 @@ export function useClaude({ apiKey, workerUrl, autoInit = true }: UseClaudeOptio
       id: Date.now().toString(),
       type: 'user',
       content,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
       await clientRef.current.sendPrompt(sessionIdRef.current, content);
-      
+
       // In a real implementation, you'd listen for response notifications
       // For now, we'll add a placeholder response
       const claudeMessage: ClaudeMessage = {
         id: (Date.now() + 1).toString(),
         type: 'claude',
-        content: 'Response received. Check your notification handler for the actual response.',
-        timestamp: new Date()
+        content:
+          'Response received. Check your notification handler for the actual response.',
+        timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, claudeMessage]);
-      
+      setMessages((prev) => [...prev, claudeMessage]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
@@ -299,12 +326,13 @@ export function useClaude({ apiKey, workerUrl, autoInit = true }: UseClaudeOptio
     sendMessage,
     clearMessages,
     disconnect,
-    initializeClaude
+    initializeClaude,
   };
 }
 ```
 
 **File: `components/ClaudeChat.tsx`**
+
 ```typescript
 import React, { useState } from 'react';
 import { useClaude } from '../hooks/useClaude';
@@ -374,6 +402,7 @@ export function ClaudeChat({ apiKey, workerUrl }: ClaudeChatProps) {
 ### Advanced CLI with Multiple Commands
 
 **File: `cli.ts`**
+
 ```typescript
 #!/usr/bin/env node
 
@@ -392,27 +421,30 @@ class ClaudeCLI {
 
   constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
-    const workerUrl = process.env.CLAUDE_WORKER_URL || 'https://your-worker.com';
+    const workerUrl =
+      process.env.CLAUDE_WORKER_URL || 'https://your-worker.com';
 
     if (!apiKey) {
-      console.error(chalk.red('Error: ANTHROPIC_API_KEY environment variable is required'));
+      console.error(
+        chalk.red('Error: ANTHROPIC_API_KEY environment variable is required'),
+      );
       process.exit(1);
     }
 
     this.client = new ClaudeHTTPClient({
       baseURL: workerUrl,
-      apiKey: apiKey
+      apiKey: apiKey,
     });
   }
 
   async initialize(): Promise<void> {
     const spinner = ora('Initializing Claude...').start();
-    
+
     try {
       await this.client.initialize();
       const session = await this.client.createSession(process.cwd());
       this.sessionId = session.sessionId;
-      
+
       spinner.succeed('Claude initialized successfully');
     } catch (error) {
       spinner.fail('Failed to initialize Claude');
@@ -426,12 +458,11 @@ class ClaudeCLI {
     }
 
     const spinner = ora('Thinking...').start();
-    
+
     try {
       await this.client.sendPrompt(this.sessionId!, question);
       spinner.succeed('Response sent to Claude');
       console.log(chalk.blue('💡 Claude is processing your question...'));
-      
     } catch (error) {
       spinner.fail('Failed to send question');
       throw error;
@@ -493,25 +524,25 @@ Requirements:
   async explainProject(): Promise<void> {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const readmePath = path.join(process.cwd(), 'README.md');
-    
+
     let context = `Please analyze this project structure:\n\n`;
-    
+
     // Add package.json if exists
     if (fs.existsSync(packageJsonPath)) {
       const packageJson = fs.readFileSync(packageJsonPath, 'utf8');
       context += `package.json:\n\`\`\`json\n${packageJson}\n\`\`\`\n\n`;
     }
-    
+
     // Add README if exists
     if (fs.existsSync(readmePath)) {
       const readme = fs.readFileSync(readmePath, 'utf8');
       context += `README.md:\n\`\`\`markdown\n${readme}\n\`\`\`\n\n`;
     }
-    
+
     // Add directory structure
     const structure = this.getDirectoryStructure(process.cwd());
     context += `Directory structure:\n\`\`\`\n${structure}\n\`\`\`\n\n`;
-    
+
     context += `Please provide:
 1. Project overview and purpose
 2. Technology stack analysis
@@ -538,33 +569,37 @@ Requirements:
       '.go': 'go',
       '.rs': 'rust',
       '.swift': 'swift',
-      '.kt': 'kotlin'
+      '.kt': 'kotlin',
     };
-    
+
     return langMap[ext.toLowerCase()] || 'text';
   }
 
-  private getDirectoryStructure(dir: string, depth: number = 0, maxDepth: number = 3): string {
+  private getDirectoryStructure(
+    dir: string,
+    depth: number = 0,
+    maxDepth: number = 3,
+  ): string {
     if (depth > maxDepth) return '';
-    
+
     const indent = '  '.repeat(depth);
     const items = fs.readdirSync(dir, { withFileTypes: true });
     let structure = '';
-    
+
     for (const item of items) {
       if (item.name.startsWith('.') || item.name === 'node_modules') continue;
-      
+
       structure += `${indent}${item.isDirectory() ? '📁' : '📄'} ${item.name}\n`;
-      
+
       if (item.isDirectory() && depth < maxDepth) {
         structure += this.getDirectoryStructure(
-          path.join(dir, item.name), 
-          depth + 1, 
-          maxDepth
+          path.join(dir, item.name),
+          depth + 1,
+          maxDepth,
         );
       }
     }
-    
+
     return structure;
   }
 }
@@ -631,6 +666,7 @@ program.parse();
 ```
 
 **File: `package.json`**
+
 ```json
 {
   "name": "claude-cli",
@@ -666,7 +702,8 @@ program.parse();
 ### Discord Bot with Claude Integration
 
 **File: `discord-bot.ts`**
-```typescript
+
+````typescript
 import { Client, GatewayIntentBits, Message, TextChannel } from 'discord.js';
 import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
 
@@ -680,13 +717,13 @@ class ClaudeDiscordBot {
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-      ]
+        GatewayIntentBits.MessageContent,
+      ],
     });
 
     this.claude = new ClaudeHTTPClient({
       baseURL: process.env.CLAUDE_WORKER_URL!,
-      apiKey: process.env.ANTHROPIC_API_KEY!
+      apiKey: process.env.ANTHROPIC_API_KEY!,
     });
 
     this.setupEventHandlers();
@@ -702,9 +739,9 @@ class ClaudeDiscordBot {
 
   private async handleMessage(message: Message) {
     if (message.author.bot) return;
-    
+
     const content = message.content.trim();
-    
+
     // Commands
     if (content.startsWith('!claude ')) {
       await this.handleClaudeCommand(message, content.slice(8));
@@ -717,20 +754,21 @@ class ClaudeDiscordBot {
 
   private async handleClaudeCommand(message: Message, prompt: string) {
     const channel = message.channel as TextChannel;
-    
+
     try {
       // Show typing indicator
       await channel.sendTyping();
-      
+
       // Get or create session for this channel
       const sessionId = await this.getOrCreateSession(channel.id);
-      
+
       // Send prompt to Claude
       await this.claude.sendPrompt(sessionId, prompt);
-      
+
       // Send confirmation (in real implementation, you'd listen for response)
-      await message.reply('🤔 Claude is thinking... You\'ll get a response soon!');
-      
+      await message.reply(
+        "🤔 Claude is thinking... You'll get a response soon!",
+      );
     } catch (error) {
       await message.reply(`❌ Error: ${error.message}`);
     }
@@ -738,9 +776,11 @@ class ClaudeDiscordBot {
 
   private async handleCodeReview(message: Message) {
     const codeBlock = this.extractCodeBlock(message.content);
-    
+
     if (!codeBlock) {
-      await message.reply('Please provide code in a code block:\n```language\ncode here\n```');
+      await message.reply(
+        'Please provide code in a code block:\n```language\ncode here\n```',
+      );
       return;
     }
 
@@ -760,7 +800,7 @@ ${codeBlock.code}
 
   private async handleExplainCode(message: Message) {
     const codeBlock = this.extractCodeBlock(message.content);
-    
+
     if (!codeBlock) {
       await message.reply('Please provide code in a code block to explain.');
       return;
@@ -780,15 +820,17 @@ Include:
     await this.handleClaudeCommand(message, prompt);
   }
 
-  private extractCodeBlock(content: string): { language: string; code: string } | null {
+  private extractCodeBlock(
+    content: string,
+  ): { language: string; code: string } | null {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)\n```/;
     const match = content.match(codeBlockRegex);
-    
+
     if (!match) return null;
-    
+
     return {
       language: match[1] || 'text',
-      code: match[2]
+      code: match[2],
     };
   }
 
@@ -798,7 +840,7 @@ Include:
       const session = await this.claude.createSession('/workspace');
       this.sessions.set(channelId, session.sessionId);
     }
-    
+
     return this.sessions.get(channelId)!;
   }
 
@@ -821,10 +863,11 @@ process.on('SIGINT', async () => {
   await bot.stop();
   process.exit(0);
 });
-```
+````
 
 **Usage Examples:**
-```
+
+````
 !claude How do I implement authentication in Express.js?
 
 !review
@@ -833,16 +876,18 @@ function validateUser(user) {
   if (user.name) return true;
   return false;
 }
-```
+````
 
 !explain
+
 ```python
 def fibonacci(n):
     if n <= 1:
         return n
     return fibonacci(n-1) + fibonacci(n-2)
 ```
-```
+
+````
 
 ---
 
@@ -897,17 +942,17 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            
+
             // In a real implementation, you'd collect Claude's responses
             // and post them as PR comments
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: '🤖 Claude has reviewed the changed files. Check the logs for detailed feedback!'
             });
-```
+````
 
 ---
 
@@ -916,7 +961,8 @@ jobs:
 ### Slack Bot with Claude Integration
 
 **File: `slack-bot.ts`**
-```typescript
+
+````typescript
 import { App } from '@slack/bolt';
 import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
 
@@ -930,12 +976,12 @@ class ClaudeSlackBot {
       token: process.env.SLACK_BOT_TOKEN,
       signingSecret: process.env.SLACK_SIGNING_SECRET,
       appToken: process.env.SLACK_APP_TOKEN,
-      socketMode: true
+      socketMode: true,
     });
 
     this.claude = new ClaudeHTTPClient({
       baseURL: process.env.CLAUDE_WORKER_URL!,
-      apiKey: process.env.ANTHROPIC_API_KEY!
+      apiKey: process.env.ANTHROPIC_API_KEY!,
     });
 
     this.setupCommands();
@@ -945,19 +991,19 @@ class ClaudeSlackBot {
     // Slash command: /claude <question>
     this.app.command('/claude', async ({ command, ack, respond }) => {
       await ack();
-      
+
       try {
         const sessionId = await this.getOrCreateSession(command.channel_id);
         await this.claude.sendPrompt(sessionId, command.text);
-        
+
         await respond({
           text: `🤔 Claude is thinking about: "${command.text}"`,
-          response_type: 'in_channel'
+          response_type: 'in_channel',
         });
       } catch (error) {
         await respond({
           text: `❌ Error: ${error.message}`,
-          response_type: 'ephemeral'
+          response_type: 'ephemeral',
         });
       }
     });
@@ -965,12 +1011,12 @@ class ClaudeSlackBot {
     // Slash command: /code-review
     this.app.command('/code-review', async ({ command, ack, respond }) => {
       await ack();
-      
+
       const codeBlock = this.extractCodeFromText(command.text);
       if (!codeBlock) {
         await respond({
           text: 'Please provide code to review: `/code-review ```language\ncode here\n```',
-          response_type: 'ephemeral'
+          response_type: 'ephemeral',
         });
         return;
       }
@@ -990,15 +1036,15 @@ Focus on:
       try {
         const sessionId = await this.getOrCreateSession(command.channel_id);
         await this.claude.sendPrompt(sessionId, prompt);
-        
+
         await respond({
           text: '🔍 Claude is reviewing your code...',
-          response_type: 'in_channel'
+          response_type: 'in_channel',
         });
       } catch (error) {
         await respond({
           text: `❌ Error: ${error.message}`,
-          response_type: 'ephemeral'
+          response_type: 'ephemeral',
         });
       }
     });
@@ -1006,7 +1052,7 @@ Focus on:
     // Message event for mentions
     this.app.event('app_mention', async ({ event, say }) => {
       const text = event.text.replace(/<@\w+>/, '').trim();
-      
+
       if (text.toLowerCase().includes('help')) {
         await say({
           text: `Hi! I'm Claude 🤖 Here's what I can do:
@@ -1014,7 +1060,7 @@ Focus on:
 • \`/code-review\` - Review your code
 • Mention me with a question
 • Share code in a thread and I'll analyze it`,
-          thread_ts: event.ts
+          thread_ts: event.ts,
         });
         return;
       }
@@ -1022,29 +1068,31 @@ Focus on:
       try {
         const sessionId = await this.getOrCreateSession(event.channel);
         await this.claude.sendPrompt(sessionId, text);
-        
+
         await say({
           text: `🤔 Thinking about: "${text}"`,
-          thread_ts: event.ts
+          thread_ts: event.ts,
         });
       } catch (error) {
         await say({
           text: `❌ Sorry, I encountered an error: ${error.message}`,
-          thread_ts: event.ts
+          thread_ts: event.ts,
         });
       }
     });
   }
 
-  private extractCodeFromText(text: string): { language: string; code: string } | null {
+  private extractCodeFromText(
+    text: string,
+  ): { language: string; code: string } | null {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)\n```/;
     const match = text.match(codeBlockRegex);
-    
+
     if (!match) return null;
-    
+
     return {
       language: match[1] || 'text',
-      code: match[2]
+      code: match[2],
     };
   }
 
@@ -1054,7 +1102,7 @@ Focus on:
       const session = await this.claude.createSession('/workspace');
       this.sessions.set(channelId, session.sessionId);
     }
-    
+
     return this.sessions.get(channelId)!;
   }
 
@@ -1067,7 +1115,7 @@ Focus on:
 // Start the bot
 const bot = new ClaudeSlackBot();
 bot.start().catch(console.error);
-```
+````
 
 ---
 
@@ -1076,6 +1124,7 @@ bot.start().catch(console.error);
 ### Electron App with Claude
 
 **File: `main.ts` (Electron Main Process)**
+
 ```typescript
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
@@ -1089,7 +1138,7 @@ class ClaudeElectronApp {
   constructor() {
     this.claude = new ClaudeHTTPClient({
       baseURL: process.env.CLAUDE_WORKER_URL || 'https://your-worker.com',
-      apiKey: process.env.ANTHROPIC_API_KEY!
+      apiKey: process.env.ANTHROPIC_API_KEY!,
     });
 
     this.setupApp();
@@ -1122,8 +1171,8 @@ class ClaudeElectronApp {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js')
-      }
+        preload: path.join(__dirname, 'preload.js'),
+      },
     });
 
     this.mainWindow.loadFile('index.html');
@@ -1149,7 +1198,7 @@ class ClaudeElectronApp {
         const fs = require('fs');
         const content = fs.readFileSync(filePath, 'utf8');
         const ext = path.extname(filePath);
-        
+
         const prompt = `Analyze this file (${filePath}):
 
 \`\`\`${this.getLanguageFromExt(ext)}
@@ -1179,13 +1228,13 @@ Please provide:
       await this.claude.initialize();
       const session = await this.claude.createSession(process.cwd());
       this.sessionId = session.sessionId;
-      
+
       // Notify renderer
       this.mainWindow?.webContents.send('claude:status', { connected: true });
     } catch (error) {
-      this.mainWindow?.webContents.send('claude:status', { 
-        connected: false, 
-        error: error.message 
+      this.mainWindow?.webContents.send('claude:status', {
+        connected: false,
+        error: error.message,
       });
     }
   }
@@ -1197,7 +1246,7 @@ Please provide:
       '.jsx': 'jsx',
       '.tsx': 'tsx',
       '.py': 'python',
-      '.java': 'java'
+      '.java': 'java',
     };
     return langMap[ext] || 'text';
   }
@@ -1207,25 +1256,28 @@ new ClaudeElectronApp();
 ```
 
 **File: `preload.ts` (Electron Preload)**
+
 ```typescript
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('claude', {
   ask: (question: string) => ipcRenderer.invoke('claude:ask', question),
-  analyzeFile: (filePath: string) => ipcRenderer.invoke('claude:analyze-file', filePath),
+  analyzeFile: (filePath: string) =>
+    ipcRenderer.invoke('claude:analyze-file', filePath),
   onStatusChange: (callback: (status: any) => void) => {
     ipcRenderer.on('claude:status', (_, status) => callback(status));
-  }
+  },
 });
 ```
 
 **File: `renderer.js` (Frontend)**
+
 ```javascript
 class ClaudeUI {
   constructor() {
     this.setupUI();
     this.setupEventListeners();
-    
+
     // Listen for Claude status updates
     window.claude.onStatusChange((status) => {
       this.updateStatus(status);
@@ -1263,21 +1315,21 @@ class ClaudeUI {
     input.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') this.askQuestion();
     });
-    
+
     fileBtn.addEventListener('click', () => this.selectFile());
   }
 
   async askQuestion() {
     const input = document.getElementById('question-input');
     const question = input.value.trim();
-    
+
     if (!question) return;
-    
+
     this.addMessage('You', question);
     input.value = '';
-    
+
     const result = await window.claude.ask(question);
-    
+
     if (result.success) {
       this.addMessage('System', 'Question sent to Claude...');
     } else {
@@ -1289,9 +1341,9 @@ class ClaudeUI {
     // In a real app, you'd use a file dialog
     const filePath = prompt('Enter file path to analyze:');
     if (!filePath) return;
-    
+
     const result = await window.claude.analyzeFile(filePath);
-    
+
     if (result.success) {
       this.addMessage('System', `Analyzing file: ${filePath}...`);
     } else {
@@ -1313,8 +1365,12 @@ class ClaudeUI {
 
   updateStatus(status) {
     const statusEl = document.getElementById('status');
-    statusEl.textContent = status.connected ? 'Connected' : `Disconnected: ${status.error || 'Unknown error'}`;
-    statusEl.className = status.connected ? 'status connected' : 'status disconnected';
+    statusEl.textContent = status.connected
+      ? 'Connected'
+      : `Disconnected: ${status.error || 'Unknown error'}`;
+    statusEl.className = status.connected
+      ? 'status connected'
+      : 'status disconnected';
   }
 }
 
@@ -1331,6 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
 ### Monitoring Dashboard
 
 **File: `monitoring.ts`**
+
 ```typescript
 import express from 'express';
 import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
@@ -1365,19 +1422,21 @@ class ClaudeMonitoring {
         status: 'healthy',
         timestamp: new Date(),
         activeClients: this.clients.size,
-        totalMetrics: this.metrics.length
+        totalMetrics: this.metrics.length,
       });
     });
 
     // Metrics endpoint
     this.app.get('/metrics', (req, res) => {
-      const since = req.query.since ? new Date(req.query.since as string) : new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
-      const filteredMetrics = this.metrics.filter(m => m.timestamp >= since);
-      
+      const since = req.query.since
+        ? new Date(req.query.since as string)
+        : new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const filteredMetrics = this.metrics.filter((m) => m.timestamp >= since);
+
       res.json({
         metrics: filteredMetrics,
-        summary: this.generateMetricsSummary(filteredMetrics)
+        summary: this.generateMetricsSummary(filteredMetrics),
       });
     });
 
@@ -1389,27 +1448,30 @@ class ClaudeMonitoring {
       try {
         const client = await this.getOrCreateClient(clientId);
         const startTime = Date.now();
-        
+
         await client.initialize();
         const session = await client.createSession('/workspace');
         await client.sendPrompt(session.sessionId, prompt || 'Hello, Claude!');
-        
+
         const duration = Date.now() - startTime;
-        
+
         this.recordMetric('request_duration', duration, { clientId, prompt });
         this.recordMetric('request_success', 1, { clientId });
 
         res.json({
           success: true,
           duration,
-          message: 'Request sent successfully'
+          message: 'Request sent successfully',
         });
       } catch (error) {
-        this.recordMetric('request_error', 1, { clientId, error: error.message });
-        
+        this.recordMetric('request_error', 1, {
+          clientId,
+          error: error.message,
+        });
+
         res.status(500).json({
           success: false,
-          error: error.message
+          error: error.message,
         });
       }
     });
@@ -1424,12 +1486,12 @@ class ClaudeMonitoring {
     if (!this.clients.has(clientId)) {
       const client = new ClaudeHTTPClient({
         baseURL: process.env.CLAUDE_WORKER_URL || 'https://your-worker.com',
-        apiKey: process.env.ANTHROPIC_API_KEY!
+        apiKey: process.env.ANTHROPIC_API_KEY!,
       });
-      
+
       this.clients.set(clientId, client);
     }
-    
+
     return this.clients.get(clientId)!;
   }
 
@@ -1438,7 +1500,7 @@ class ClaudeMonitoring {
       timestamp: new Date(),
       metric,
       value,
-      metadata
+      metadata,
     });
 
     // Keep only last 10000 metrics
@@ -1449,13 +1511,16 @@ class ClaudeMonitoring {
 
   private generateMetricsSummary(metrics: MetricData[]) {
     const summary: Record<string, any> = {};
-    
+
     // Group by metric name
-    const grouped = metrics.reduce((acc, metric) => {
-      if (!acc[metric.metric]) acc[metric.metric] = [];
-      acc[metric.metric].push(metric.value);
-      return acc;
-    }, {} as Record<string, number[]>);
+    const grouped = metrics.reduce(
+      (acc, metric) => {
+        if (!acc[metric.metric]) acc[metric.metric] = [];
+        acc[metric.metric].push(metric.value);
+        return acc;
+      },
+      {} as Record<string, number[]>,
+    );
 
     // Calculate statistics
     Object.entries(grouped).forEach(([metric, values]) => {
@@ -1464,7 +1529,7 @@ class ClaudeMonitoring {
         sum: values.reduce((a, b) => a + b, 0),
         avg: values.reduce((a, b) => a + b, 0) / values.length,
         min: Math.min(...values),
-        max: Math.max(...values)
+        max: Math.max(...values),
       };
     });
 
@@ -1634,7 +1699,9 @@ class ClaudeMonitoring {
 
   start(port: number = 3000) {
     this.app.listen(port, () => {
-      console.log(`📊 Monitoring dashboard running on http://localhost:${port}`);
+      console.log(
+        `📊 Monitoring dashboard running on http://localhost:${port}`,
+      );
     });
   }
 }
@@ -1648,7 +1715,8 @@ monitoring.start();
 
 ## 📝 Summary
 
-These examples demonstrate real-world integrations of the Claude Code Container system across different platforms and use cases:
+These examples demonstrate real-world integrations of the Claude Code Container
+system across different platforms and use cases:
 
 1. **IDE Extensions**: VS Code extension with multiple commands
 2. **Web Applications**: React hooks and components for web integration
@@ -1660,9 +1728,11 @@ These examples demonstrate real-world integrations of the Claude Code Container 
 8. **Monitoring**: Dashboard for tracking performance and usage
 
 Each example includes:
+
 - Complete, production-ready code
 - Error handling and user feedback
 - Configuration and setup instructions
 - Best practices for the specific platform
 
-All examples follow the lightweight ACP client architecture, communicating with the remote Claude Code Container worker for AI-powered code assistance.
+All examples follow the lightweight ACP client architecture, communicating with
+the remote Claude Code Container worker for AI-powered code assistance.

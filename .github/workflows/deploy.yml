@@ -10,13 +10,13 @@ on:
         default: 'production'
         type: choice
         options:
-        - production
-        - staging
-        - development
+          - production
+          - staging
+          - development
 
-  # Auto-deploy on multiple branches  
+  # Auto-deploy on multiple branches
   push:
-    branches: [ main, develop, cloudflare-deploy-button ]
+    branches: [main, develop, cloudflare-deploy-button]
     paths-ignore:
       - 'README.md'
       - 'docs/**'
@@ -24,55 +24,57 @@ on:
 
   # Deploy previews on pull requests
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-        cache: 'npm'
-        
-    - name: Determine environment
-      id: env
-      run: |
-        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "environment=production" >> $GITHUB_OUTPUT
-          echo "worker_name=claude-code-containers" >> $GITHUB_OUTPUT
-        elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-          echo "environment=staging" >> $GITHUB_OUTPUT  
-          echo "worker_name=claude-code-containers-staging" >> $GITHUB_OUTPUT
-        else
-          echo "environment=development" >> $GITHUB_OUTPUT
-          echo "worker_name=claude-code-containers-dev" >> $GITHUB_OUTPUT
-        fi
-        
-    - name: Deploy to Cloudflare Workers
-      uses: cloudflare/wrangler-action@v3
-      with:
-        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        preCommands: |
-          npm install -g wrangler@4.34.0
-          npm ci
-          cd container_src && npm ci && npm run build && cd ..
-        command: deploy --env ${{ steps.env.outputs.environment || github.event.inputs.environment || 'production' }}
-      env:
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
 
-    - name: Output deployment URL
-      run: |
-        echo "🚀 Deployment completed!"
-        echo "🔗 Your Worker is available at: https://${{ steps.env.outputs.worker_name }}.workers.dev"
-        echo "⚙️ Setup GitHub App at: https://${{ steps.env.outputs.worker_name }}.workers.dev/install"
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "worker_name=claude-code-containers" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT  
+            echo "worker_name=claude-code-containers-staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=development" >> $GITHUB_OUTPUT
+            echo "worker_name=claude-code-containers-dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          preCommands: |
+            npm install -g wrangler@4.34.0
+            npm ci
+            cd container_src && npm ci && npm run build && cd ..
+          command:
+            deploy --env ${{ steps.env.outputs.environment ||
+            github.event.inputs.environment || 'production' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+
+      - name: Output deployment URL
+        run: |
+          echo "🚀 Deployment completed!"
+          echo "🔗 Your Worker is available at: https://${{ steps.env.outputs.worker_name }}.workers.dev"
+          echo "⚙️ Setup GitHub App at: https://${{ steps.env.outputs.worker_name }}.workers.dev/install"

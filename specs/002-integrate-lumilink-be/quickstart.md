@@ -1,6 +1,9 @@
 # LumiLink-BE ACP Protocol Integration: Quick Start Guide
 
-This guide helps you get started with the ACP protocol integration in LumiLink-BE for container communication. The ACP protocol provides significant performance improvements and new capabilities compared to the previous HTTP-based communication.
+This guide helps you get started with the ACP protocol integration in
+LumiLink-BE for container communication. The ACP protocol provides significant
+performance improvements and new capabilities compared to the previous
+HTTP-based communication.
 
 ## Prerequisites
 
@@ -43,12 +46,12 @@ const container = await containerService.createContainer({
   resources: {
     cpu: 1,
     memory: '512MB',
-    storage: '2GB'
+    storage: '2GB',
   },
   // Specify ACP as the preferred protocol
   preferredProtocol: 'acp',
   // Enable HTTP fallback in case ACP fails
-  fallbackEnabled: true
+  fallbackEnabled: true,
 });
 
 console.log(`Container created with ID: ${container.id}`);
@@ -68,8 +71,8 @@ const result = await containerCommunicationService.executeCommand(
   {
     language: 'python',
     code: 'print("Hello, ACP!")',
-    timeout: 5000
-  }
+    timeout: 5000,
+  },
 );
 
 console.log('Command result:', result);
@@ -81,7 +84,7 @@ containerCommunicationService.subscribeToEvents(
     console.log(`Received event: ${event.eventType}`);
     console.log('Event data:', event.data);
   },
-  { eventTypes: ['container.status', 'operation.completed'] }
+  { eventTypes: ['container.status', 'operation.completed'] },
 );
 ```
 
@@ -96,7 +99,7 @@ const migration = await protocolMigrationService.migrateContainer({
   containerId: 'container123',
   toProtocol: 'acp',
   strategy: 'graceful',
-  reason: 'performance-improvement'
+  reason: 'performance-improvement',
 });
 
 console.log(`Migration started with ID: ${migration.id}`);
@@ -120,7 +123,7 @@ acpClientService.setGlobalConfig({
   maxReconnectDelay: 30000,
   idleTimeout: 60000,
   keepAliveInterval: 30000,
-  compressionEnabled: true
+  compressionEnabled: true,
 });
 ```
 
@@ -135,7 +138,7 @@ await acpConnectionService.updateConnectionConfig(containerId, {
   reconnectDelay: 500,
   compressionEnabled: true,
   encryptionLevel: 'high',
-  enableBulkOperations: true
+  enableBulkOperations: true,
 });
 ```
 
@@ -161,7 +164,7 @@ console.log(`Average latency: ${metrics.averageLatency}ms`);
 const messages = await acpConnectionService.getRecentMessages(containerId, {
   limit: 20,
   types: ['command', 'error'],
-  direction: 'both'
+  direction: 'both',
 });
 
 console.log(`Retrieved ${messages.length} messages`);
@@ -169,7 +172,8 @@ console.log(`Retrieved ${messages.length} messages`);
 
 ## Fallback Mechanism
 
-The ACP integration includes automatic fallback to HTTP when ACP connections fail. This ensures backward compatibility and system reliability.
+The ACP integration includes automatic fallback to HTTP when ACP connections
+fail. This ensures backward compatibility and system reliability.
 
 ```typescript
 // Configure fallback behavior
@@ -180,21 +184,22 @@ await containerService.updateContainerConfig(containerId, {
   fallbackThreshold: {
     errorCount: 3,
     errorRate: 0.1,
-    latencyIncrease: 2.0
-  }
+    latencyIncrease: 2.0,
+  },
 });
 ```
 
 ## Performance Comparison
 
-The following table shows typical performance improvements when using ACP compared to HTTP:
+The following table shows typical performance improvements when using ACP
+compared to HTTP:
 
-| Operation | HTTP Latency | ACP Latency | Improvement |
-|-----------|-------------|-------------|-------------|
-| Status Check | 320ms | 35ms | 89% |
-| File Operation | 580ms | 120ms | 79% |
-| Command Execution | 460ms | 95ms | 79% |
-| Health Ping | 210ms | 12ms | 94% |
+| Operation         | HTTP Latency | ACP Latency | Improvement |
+| ----------------- | ------------ | ----------- | ----------- |
+| Status Check      | 320ms        | 35ms        | 89%         |
+| File Operation    | 580ms        | 120ms       | 79%         |
+| Command Execution | 460ms        | 95ms        | 79%         |
+| Health Ping       | 210ms        | 12ms        | 94%         |
 
 ## Troubleshooting
 
@@ -203,28 +208,33 @@ The following table shows typical performance improvements when using ACP compar
 If you experience connection issues:
 
 1. Check container status:
+
 ```typescript
 const containerStatus = await containerService.getContainerStatus(containerId);
 console.log(containerStatus);
 ```
 
 2. Check connection logs:
+
 ```typescript
-const connectionLogs = await acpConnectionService.getConnectionLogs(containerId);
+const connectionLogs =
+  await acpConnectionService.getConnectionLogs(containerId);
 console.log(connectionLogs);
 ```
 
 3. Try reconnecting:
+
 ```typescript
 await acpConnectionService.reconnect(containerId);
 ```
 
 4. If all else fails, fall back to HTTP:
+
 ```typescript
 await protocolMigrationService.migrateContainer({
   containerId: containerId,
   toProtocol: 'http',
-  reason: 'error-recovery'
+  reason: 'error-recovery',
 });
 ```
 

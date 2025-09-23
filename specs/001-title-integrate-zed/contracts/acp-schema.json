@@ -68,7 +68,10 @@
             "agentInfo": {
               "type": "object",
               "properties": {
-                "name": { "type": "string", "default": "Claude Code Container" },
+                "name": {
+                  "type": "string",
+                  "default": "Claude Code Container"
+                },
                 "version": { "type": "string" },
                 "description": { "type": "string" }
               }

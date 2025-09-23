@@ -1,42 +1,59 @@
 # Implementation Plan: LumiLink-BE ACP Protocol Integration
 
-**Branch**: `002-integrate-lumilink-be` | **Date**: September 17, 2025 | **Spec**: [LumiLink-BE ACP Protocol Integration](../002-integrate-lumilink-be/spec.md)
+**Branch**: `002-integrate-lumilink-be` | **Date**: September 17, 2025 |
+**Spec**:
+[LumiLink-BE ACP Protocol Integration](../002-integrate-lumilink-be/spec.md)
 **Input**: Feature specification from `/specs/002-integrate-lumilink-be/spec.md`
 
 ## Summary
-This implementation replaces LumiLink-BE's HTTP-based communication with Claude Code containers with the more efficient Application Communication Protocol (ACP). The integration will establish persistent bidirectional ACP connections for container operations, resulting in better performance, real-time status updates, and enhanced reliability while maintaining compatibility with existing container management functionality.
+
+This implementation replaces LumiLink-BE's HTTP-based communication with Claude
+Code containers with the more efficient Application Communication Protocol
+(ACP). The integration will establish persistent bidirectional ACP connections
+for container operations, resulting in better performance, real-time status
+updates, and enhanced reliability while maintaining compatibility with existing
+container management functionality.
 
 ## Technical Context
-**Language/Version**: TypeScript 5.9 running on Node.js 20+ via Cloudflare Workers  
-**Primary Dependencies**: 
+
+**Language/Version**: TypeScript 5.9 running on Node.js 20+ via Cloudflare
+Workers  
+**Primary Dependencies**:
+
 - Hono 4.7+ (API framework)
 - Prisma 5.22+ with D1 adapter (Database)
 - @defikitteam/claude-acp-client (new ACP client package)
 - @zed-industries/agent-client-protocol (ACP protocol definitions)  
-**Storage**: Prisma with D1 (SQLite) for container configurations and sessions  
-**Testing**: Vitest 2.1+ with integration and unit tests  
-**Target Platform**: Cloudflare Workers (production), Node.js local dev environment  
-**Project Type**: Backend service with API endpoints  
-**Performance Goals**: 50%+ reduction in operation latency, 30%+ improvement in throughput  
-**Constraints**: 
+  **Storage**: Prisma with D1 (SQLite) for container configurations and
+  sessions  
+  **Testing**: Vitest 2.1+ with integration and unit tests  
+  **Target Platform**: Cloudflare Workers (production), Node.js local dev
+  environment  
+  **Project Type**: Backend service with API endpoints  
+  **Performance Goals**: 50%+ reduction in operation latency, 30%+ improvement
+  in throughput  
+  **Constraints**:
 - Compatible with existing container deployments
 - Graceful fallback to HTTP when needed
 - Max worker CPU time limits (30s)
 - Max connection count based on worker limits  
-**Scale/Scope**: Support for 1000+ concurrent container connections
+  **Scale/Scope**: Support for 1000+ concurrent container connections
 
 ## Constitution Check
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Simplicity**:
+
 - Projects: 1 (backend service)
 - Using framework directly: Yes (Hono + ACP client)
 - Single data model: Yes (extending existing Prisma schema)
 - Avoiding patterns: Yes (direct service implementation)
 
 **Architecture**:
+
 - EVERY feature as library: Yes (ACP client as separate module)
-- Libraries: 
+- Libraries:
   - acp-client: Handle ACP protocol communication
   - container-services: Container lifecycle management
   - container-communication: Communication protocols (ACP/HTTP)
@@ -44,6 +61,7 @@ This implementation replaces LumiLink-BE's HTTP-based communication with Claude 
 - Library docs: Yes (JSDoc format)
 
 **Testing**:
+
 - RED-GREEN-Refactor cycle enforced: Yes
 - Git commits show tests before implementation: Will enforce
 - Order: Contract→Integration→E2E→Unit followed: Yes
@@ -51,11 +69,13 @@ This implementation replaces LumiLink-BE's HTTP-based communication with Claude 
 - Integration tests for: ACP connections, protocol handling, session management
 
 **Observability**:
+
 - Structured logging included: Yes (extending existing logging)
 - Frontend logs → backend: N/A (backend-only implementation)
 - Error context sufficient: Yes (detailed ACP error handling)
 
 **Versioning**:
+
 - Version number assigned: 1.0.0 (first ACP implementation)
 - BUILD increments on every change: Yes
 - Breaking changes handled: Yes (protocol version compatibility layer)
@@ -63,6 +83,7 @@ This implementation replaces LumiLink-BE's HTTP-based communication with Claude 
 ## Project Structure
 
 ### Documentation (this feature)
+
 ```
 specs/002-integrate-lumilink-be/
 ├── plan.md              # This file
@@ -77,6 +98,7 @@ specs/002-integrate-lumilink-be/
 ```
 
 ### Source Code Integration (lumilink-be repository)
+
 ```
 src/
 ├── services/
@@ -101,7 +123,8 @@ src/
     └── acp-connection-do.ts              # NEW: Connection state management
 ```
 
-**Structure Decision**: This is a backend service integration with the existing lumilink-be structure.
+**Structure Decision**: This is a backend service integration with the existing
+lumilink-be structure.
 
 ## Phase 0: Outline & Research
 
@@ -112,6 +135,7 @@ src/
    - Container migration strategy: Define approach for existing containers
 
 2. **Generate and dispatch research agents**:
+
    ```
    Research performance targets for ACP vs HTTP in Cloudflare Workers
    Research ACP protocol specification and versioning
@@ -121,9 +145,12 @@ src/
    ```
 
 3. **Consolidate findings** in `research.md` using format:
-   - Decision: Performance targets of 50%+ latency reduction based on protocol overhead elimination
-   - Rationale: HTTP has connection setup/teardown overhead eliminated in persistent connections
-   - Alternatives considered: WebSocket bridge considered but rejected as ACP provides better type safety
+   - Decision: Performance targets of 50%+ latency reduction based on protocol
+     overhead elimination
+   - Rationale: HTTP has connection setup/teardown overhead eliminated in
+     persistent connections
+   - Alternatives considered: WebSocket bridge considered but rejected as ACP
+     provides better type safety
 
 **Output**: research.md with all NEEDS CLARIFICATION resolved
 
@@ -158,28 +185,30 @@ src/
    - Preserve existing container capabilities
    - Update recent changes to include ACP integration
 
-**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, agent-specific file
+**Output**: data-model.md, /contracts/\*, failing tests, quickstart.md,
+agent-specific file
 
 ## Phase 2: Task Planning
 
 1. **Compute technical graph**:
+
    ```
    Implementation dependencies:
    1. ACP Client Integration (Core)
       - Install @defikitteam/claude-acp-client
       - Implement connection management
       - Implement message handling
-   
+
    2. Service Layer Adaptation
       - Update container.service.ts
       - Update container-communication.service.ts
       - Create acp-protocol.service.ts
-   
+
    3. Migration Strategy
       - Implement protocol detection
       - Add fallback mechanisms
       - Create migration utilities
-   
+
    4. Testing & Validation
       - Unit tests for ACP client
       - Integration tests for container communication
@@ -253,12 +282,14 @@ src/
 - Avoiding patterns? (no Repository/UoW without proven need)
 
 **Architecture**:
+
 - EVERY feature as library? (no direct app code)
 - Libraries listed: [name + purpose for each]
 - CLI per library: [commands with --help/--version/--format]
 - Library docs: llms.txt format planned?
 
 **Testing (NON-NEGOTIABLE)**:
+
 - RED-GREEN-Refactor cycle enforced? (test MUST fail first)
 - Git commits show tests before implementation?
 - Order: Contract→Integration→E2E→Unit strictly followed?
@@ -267,11 +298,13 @@ src/
 - FORBIDDEN: Implementation before test, skipping RED phase
 
 **Observability**:
+
 - Structured logging included?
 - Frontend logs → backend? (unified stream)
 - Error context sufficient?
 
 **Versioning**:
+
 - Version number assigned? (MAJOR.MINOR.BUILD)
 - BUILD increments on every change?
 - Breaking changes handled? (parallel tests, migration plan)
@@ -279,6 +312,7 @@ src/
 ## Project Structure
 
 ### Documentation (this feature)
+
 ```
 specs/[###-feature]/
 ├── plan.md              # This file (/plan command output)
@@ -290,6 +324,7 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
+
 ```
 # Option 1: Single project (DEFAULT)
 src/
@@ -326,15 +361,18 @@ ios/ or android/
 └── [platform-specific structure]
 ```
 
-**Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates web/mobile app]
+**Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates
+web/mobile app]
 
 ## Phase 0: Outline & Research
+
 1. **Extract unknowns from Technical Context** above:
    - For each NEEDS CLARIFICATION → research task
    - For each dependency → best practices task
    - For each integration → patterns task
 
 2. **Generate and dispatch research agents**:
+
    ```
    For each unknown in Technical Context:
      Task: "Research {unknown} for {feature context}"
@@ -350,7 +388,8 @@ ios/ or android/
 **Output**: research.md with all NEEDS CLARIFICATION resolved
 
 ## Phase 1: Design & Contracts
-*Prerequisites: research.md complete*
+
+_Prerequisites: research.md complete_
 
 1. **Extract entities from feature spec** → `data-model.md`:
    - Entity name, fields, relationships
@@ -379,21 +418,26 @@ ios/ or android/
    - Keep under 150 lines for token efficiency
    - Output to repository root
 
-**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, agent-specific file
+**Output**: data-model.md, /contracts/\*, failing tests, quickstart.md,
+agent-specific file
 
 ## Phase 2: Task Planning Approach
-*This section describes what the /tasks command will do - DO NOT execute during /plan*
+
+_This section describes what the /tasks command will do - DO NOT execute during
+/plan_
 
 **Task Generation Strategy**:
+
 - Load `/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
 - Each contract → contract test task [P]
-- Each entity → model creation task [P] 
+- Each entity → model creation task [P]
 - Each user story → integration test task
 - Implementation tasks to make tests pass
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
+
+- TDD order: Tests before implementation
 - Dependency order: Models before services before UI
 - Mark [P] for parallel execution (independent files)
 
@@ -402,25 +446,30 @@ ios/ or android/
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
 ## Phase 3+: Future Implementation
-*These phases are beyond the scope of the /plan command*
+
+_These phases are beyond the scope of the /plan command_
 
 **Phase 3**: Task execution (/tasks command creates tasks.md)  
-**Phase 4**: Implementation (execute tasks.md following constitutional principles)  
-**Phase 5**: Validation (run tests, execute quickstart.md, performance validation)
+**Phase 4**: Implementation (execute tasks.md following constitutional
+principles)  
+**Phase 5**: Validation (run tests, execute quickstart.md, performance
+validation)
 
 ## Complexity Tracking
-*Fill ONLY if Constitution Check has violations that must be justified*
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+_Fill ONLY if Constitution Check has violations that must be justified_
 
+| Violation                  | Why Needed         | Simpler Alternative Rejected Because |
+| -------------------------- | ------------------ | ------------------------------------ |
+| [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
+| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |
 
 ## Progress Tracking
-*This checklist is updated during execution flow*
+
+_This checklist is updated during execution flow_
 
 **Phase Status**:
+
 - [ ] Phase 0: Research complete (/plan command)
 - [ ] Phase 1: Design complete (/plan command)
 - [ ] Phase 2: Task planning complete (/plan command - describe approach only)
@@ -429,10 +478,12 @@ ios/ or android/
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
+
 - [ ] Initial Constitution Check: PASS
 - [ ] Post-Design Constitution Check: PASS
 - [ ] All NEEDS CLARIFICATION resolved
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v2.1.1 - See `/memory/constitution.md`*
+
+_Based on Constitution v2.1.1 - See `/memory/constitution.md`_

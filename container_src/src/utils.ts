@@ -1,6 +1,6 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as os from "node:os";
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
 /**
  * Load managed settings from configuration files
@@ -32,10 +32,12 @@ export function loadManagedSettings(): Record<string, string> | null {
 /**
  * Apply environment settings from managed configuration
  */
-export function applyEnvironmentSettings(settings: Record<string, string>): void {
+export function applyEnvironmentSettings(
+  settings: Record<string, string>,
+): void {
   if (!settings) return;
 
-  Object.keys(settings).forEach(key => {
+  Object.keys(settings).forEach((key) => {
     if (settings[key] && !process.env[key]) {
       process.env[key] = settings[key];
     }
@@ -77,7 +79,7 @@ export class Pushable<T> {
       } else if (this.closed) {
         break;
       } else {
-        const result = await new Promise<IteratorResult<T>>(resolve => {
+        const result = await new Promise<IteratorResult<T>>((resolve) => {
           this.resolvers.push(resolve);
         });
         if (result.done) break;
@@ -92,7 +94,7 @@ export class Pushable<T> {
     } else if (this.closed) {
       return { value: undefined as any, done: true };
     } else {
-      return new Promise<IteratorResult<T>>(resolve => {
+      return new Promise<IteratorResult<T>>((resolve) => {
         this.resolvers.push(resolve);
       });
     }
@@ -102,7 +104,9 @@ export class Pushable<T> {
 /**
  * Convert Node.js readable stream to Web API ReadableStream
  */
-export function nodeToWebReadable(nodeStream: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
+export function nodeToWebReadable(
+  nodeStream: NodeJS.ReadableStream,
+): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start(controller) {
       nodeStream.on('data', (chunk) => {
@@ -114,14 +118,16 @@ export function nodeToWebReadable(nodeStream: NodeJS.ReadableStream): ReadableSt
       nodeStream.on('error', (err) => {
         controller.error(err);
       });
-    }
+    },
   });
 }
 
 /**
  * Convert Node.js writable stream to Web API WritableStream
  */
-export function nodeToWebWritable(nodeStream: NodeJS.WritableStream): WritableStream<Uint8Array> {
+export function nodeToWebWritable(
+  nodeStream: NodeJS.WritableStream,
+): WritableStream<Uint8Array> {
   return new WritableStream({
     write(chunk) {
       return new Promise((resolve, reject) => {
@@ -135,7 +141,7 @@ export function nodeToWebWritable(nodeStream: NodeJS.WritableStream): WritableSt
       return new Promise((resolve) => {
         nodeStream.end(() => resolve());
       });
-    }
+    },
   });
 }
 
@@ -143,25 +149,34 @@ export function nodeToWebWritable(nodeStream: NodeJS.WritableStream): WritableSt
  * Unreachable function for exhaustive type checking
  */
 export function unreachable(value: never): never {
-  throw new Error(`Unreachable code reached with value: ${JSON.stringify(value)}`);
+  throw new Error(
+    `Unreachable code reached with value: ${JSON.stringify(value)}`,
+  );
 }
 
 /**
  * HTTP client for communicating with remote worker
  */
 export class WorkerHttpClient {
-  constructor(private baseUrl: string, private apiKey?: string) {}
+  constructor(
+    private baseUrl: string,
+    private apiKey?: string,
+  ) {}
 
-  async sendJsonRpc(method: string, params: any, id: string | number): Promise<any> {
+  async sendJsonRpc(
+    method: string,
+    params: any,
+    id: string | number,
+  ): Promise<any> {
     const request = {
       jsonrpc: '2.0',
       method,
       params,
-      id
+      id,
     };
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
 
     if (this.apiKey) {
@@ -172,7 +187,7 @@ export class WorkerHttpClient {
       const response = await fetch(`${this.baseUrl}/acp/jsonrpc`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(request)
+        body: JSON.stringify(request),
       });
 
       if (!response.ok) {
@@ -180,7 +195,7 @@ export class WorkerHttpClient {
       }
 
       const result = await response.json();
-      
+
       if (result.error) {
         throw new Error(`JSON-RPC error: ${result.error.message}`);
       }

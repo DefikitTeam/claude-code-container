@@ -1,9 +1,9 @@
 # Spec Tasks
 
-These are the tasks to be completed for the spec detailed in @.agent-os/specs/2025-09-05-deploy-auth-fix/spec.md
+These are the tasks to be completed for the spec detailed in
+@.agent-os/specs/2025-09-05-deploy-auth-fix/spec.md
 
-> Created: 2025-09-05
-> Status: Ready for Implementation
+> Created: 2025-09-05 Status: Ready for Implementation
 
 ## Tasks
 

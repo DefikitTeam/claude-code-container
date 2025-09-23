@@ -83,8 +83,16 @@ export interface WorkspaceManager {
 
   // File operations
   readFile(workspaceId: string, filePath: string): Promise<string>;
-  writeFile(workspaceId: string, filePath: string, content: string): Promise<void>;
-  createFile(workspaceId: string, filePath: string, content: string): Promise<void>;
+  writeFile(
+    workspaceId: string,
+    filePath: string,
+    content: string,
+  ): Promise<void>;
+  createFile(
+    workspaceId: string,
+    filePath: string,
+    content: string,
+  ): Promise<void>;
   deleteFile(workspaceId: string, filePath: string): Promise<void>;
   listFiles(workspaceId: string, directoryPath?: string): Promise<FileInfo[]>;
 
@@ -96,7 +104,11 @@ export interface WorkspaceManager {
   gitCheckout(workspaceId: string, branch: string): Promise<void>;
 
   // Workspace management
-  cloneRepository(workspaceId: string, repoUrl: string, branch?: string): Promise<void>;
+  cloneRepository(
+    workspaceId: string,
+    repoUrl: string,
+    branch?: string,
+  ): Promise<void>;
   syncWorkspace(workspaceId: string): Promise<void>;
   cleanupWorkspace(workspaceId: string): Promise<void>;
 
@@ -135,7 +147,13 @@ export interface FileInfo {
     writable: boolean;
     executable: boolean;
   };
-  gitStatus?: 'untracked' | 'modified' | 'added' | 'deleted' | 'renamed' | 'clean';
+  gitStatus?:
+    | 'untracked'
+    | 'modified'
+    | 'added'
+    | 'deleted'
+    | 'renamed'
+    | 'clean';
 }
 
 export interface GitStatus {
@@ -228,7 +246,17 @@ export const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = {
   rootPath: '/tmp/acp-workspaces',
   isolationMode: 'filesystem',
   maxWorkspaceSize: 1024 * 1024 * 1024, // 1GB
-  allowedFileTypes: ['.ts', '.js', '.json', '.md', '.txt', '.yml', '.yaml', '.toml', '.lock'],
+  allowedFileTypes: [
+    '.ts',
+    '.js',
+    '.json',
+    '.md',
+    '.txt',
+    '.yml',
+    '.yaml',
+    '.toml',
+    '.lock',
+  ],
   restrictedPaths: ['/etc', '/var', '/sys', '/proc', '/root'],
   gitIntegration: true,
   autoCleanup: true,
@@ -275,11 +303,17 @@ export function sanitizeFilePath(path: string): string {
     .trim();
 }
 
-export function isAllowedFileType(filename: string, allowedTypes: string[]): boolean {
+export function isAllowedFileType(
+  filename: string,
+  allowedTypes: string[],
+): boolean {
   const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
   return allowedTypes.includes(ext);
 }
 
 export function calculateWorkspaceSize(files: FileInfo[]): number {
-  return files.reduce((total, file) => total + (file.type === 'file' ? file.size : 0), 0);
+  return files.reduce(
+    (total, file) => total + (file.type === 'file' ? file.size : 0),
+    0,
+  );
 }

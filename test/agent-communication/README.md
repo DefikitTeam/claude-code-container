@@ -3,11 +3,13 @@
 ## Quick Start
 
 ### 1. Set up the testing environment:
+
 ```bash
 ./test-agent-communication.sh
 ```
 
 ### 2. Run the full test suite:
+
 ```bash
 cd test/agent-communication
 npm install
@@ -15,6 +17,7 @@ npm run test:full-suite
 ```
 
 ### 3. View test results:
+
 ```bash
 cat test/agent-communication/logs/agent-communication-test-report.json
 ```
@@ -22,6 +25,7 @@ cat test/agent-communication/logs/agent-communication-test-report.json
 ## Manual Testing Steps
 
 ### Test 1: Container Direct Communication
+
 ```bash
 # Terminal 1: Start container
 cd container_src
@@ -33,12 +37,14 @@ node test/agent-communication/claude-code/container-tester.mjs
 ```
 
 ### Test 2: LumiLink-BE Mock Agent
+
 ```bash
 # Run the mock LumiLink-BE agent
 node test/agent-communication/lumilink-be/mock-agent.mjs
 ```
 
 ### Test 3: End-to-End Communication
+
 ```bash
 # Run the complete test suite
 npm run test:all
@@ -47,6 +53,7 @@ npm run test:all
 ## Expected Results
 
 ### ✅ Successful Test Indicators:
+
 - Container starts without errors
 - ACP handshake completes
 - Messages are exchanged bidirectionally
@@ -55,6 +62,7 @@ npm run test:all
 - Performance metrics are acceptable
 
 ### ❌ Common Failure Points:
+
 - Container startup timeouts
 - JSON-RPC parsing errors
 - Session management failures
@@ -63,8 +71,10 @@ npm run test:all
 
 ## Test Scenarios Covered
 
-1. **Basic Connection Test** - Verifies container startup and basic message exchange
-2. **ACP Handshake Test** - Tests protocol initialization and capability exchange
+1. **Basic Connection Test** - Verifies container startup and basic message
+   exchange
+2. **ACP Handshake Test** - Tests protocol initialization and capability
+   exchange
 3. **Session Management** - Validates session creation, updates, and cleanup
 4. **Bidirectional Communication** - Tests message flow in both directions
 5. **Error Handling** - Verifies proper error responses and recovery

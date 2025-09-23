@@ -1,6 +1,7 @@
 # Template Repository Setup Complete! 🎉
 
-This repository has been configured as a GitHub template. Here's what this means and what to do next:
+This repository has been configured as a GitHub template. Here's what this means
+and what to do next:
 
 ## ✅ What's Configured
 
@@ -12,13 +13,16 @@ This repository has been configured as a GitHub template. Here's what this means
 ## 🚀 Using This Template
 
 ### Option 1: One-Click Deploy (Recommended)
+
 Click the "Deploy to Cloudflare Workers" button in the README to automatically:
+
 - Fork the repository
-- Set up Cloudflare Workers environment  
+- Set up Cloudflare Workers environment
 - Configure deployment pipeline
 - Deploy your instance
 
 ### Option 2: Manual Fork
+
 1. Click "Use this template" button at the top of the repository
 2. Create your new repository
 3. Follow the setup instructions in the generated repository
@@ -27,7 +31,7 @@ Click the "Deploy to Cloudflare Workers" button in the README to automatically:
 
 - **Configuration Templates**:
   - `.env.template` - Environment variables template
-  - `.dev.vars.template` - Cloudflare Workers local dev template  
+  - `.dev.vars.template` - Cloudflare Workers local dev template
   - `wrangler.jsonc` - Cloudflare Workers configuration
 
 - **GitHub Integration**:

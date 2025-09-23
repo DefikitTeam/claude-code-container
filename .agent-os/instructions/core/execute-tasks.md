@@ -11,14 +11,14 @@ encoding: UTF-8
 ## Overview
 
 Execute tasks for a given spec following three distinct phases:
+
 1. Pre-execution setup (Steps 1-3)
 2. Task execution loop (Step 4)
 3. Post-execution tasks (Step 5)
 
 **IMPORTANT**: All three phases MUST be completed. Do not stop after phase 2.
 
-<pre_flight_check>
-  EXECUTE: @.agent-os/instructions/meta/pre-flight.md
+<pre_flight_check> EXECUTE: @.agent-os/instructions/meta/pre-flight.md
 </pre_flight_check>
 
 <process_flow>
@@ -29,12 +29,12 @@ Execute tasks for a given spec following three distinct phases:
 
 ### Step 1: Task Assignment
 
-Identify which tasks to execute from the spec (using spec_srd_reference file path and optional specific_tasks array), defaulting to the next uncompleted parent task if not specified.
+Identify which tasks to execute from the spec (using spec_srd_reference file
+path and optional specific_tasks array), defaulting to the next uncompleted
+parent task if not specified.
 
-<task_selection>
-  <explicit>user specifies exact task(s)</explicit>
-  <implicit>find next uncompleted task in tasks.md</implicit>
-</task_selection>
+<task_selection> <explicit>user specifies exact task(s)</explicit>
+<implicit>find next uncompleted task in tasks.md</implicit> </task_selection>
 
 <instructions>
   ACTION: Identify task(s) to execute
@@ -48,7 +48,10 @@ Identify which tasks to execute from the spec (using spec_srd_reference file pat
 
 ### Step 2: Context Analysis
 
-Use the context-fetcher subagent to gather minimal context for task understanding by always loading spec tasks.md, and conditionally loading @.agent-os/product/mission-lite.md, spec-lite.md, and sub-specs/technical-spec.md if not already in context.
+Use the context-fetcher subagent to gather minimal context for task
+understanding by always loading spec tasks.md, and conditionally loading
+@.agent-os/product/mission-lite.md, spec-lite.md, and
+sub-specs/technical-spec.md if not already in context.
 
 <instructions>
   ACTION: Use context-fetcher subagent to:
@@ -58,17 +61,10 @@ Use the context-fetcher subagent to gather minimal context for task understandin
   PROCESS: Returned information
 </instructions>
 
-
-<context_gathering>
-  <essential_docs>
-    - tasks.md for task breakdown
-  </essential_docs>
-  <conditional_docs>
-    - mission-lite.md for product alignment
-    - spec-lite.md for feature summary
-    - technical-spec.md for implementation details
-  </conditional_docs>
-</context_gathering>
+<context_gathering> <essential_docs> - tasks.md for task breakdown
+</essential_docs> <conditional_docs> - mission-lite.md for product alignment -
+spec-lite.md for feature summary - technical-spec.md for implementation details
+</conditional_docs> </context_gathering>
 
 </step>
 
@@ -76,7 +72,8 @@ Use the context-fetcher subagent to gather minimal context for task understandin
 
 ### Step 3: Git Branch Management
 
-Use the git-workflow subagent to manage git branches to ensure proper isolation by creating or switching to the appropriate branch for the spec.
+Use the git-workflow subagent to manage git branches to ensure proper isolation
+by creating or switching to the appropriate branch for the spec.
 
 <instructions>
   ACTION: Use git-workflow subagent
@@ -88,6 +85,7 @@ Use the git-workflow subagent to manage git branches to ensure proper isolation 
 </instructions>
 
 <branch_naming>
+
   <source>spec folder name</source>
   <format>exclude date prefix</format>
   <example>
@@ -104,44 +102,30 @@ Use the git-workflow subagent to manage git branches to ensure proper isolation 
 
 ### Step 4: Task Execution Loop
 
-**IMPORTANT**: This is a loop. Execute ALL assigned tasks before proceeding to Phase 3.
+**IMPORTANT**: This is a loop. Execute ALL assigned tasks before proceeding to
+Phase 3.
 
-Execute all assigned parent tasks and their subtasks using @.agent-os/instructions/core/execute-task.md instructions, continuing until all tasks are complete.
+Execute all assigned parent tasks and their subtasks using
+@.agent-os/instructions/core/execute-task.md instructions, continuing until all
+tasks are complete.
 
-<execution_flow>
-  LOAD @.agent-os/instructions/core/execute-task.md ONCE
+<execution_flow> LOAD @.agent-os/instructions/core/execute-task.md ONCE
 
-  FOR each parent_task assigned in Step 1:
-    EXECUTE instructions from execute-task.md with:
-      - parent_task_number
-      - all associated subtasks
-    WAIT for task completion
-    UPDATE tasks.md status
-  END FOR
+FOR each parent_task assigned in Step 1: EXECUTE instructions from
+execute-task.md with: - parent_task_number - all associated subtasks WAIT for
+task completion UPDATE tasks.md status END FOR
 
-  **IMPORTANT**: After loop completes, CONTINUE to Phase 3 (Step 5). Do not stop here.
-</execution_flow>
+**IMPORTANT**: After loop completes, CONTINUE to Phase 3 (Step 5). Do not stop
+here. </execution_flow>
 
-<loop_logic>
-  <continue_conditions>
-    - More unfinished parent tasks exist
-    - User has not requested stop
-  </continue_conditions>
-  <exit_conditions>
-    - All assigned tasks marked complete
-    - User requests early termination
-    - Blocking issue prevents continuation
-  </exit_conditions>
-</loop_logic>
+<loop_logic> <continue_conditions> - More unfinished parent tasks exist - User
+has not requested stop </continue_conditions> <exit_conditions> - All assigned
+tasks marked complete - User requests early termination - Blocking issue
+prevents continuation </exit_conditions> </loop_logic>
 
-<task_status_check>
-  AFTER each task execution:
-    CHECK tasks.md for remaining tasks
-    IF all assigned tasks complete:
-      PROCEED to next step
-    ELSE:
-      CONTINUE with next task
-</task_status_check>
+<task_status_check> AFTER each task execution: CHECK tasks.md for remaining
+tasks IF all assigned tasks complete: PROCEED to next step ELSE: CONTINUE with
+next task </task_status_check>
 
 <instructions>
   ACTION: Load execute-task.md instructions once at start
@@ -161,9 +145,12 @@ Execute all assigned parent tasks and their subtasks using @.agent-os/instructio
 
 ### Step 5: Run the task completion steps
 
-**CRITICAL**: This step MUST be executed after all tasks are implemented. Do not end the process without completing this phase.
+**CRITICAL**: This step MUST be executed after all tasks are implemented. Do not
+end the process without completing this phase.
 
-After all tasks in tasks.md have been implemented, use @.agent-os/instructions/core/post-execution-tasks.md to run our series of steps we always run when finishing and delivering a new feature.
+After all tasks in tasks.md have been implemented, use
+@.agent-os/instructions/core/post-execution-tasks.md to run our series of steps
+we always run when finishing and delivering a new feature.
 
 <instructions>
   LOAD: @.agent-os/instructions/core/post-execution-tasks.md once
@@ -182,6 +169,5 @@ After all tasks in tasks.md have been implemented, use @.agent-os/instructions/c
 
 </process_flow>
 
-<post_flight_check>
-  EXECUTE: @.agent-os/instructions/meta/post-flight.md
+<post_flight_check> EXECUTE: @.agent-os/instructions/meta/post-flight.md
 </post_flight_check>

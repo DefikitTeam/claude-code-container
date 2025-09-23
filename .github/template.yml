@@ -1,37 +1,38 @@
 # Template configuration for GitHub repository template
 # This configures the repository as a GitHub template for easy forking
 
-name: "Claude Code Containers - Deploy Template"
-description: "Automated GitHub issue processing system with one-click Cloudflare deployment"
+name: 'Claude Code Containers - Deploy Template'
+description:
+  'Automated GitHub issue processing system with one-click Cloudflare deployment'
 
 # Template repository configuration
 template:
   # Repository will be available as template
   enabled: true
-  
+
   # Default visibility for repositories created from this template
   default_visibility: public
-  
+
   # Include all branches when creating from template
   include_all_branches: false
-  
+
   # Default branch for new repositories
   default_branch: main
 
 # Pre-configured labels for issue management
 labels:
-  - name: "bug"
-    color: "d73a4a"
+  - name: 'bug'
+    color: 'd73a4a'
     description: "Something isn't working"
-  - name: "enhancement"
-    color: "a2eeef"
-    description: "New feature or request"
-  - name: "ai-processed"
-    color: "0e8a16"
-    description: "Issue processed by Claude Code"
-  - name: "deployment"
-    color: "f9ca24"
-    description: "Related to deployment and configuration"
+  - name: 'enhancement'
+    color: 'a2eeef'
+    description: 'New feature or request'
+  - name: 'ai-processed'
+    color: '0e8a16'
+    description: 'Issue processed by Claude Code'
+  - name: 'deployment'
+    color: 'f9ca24'
+    description: 'Related to deployment and configuration'
 
 # Template-specific settings
 settings:
@@ -39,14 +40,14 @@ settings:
   has_issues: true
   has_projects: true
   has_wiki: false
-  
+
   # Security settings
   vulnerability_alerts: true
   automated_security_fixes: true
-  
+
   # Template-specific features
   template_repository: true
-  
+
   # Default merge settings
   allow_squash_merge: true
   allow_merge_commit: false
@@ -55,22 +56,22 @@ settings:
 
 # Required files that will be included in template
 include_files:
-  - "README.md"
-  - "package.json"
-  - "wrangler.jsonc"
-  - ".env.template"
-  - ".dev.vars.template"
-  - "src/**"
-  - "container_src/**"
-  - ".github/workflows/**"
-  - "tsconfig.json"
+  - 'README.md'
+  - 'package.json'
+  - 'wrangler.jsonc'
+  - '.env.template'
+  - '.dev.vars.template'
+  - 'src/**'
+  - 'container_src/**'
+  - '.github/workflows/**'
+  - 'tsconfig.json'
 
 # Files to exclude from template
 exclude_files:
-  - ".env"
-  - ".dev.vars"
-  - "node_modules"
-  - ".wrangler"
-  - "dist"
-  - ".git"
-  - "*.log"
+  - '.env'
+  - '.dev.vars'
+  - 'node_modules'
+  - '.wrangler'
+  - 'dist'
+  - '.git'
+  - '*.log'

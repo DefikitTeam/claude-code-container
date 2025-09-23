@@ -6,18 +6,12 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 30000,
     hookTimeout: 10000,
-    include: [
-      'tests/**/*.test.ts',
-      'tests/**/*.test.js'
-    ],
-    exclude: [
-      'node_modules/**',
-      'dist/**'
-    ]
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.js'],
+    exclude: ['node_modules/**', 'dist/**'],
   },
   resolve: {
     alias: {
-      '@': './src'
-    }
-  }
+      '@': './src',
+    },
+  },
 });

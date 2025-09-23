@@ -1,6 +1,7 @@
 # Quickstart: Claude Code Container as ACP Agent
 
 ## Prerequisites
+
 - Docker or container runtime
 - Claude Code container image built and available
 - Zed editor with ACP support
@@ -9,6 +10,7 @@
 ## Container Setup
 
 ### 1. Build Container with ACP Support
+
 ```bash
 # Build the container with ACP interface
 cd claudecode-modern-container
@@ -19,6 +21,7 @@ docker pull your-registry/claudecode-modern-container:latest
 ```
 
 ### 2. Test Container ACP Interface
+
 ```bash
 # Test stdio JSON-RPC interface
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"0.3.1","clientCapabilities":{"editWorkspace":true}}}' | docker run -i --rm claudecode-acp
@@ -30,17 +33,24 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 ## Zed Editor Configuration
 
 ### 3. Configure Zed Agent
+
 Add to Zed `settings.json`:
+
 ```json
 {
   "agent_servers": {
     "Claude Code": {
       "command": "docker",
       "args": [
-        "run", "-i", "--rm",
-        "-e", "ANTHROPIC_API_KEY",
-        "-e", "GITHUB_TOKEN",
-        "-v", "${workspaceFolder}:/workspace",
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "ANTHROPIC_API_KEY",
+        "-e",
+        "GITHUB_TOKEN",
+        "-v",
+        "${workspaceFolder}:/workspace",
         "claudecode-acp"
       ],
       "env": {
@@ -55,6 +65,7 @@ Add to Zed `settings.json`:
 ### 4. Test ACP Workflow in Zed
 
 1. **Open Repository in Zed**
+
    ```bash
    zed /path/to/your/repository
    ```
@@ -69,6 +80,7 @@ Add to Zed `settings.json`:
    - Session ID: auto-generated UUID
 
 4. **Send Prompt to Agent**
+
    ```
    @Claude Code: Add error handling to the main function in src/main.js
    ```
@@ -81,6 +93,7 @@ Add to Zed `settings.json`:
 ## Manual Testing (Command Line)
 
 ### 5. Direct JSON-RPC Testing
+
 ```bash
 # Create test script
 cat > test-acp.sh << 'EOF'
@@ -123,6 +136,7 @@ chmod +x test-acp.sh
 ## Advanced Usage
 
 ### 6. Session Management
+
 ```bash
 # Load existing session
 LOAD_MSG='{"jsonrpc":"2.0","id":4,"method":"session/load","params":{"sessionId":"existing-session-id","includeHistory":true}}'
@@ -132,6 +146,7 @@ CANCEL_MSG='{"jsonrpc":"2.0","id":5,"method":"cancel","params":{"sessionId":"ses
 ```
 
 ### 7. File Context Integration
+
 ```bash
 # Prompt with specific file context
 CONTEXT_PROMPT='{
@@ -157,6 +172,7 @@ CONTEXT_PROMPT='{
 ### Common Issues
 
 1. **Container Not Responding**
+
    ```bash
    # Check container logs
    docker logs <container-id>
@@ -166,6 +182,7 @@ CONTEXT_PROMPT='{
    ```
 
 2. **Authentication Errors**
+
    ```bash
    # Verify environment variables
    docker run --rm -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" claudecode-acp \
@@ -173,6 +190,7 @@ CONTEXT_PROMPT='{
    ```
 
 3. **Workspace Access Issues**
+
    ```bash
    # Check volume mounting
    docker run --rm -v "$(pwd):/workspace" claudecode-acp ls -la /workspace
@@ -184,6 +202,7 @@ CONTEXT_PROMPT='{
    - Review Zed agent panel logs (Cmd+Shift+P → "ACP: Show Logs")
 
 ### Debug Mode
+
 ```bash
 # Run container with debug output
 docker run -i --rm \
@@ -196,6 +215,7 @@ docker run -i --rm \
 ## Expected Behavior
 
 ✅ **Successful Flow:**
+
 1. Zed spawns container subprocess
 2. Container responds to initialize with capabilities
 3. Session created with workspace context
@@ -203,6 +223,7 @@ docker run -i --rm \
 5. File modifications reflected in Zed editor
 
 ❌ **Common Failures:**
+
 - Missing API keys → Authentication error
 - Invalid JSON-RPC → Parse error response
 - Workspace access denied → Permission error

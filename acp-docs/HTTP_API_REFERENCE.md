@@ -1,6 +1,7 @@
 # HTTP API Reference
 
-Complete HTTP API documentation for integrating with the Claude Code Container system.
+Complete HTTP API documentation for integrating with the Claude Code Container
+system.
 
 ## Base URL
 
@@ -31,6 +32,7 @@ GET /health
 ```
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -49,6 +51,7 @@ GET /container/health
 ```
 
 **Response:**
+
 ```json
 {
   "containerStatus": "running",
@@ -71,32 +74,41 @@ POST /acp/jsonrpc
 All ACP methods are available through this JSON-RPC endpoint.
 
 **Request Format:**
+
 ```json
 {
   "jsonrpc": "2.0",
   "method": "method_name",
-  "params": { /* method parameters */ },
+  "params": {
+    /* method parameters */
+  },
   "id": "unique_request_id"
 }
 ```
 
 **Response Format:**
+
 ```json
 {
   "jsonrpc": "2.0",
-  "result": { /* method result */ },
+  "result": {
+    /* method result */
+  },
   "id": "unique_request_id"
 }
 ```
 
 **Error Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
   "error": {
     "code": -32603,
     "message": "Internal error",
-    "data": { /* additional error info */ }
+    "data": {
+      /* additional error info */
+    }
   },
   "id": "unique_request_id"
 }
@@ -115,6 +127,7 @@ POST /acp/jsonrpc
 ```
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -134,6 +147,7 @@ POST /acp/jsonrpc
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -170,6 +184,7 @@ POST /acp/jsonrpc
 ```
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -183,6 +198,7 @@ POST /acp/jsonrpc
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -222,6 +238,7 @@ POST /acp/jsonrpc
 ```
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -252,6 +269,7 @@ POST /acp/jsonrpc
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -262,7 +280,8 @@ POST /acp/jsonrpc
 }
 ```
 
-**Note:** During processing, you'll receive real-time notifications via the session update mechanism.
+**Note:** During processing, you'll receive real-time notifications via the
+session update mechanism.
 
 ### Set Session Mode
 
@@ -273,6 +292,7 @@ POST /acp/jsonrpc
 ```
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -286,6 +306,7 @@ POST /acp/jsonrpc
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -303,6 +324,7 @@ POST /acp/jsonrpc
 ```
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -315,6 +337,7 @@ POST /acp/jsonrpc
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -336,6 +359,7 @@ POST /acp/jsonrpc
 ```
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -350,6 +374,7 @@ POST /acp/jsonrpc
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -370,6 +395,7 @@ POST /acp/jsonrpc
 ```
 
 **Request:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -383,6 +409,7 @@ POST /acp/jsonrpc
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -404,6 +431,7 @@ POST /process-prompt
 ```
 
 **Request:**
+
 ```json
 {
   "userId": "user-123",
@@ -417,6 +445,7 @@ POST /process-prompt
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -445,10 +474,14 @@ const ws = new WebSocket('wss://your-worker.com/ws');
 
 ws.on('open', () => {
   // Send initialize
-  ws.send(JSON.stringify({
-    type: 'initialize',
-    clientCapabilities: { /* ... */ }
-  }));
+  ws.send(
+    JSON.stringify({
+      type: 'initialize',
+      clientCapabilities: {
+        /* ... */
+      },
+    }),
+  );
 });
 
 ws.on('message', (data) => {
@@ -463,35 +496,36 @@ ws.on('message', (data) => {
 
 ### Standard JSON-RPC Errors
 
-| Code | Message | Description |
-|------|---------|-------------|
-| -32700 | Parse error | Invalid JSON received |
-| -32600 | Invalid Request | JSON-RPC request is invalid |
-| -32601 | Method not found | Method does not exist |
-| -32602 | Invalid params | Invalid method parameters |
-| -32603 | Internal error | Internal JSON-RPC error |
+| Code   | Message          | Description                 |
+| ------ | ---------------- | --------------------------- |
+| -32700 | Parse error      | Invalid JSON received       |
+| -32600 | Invalid Request  | JSON-RPC request is invalid |
+| -32601 | Method not found | Method does not exist       |
+| -32602 | Invalid params   | Invalid method parameters   |
+| -32603 | Internal error   | Internal JSON-RPC error     |
 
 ### Custom Error Codes
 
-| Code | Message | Description |
-|------|---------|-------------|
-| -1001 | Authentication required | Missing or invalid API key |
-| -1002 | Session not found | Invalid session ID |
-| -1003 | Permission denied | Insufficient permissions |
-| -1004 | Rate limit exceeded | Too many requests |
-| -1005 | Worker unavailable | Container system unavailable |
+| Code  | Message                 | Description                  |
+| ----- | ----------------------- | ---------------------------- |
+| -1001 | Authentication required | Missing or invalid API key   |
+| -1002 | Session not found       | Invalid session ID           |
+| -1003 | Permission denied       | Insufficient permissions     |
+| -1004 | Rate limit exceeded     | Too many requests            |
+| -1005 | Worker unavailable      | Container system unavailable |
 
 ---
 
 ## Rate Limits
 
-| Endpoint | Limit | Window |
-|----------|-------|--------|
-| `/acp/jsonrpc` | 100 requests | per minute |
-| `/process-prompt` | 10 requests | per minute |
-| `/health` | 1000 requests | per minute |
+| Endpoint          | Limit         | Window     |
+| ----------------- | ------------- | ---------- |
+| `/acp/jsonrpc`    | 100 requests  | per minute |
+| `/process-prompt` | 10 requests   | per minute |
+| `/health`         | 1000 requests | per minute |
 
 **Rate Limit Headers:**
+
 ```http
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
@@ -505,6 +539,7 @@ X-RateLimit-Reset: 1234567890
 ### cURL Examples
 
 **Initialize:**
+
 ```bash
 curl -X POST https://your-worker.com/acp/jsonrpc \
   -H "Content-Type: application/json" \
@@ -524,6 +559,7 @@ curl -X POST https://your-worker.com/acp/jsonrpc \
 ```
 
 **Create Session:**
+
 ```bash
 curl -X POST https://your-worker.com/acp/jsonrpc \
   -H "Content-Type: application/json" \
@@ -540,6 +576,7 @@ curl -X POST https://your-worker.com/acp/jsonrpc \
 ```
 
 **Send Prompt:**
+
 ```bash
 curl -X POST https://your-worker.com/acp/jsonrpc \
   -H "Content-Type: application/json" \
@@ -563,28 +600,29 @@ curl -X POST https://your-worker.com/acp/jsonrpc \
 ### JavaScript/TypeScript Examples
 
 **Fetch API:**
+
 ```typescript
 async function callClaudeAPI(method: string, params: any) {
   const response = await fetch('https://your-worker.com/acp/jsonrpc', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.ANTHROPIC_API_KEY}`
+      Authorization: `Bearer ${process.env.ANTHROPIC_API_KEY}`,
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
       method,
       params,
-      id: Date.now()
-    })
+      id: Date.now(),
+    }),
   });
-  
+
   const result = await response.json();
-  
+
   if (result.error) {
     throw new Error(`API Error: ${result.error.message}`);
   }
-  
+
   return result.result;
 }
 
@@ -593,24 +631,23 @@ const initResult = await callClaudeAPI('initialize', {
   protocolVersion: 1,
   clientCapabilities: {
     fs: { readTextFile: true, writeTextFile: true },
-    terminal: true
-  }
+    terminal: true,
+  },
 });
 
 const sessionResult = await callClaudeAPI('session/new', {
   cwd: '/workspace',
-  mcpServers: []
+  mcpServers: [],
 });
 
 const promptResult = await callClaudeAPI('session/prompt', {
   sessionId: sessionResult.sessionId,
-  prompt: [
-    { type: 'text', text: 'Help me create a login form' }
-  ]
+  prompt: [{ type: 'text', text: 'Help me create a login form' }],
 });
 ```
 
 **Axios Example:**
+
 ```typescript
 import axios from 'axios';
 
@@ -618,8 +655,8 @@ const claudeAPI = axios.create({
   baseURL: 'https://your-worker.com',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${process.env.ANTHROPIC_API_KEY}`
-  }
+    Authorization: `Bearer ${process.env.ANTHROPIC_API_KEY}`,
+  },
 });
 
 async function sendJSONRPC(method: string, params: any) {
@@ -627,13 +664,13 @@ async function sendJSONRPC(method: string, params: any) {
     jsonrpc: '2.0',
     method,
     params,
-    id: Date.now()
+    id: Date.now(),
   });
-  
+
   if (response.data.error) {
     throw new Error(response.data.error.message);
   }
-  
+
   return response.data.result;
 }
 ```
@@ -653,12 +690,15 @@ import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
 
 const client = new ClaudeHTTPClient({
   baseURL: 'https://your-worker.com',
-  apiKey: process.env.ANTHROPIC_API_KEY
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 // Use the client
 const session = await client.createSession('/workspace');
-const response = await client.sendPrompt(session.sessionId, 'Create a React component');
+const response = await client.sendPrompt(
+  session.sessionId,
+  'Create a React component',
+);
 ```
 
 ### Community SDKs
@@ -692,6 +732,7 @@ GET /metrics
 ```
 
 **Response:**
+
 ```
 # HELP http_requests_total Total HTTP requests
 # TYPE http_requests_total counter
@@ -745,14 +786,16 @@ For testing without hitting production:
 const mockServer = {
   initialize: () => ({
     protocolVersion: 1,
-    agentCapabilities: { /* ... */ }
+    agentCapabilities: {
+      /* ... */
+    },
   }),
   'session/new': () => ({
-    sessionId: 'mock-session-id'
+    sessionId: 'mock-session-id',
   }),
   'session/prompt': () => ({
-    stopReason: 'end_turn'
-  })
+    stopReason: 'end_turn',
+  }),
 };
 ```
 
@@ -763,6 +806,7 @@ const mockServer = {
 ### From Direct Container to HTTP API
 
 **Before (Direct Container):**
+
 ```typescript
 import { processIssue } from './container';
 
@@ -770,12 +814,13 @@ const result = await processIssue(issueContext, githubToken);
 ```
 
 **After (HTTP API):**
+
 ```typescript
 import { ClaudeHTTPClient } from '@defikitteam/claude-acp-client';
 
 const client = new ClaudeHTTPClient({
   baseURL: 'https://your-worker.com',
-  apiKey: process.env.ANTHROPIC_API_KEY
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 const session = await client.createSession('/workspace');

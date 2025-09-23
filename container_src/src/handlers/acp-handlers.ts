@@ -24,7 +24,7 @@ import {
   ACP_ERROR_CODES,
   AgentCapabilities,
   ContentBlock,
-  WorkspaceInfo
+  WorkspaceInfo,
 } from '../types/acp-messages.js';
 import { ACPSession, SessionMode } from '../types/acp-session.js';
 import { RequestContext } from '../services/stdio-jsonrpc.js';
@@ -36,14 +36,15 @@ class ACPState {
   private sessions = new Map<string, ACPSession>();
   private initialized = false;
   private initializationTime?: number;
-  private clientInfo?: { name: string; version: string; };
+  private clientInfo?: { name: string; version: string };
   private activeOperations = new Map<string, AbortController>();
 
   private agentInfo = {
     name: 'Claude Code Container',
     version: '1.0.0',
-    description: 'AI-powered containerized development assistant with GitHub integration',
-    environment: this.detectEnvironment()
+    description:
+      'AI-powered containerized development assistant with GitHub integration',
+    environment: this.detectEnvironment(),
   };
 
   private agentCapabilities: AgentCapabilities = this.detectCapabilities();
@@ -84,11 +85,11 @@ class ACPState {
     return this.agentCapabilities;
   }
 
-  setClientInfo(clientInfo?: { name: string; version: string; }): void {
+  setClientInfo(clientInfo?: { name: string; version: string }): void {
     this.clientInfo = clientInfo;
   }
 
-  getClientInfo(): { name: string; version: string; } | undefined {
+  getClientInfo(): { name: string; version: string } | undefined {
     return this.clientInfo;
   }
 
@@ -114,7 +115,7 @@ class ACPState {
       hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
       hasGitHubToken: !!process.env.GITHUB_TOKEN,
       memoryUsage: process.memoryUsage(),
-      uptime: process.uptime()
+      uptime: process.uptime(),
     };
 
     return env;
@@ -132,7 +133,7 @@ class ACPState {
       streamingUpdates: true,
       githubIntegration: true, // Always true - container supports GitHub integration
       supportsImages: false, // Container doesn't support image processing yet
-      supportsAudio: false   // Container doesn't support audio processing yet
+      supportsAudio: false, // Container doesn't support audio processing yet
     };
 
     // Enhance capabilities based on environment
@@ -162,7 +163,11 @@ class ACPState {
       // Check cgroup for container indicators
       if (fs.existsSync('/proc/1/cgroup')) {
         const cgroup = fs.readFileSync('/proc/1/cgroup', 'utf8');
-        if (cgroup.includes('docker') || cgroup.includes('containerd') || cgroup.includes('kubepods')) {
+        if (
+          cgroup.includes('docker') ||
+          cgroup.includes('containerd') ||
+          cgroup.includes('kubepods')
+        ) {
           return true;
         }
       }
@@ -260,14 +265,16 @@ function generateSessionId(): string {
  */
 async function createWorkspaceInfo(
   workspaceUri?: string,
-  sessionOptions?: ACPSession['sessionOptions']
+  sessionOptions?: ACPSession['sessionOptions'],
 ): Promise<WorkspaceInfo> {
-  const rootPath = workspaceUri ? new URL(workspaceUri).pathname : process.cwd();
+  const rootPath = workspaceUri
+    ? new URL(workspaceUri).pathname
+    : process.cwd();
 
   // Initialize workspace info
   const workspaceInfo: WorkspaceInfo = {
     rootPath,
-    hasUncommittedChanges: false
+    hasUncommittedChanges: false,
   };
 
   try {
@@ -286,14 +293,16 @@ async function createWorkspaceInfo(
       const basicGitInfo = await getBasicGitInfo(rootPath);
       if (basicGitInfo) {
         workspaceInfo.gitBranch = basicGitInfo.currentBranch;
-        workspaceInfo.hasUncommittedChanges = basicGitInfo.hasUncommittedChanges;
+        workspaceInfo.hasUncommittedChanges =
+          basicGitInfo.hasUncommittedChanges;
       }
     }
-
   } catch (error) {
     // If workspace is not accessible, note it but don't fail (suppress in test environment)
     if (process.env.NODE_ENV !== 'test') {
-      console.error(`[ACP] Workspace access warning: ${(error as Error).message}`);
+      console.error(
+        `[ACP] Workspace access warning: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -314,23 +323,31 @@ async function getGitInfo(workspacePath: string): Promise<{
     await fs.access(gitDir);
 
     // Get current branch
-    const branchResult = await execFileAsync('git', ['branch', '--show-current'], {
-      cwd: workspacePath
-    });
+    const branchResult = await execFileAsync(
+      'git',
+      ['branch', '--show-current'],
+      {
+        cwd: workspacePath,
+      },
+    );
     const currentBranch = branchResult.stdout.trim() || 'main';
 
     // Check for uncommitted changes
     const statusResult = await execFileAsync('git', ['status', '--porcelain'], {
-      cwd: workspacePath
+      cwd: workspacePath,
     });
     const hasUncommittedChanges = statusResult.stdout.trim().length > 0;
 
     // Get remote URL
     let remoteUrl: string | undefined;
     try {
-      const remoteResult = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
-        cwd: workspacePath
-      });
+      const remoteResult = await execFileAsync(
+        'git',
+        ['remote', 'get-url', 'origin'],
+        {
+          cwd: workspacePath,
+        },
+      );
       remoteUrl = remoteResult.stdout.trim();
     } catch {
       // Remote might not exist
@@ -339,9 +356,13 @@ async function getGitInfo(workspacePath: string): Promise<{
     // Get last commit
     let lastCommit: string | undefined;
     try {
-      const commitResult = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
-        cwd: workspacePath
-      });
+      const commitResult = await execFileAsync(
+        'git',
+        ['rev-parse', '--short', 'HEAD'],
+        {
+          cwd: workspacePath,
+        },
+      );
       lastCommit = commitResult.stdout.trim();
     } catch {
       // Might be a new repo with no commits
@@ -351,9 +372,8 @@ async function getGitInfo(workspacePath: string): Promise<{
       currentBranch,
       hasUncommittedChanges,
       remoteUrl,
-      lastCommit
+      lastCommit,
     };
-
   } catch (error) {
     return null;
   }
@@ -371,22 +391,25 @@ async function getBasicGitInfo(workspacePath: string): Promise<{
     await fs.access(gitDir);
 
     // Get current branch
-    const branchResult = await execFileAsync('git', ['branch', '--show-current'], {
-      cwd: workspacePath
-    });
+    const branchResult = await execFileAsync(
+      'git',
+      ['branch', '--show-current'],
+      {
+        cwd: workspacePath,
+      },
+    );
     const currentBranch = branchResult.stdout.trim() || 'main';
 
     // Check for uncommitted changes
     const statusResult = await execFileAsync('git', ['status', '--porcelain'], {
-      cwd: workspacePath
+      cwd: workspacePath,
     });
     const hasUncommittedChanges = statusResult.stdout.trim().length > 0;
 
     return {
       currentBranch,
-      hasUncommittedChanges
+      hasUncommittedChanges,
     };
-
   } catch (error) {
     return null;
   }
@@ -401,9 +424,8 @@ async function processPromptWithClaudeCode(
   contextFiles?: string[],
   agentContext?: Record<string, unknown>,
   notificationSender?: (method: string, params: any) => void,
-  requestContext?: RequestContext
+  requestContext?: RequestContext,
 ): Promise<SessionPromptResponse['result']> {
-
   const sessionId = session.sessionId;
   const operationId = `prompt-${Date.now()}`;
   let inputTokens = 0;
@@ -419,12 +441,17 @@ async function processPromptWithClaudeCode(
       notificationSender('session/update', {
         sessionId,
         status: 'thinking',
-        message: 'Preparing request for Claude Code...'
+        message: 'Preparing request for Claude Code...',
       });
     }
 
     // Prepare prompt from content blocks
-    const prompt = buildPromptFromContent(content, contextFiles, agentContext, session);
+    const prompt = buildPromptFromContent(
+      content,
+      contextFiles,
+      agentContext,
+      session,
+    );
     inputTokens = estimateTokens(prompt);
 
     // Get API key from request context (passed from worker)
@@ -438,17 +465,18 @@ async function processPromptWithClaudeCode(
           sessionId,
           status: 'working',
           message: 'Processing with mock Claude Code...',
-          progress: { current: 1, total: 3, message: 'Mock processing' }
+          progress: { current: 1, total: 3, message: 'Mock processing' },
         });
       }
 
       // Mock processing delay - longer delay for cancel testing
-      const isLongOperation = prompt.toLowerCase().includes('comprehensive analysis') || 
-                            prompt.toLowerCase().includes('large codebase') ||
-                            prompt.toLowerCase().includes('should take some time');
+      const isLongOperation =
+        prompt.toLowerCase().includes('comprehensive analysis') ||
+        prompt.toLowerCase().includes('large codebase') ||
+        prompt.toLowerCase().includes('should take some time');
       const mockDelay = isLongOperation ? 2000 : 100;
-      
-      await new Promise(resolve => setTimeout(resolve, mockDelay / 3));
+
+      await new Promise((resolve) => setTimeout(resolve, mockDelay / 3));
 
       // Check for cancellation after first delay
       if (abortController.signal.aborted) {
@@ -461,12 +489,12 @@ async function processPromptWithClaudeCode(
           sessionId,
           status: 'working',
           message: 'Mock processing in progress...',
-          progress: { current: 2, total: 3, message: 'Mock analysis' }
+          progress: { current: 2, total: 3, message: 'Mock analysis' },
         });
       }
 
       // Second delay phase
-      await new Promise(resolve => setTimeout(resolve, mockDelay / 3));
+      await new Promise((resolve) => setTimeout(resolve, mockDelay / 3));
 
       // Check for cancellation after second delay
       if (abortController.signal.aborted) {
@@ -474,7 +502,7 @@ async function processPromptWithClaudeCode(
       }
 
       // Final delay phase
-      await new Promise(resolve => setTimeout(resolve, mockDelay / 3));
+      await new Promise((resolve) => setTimeout(resolve, mockDelay / 3));
 
       // Check for cancellation after final delay
       if (abortController.signal.aborted) {
@@ -489,7 +517,7 @@ async function processPromptWithClaudeCode(
         notificationSender('session/update', {
           sessionId,
           status: 'completed',
-          message: 'Mock processing completed'
+          message: 'Mock processing completed',
         });
       }
 
@@ -500,9 +528,9 @@ async function processPromptWithClaudeCode(
         stopReason: 'completed',
         usage: {
           inputTokens,
-          outputTokens
+          outputTokens,
         },
-        summary: `Mock processing of prompt: "${prompt.substring(0, 50)}..."`
+        summary: `Mock processing of prompt: "${prompt.substring(0, 50)}..."`,
       };
     }
 
@@ -515,38 +543,51 @@ async function processPromptWithClaudeCode(
         const workspacePath = new URL(session.workspaceUri).pathname;
         process.chdir(workspacePath);
       } catch (error) {
-        console.error(`[ACP] Warning: Could not change to workspace directory: ${error}`);
+        console.error(
+          `[ACP] Warning: Could not change to workspace directory: ${error}`,
+        );
       }
     } else {
       ephemeralWorkspace = await prepareEphemeralWorkspace(session);
       if (ephemeralWorkspace) {
-        try { process.chdir(ephemeralWorkspace); } catch {}
+        try {
+          process.chdir(ephemeralWorkspace);
+        } catch {}
       }
     }
 
     try {
-            // Prepare per-request auth files before sending working status
-            if (anthropicApiKey) {
-              try {
-                await ensureClaudeAuthFiles(anthropicApiKey);
-              } catch (authFileErr: any) {
-                console.error('[ACP] Failed to prepare Claude auth files:', authFileErr?.message || authFileErr);
-              }
-              try {
-                const diagnostics = await collectClaudeDiagnostics();
-                console.log('[ACP] Pre-query diagnostics:', JSON.stringify(diagnostics));
-              } catch (diagErr: any) {
-                console.log('[ACP] Failed collecting diagnostics:', diagErr?.message || diagErr);
-              }
-            }
+      // Prepare per-request auth files before sending working status
+      if (anthropicApiKey) {
+        try {
+          await ensureClaudeAuthFiles(anthropicApiKey);
+        } catch (authFileErr: any) {
+          console.error(
+            '[ACP] Failed to prepare Claude auth files:',
+            authFileErr?.message || authFileErr,
+          );
+        }
+        try {
+          const diagnostics = await collectClaudeDiagnostics();
+          console.log(
+            '[ACP] Pre-query diagnostics:',
+            JSON.stringify(diagnostics),
+          );
+        } catch (diagErr: any) {
+          console.log(
+            '[ACP] Failed collecting diagnostics:',
+            diagErr?.message || diagErr,
+          );
+        }
+      }
 
-            // Send working status
+      // Send working status
       if (notificationSender) {
         notificationSender('session/update', {
           sessionId,
           status: 'working',
           message: 'Processing with Claude Code...',
-          progress: { current: 1, total: 3, message: 'Analyzing request' }
+          progress: { current: 1, total: 3, message: 'Analyzing request' },
         });
       }
 
@@ -558,7 +599,7 @@ async function processPromptWithClaudeCode(
       // Temporarily set the API key in environment for Claude Code SDK
       const originalApiKey = process.env.ANTHROPIC_API_KEY;
       const originalLogLevel = process.env.ANTHROPIC_LOG;
-      
+
       // NEW: git preflight if workspace exists
       if (session.workspaceUri) {
         try {
@@ -575,10 +616,14 @@ async function processPromptWithClaudeCode(
       }
 
       try {
-        console.log(`[ACP] Starting Claude Code query with API key: ${anthropicApiKey ? 'Present' : 'Missing'}`);
+        console.log(
+          `[ACP] Starting Claude Code query with API key: ${anthropicApiKey ? 'Present' : 'Missing'}`,
+        );
         console.log(`[ACP] Current working directory: ${process.cwd()}`);
-        console.log(`[ACP] Environment ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'Set' : 'Not set'}`);
-        
+        console.log(
+          `[ACP] Environment ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'Set' : 'Not set'}`,
+        );
+
         // Check Claude CLI availability and health
         try {
           const { spawn } = await import('node:child_process');
@@ -587,7 +632,7 @@ async function processPromptWithClaudeCode(
           const possiblePaths = [
             'claude',
             '/usr/local/bin/claude',
-            'node /app/node_modules/@anthropic-ai/claude-code/cli.js'
+            'node /app/node_modules/@anthropic-ai/claude-code/cli.js',
           ];
 
           let claudeCommand = null;
@@ -596,7 +641,7 @@ async function processPromptWithClaudeCode(
             try {
               const testProcess = spawn('sh', ['-c', `${cmd} --version`], {
                 stdio: ['ignore', 'pipe', 'pipe'],
-                timeout: 5000
+                timeout: 5000,
               });
 
               await new Promise<void>((resolve) => {
@@ -604,24 +649,31 @@ async function processPromptWithClaudeCode(
                   if (code === 0) {
                     claudeCommand = cmd;
                     console.log(`[ACP] Claude CLI found at: ${cmd}`);
-              const startTime = Date.now();
-              const queryOptions: any = {
-                permissionMode: 'bypassPermissions'
-              };
+                    const startTime = Date.now();
+                    const queryOptions: any = {
+                      permissionMode: 'bypassPermissions',
+                    };
 
-              console.log(`[ACP] Launching Claude Code process with options:`, queryOptions);
+                    console.log(
+                      `[ACP] Launching Claude Code process with options:`,
+                      queryOptions,
+                    );
 
-              let queryResult: AsyncIterable<any>;
-              try {
-                queryResult = query({
-                  prompt,
-                  options: queryOptions
-                });
-              } catch (constructionErr) {
-                console.error('[ACP] Failed to construct Claude Code query:', constructionErr);
-                throw new Error(`Failed to start Claude Code query: ${(constructionErr as Error).message}`);
-              }
-
+                    let queryResult: AsyncIterable<any>;
+                    try {
+                      queryResult = query({
+                        prompt,
+                        options: queryOptions,
+                      });
+                    } catch (constructionErr) {
+                      console.error(
+                        '[ACP] Failed to construct Claude Code query:',
+                        constructionErr,
+                      );
+                      throw new Error(
+                        `Failed to start Claude Code query: ${(constructionErr as Error).message}`,
+                      );
+                    }
                   }
                   resolve();
                 });
@@ -636,24 +688,32 @@ async function processPromptWithClaudeCode(
           }
 
           if (!claudeCommand) {
-            console.log(`[ACP] Warning: Claude CLI not found in any expected location`);
+            console.log(
+              `[ACP] Warning: Claude CLI not found in any expected location`,
+            );
           }
         } catch (doctorErr) {
-          console.log(`[ACP] Failed to check Claude CLI:`, (doctorErr as Error).message);
+          console.log(
+            `[ACP] Failed to check Claude CLI:`,
+            (doctorErr as Error).message,
+          );
         }
         // Process with Claude Code SDK (with retry & explicit options)
         let queryResult: AsyncIterable<any> | undefined;
         let initErrorCaptured: any = null;
         const launchQuery = (attempt: number) => {
-          console.log(`[ACP] Initializing Claude Code query (attempt ${attempt})`);
+          console.log(
+            `[ACP] Initializing Claude Code query (attempt ${attempt})`,
+          );
           return query({
             prompt,
             options: {
               permissionMode: 'bypassPermissions',
               // Provide explicit model hint if SDK supports; otherwise ignored gracefully
-              model: process.env.CLAUDE_CODE_MODEL || 'claude-3-5-sonnet-20240620',
+              model:
+                process.env.CLAUDE_CODE_MODEL || 'claude-3-5-sonnet-20240620',
               // future: add workspace, repo metadata, etc.
-            }
+            },
           });
         };
 
@@ -664,13 +724,18 @@ async function processPromptWithClaudeCode(
             break;
           } catch (e) {
             initErrorCaptured = e;
-            console.error(`[ACP] Query initialization attempt ${attempt} failed:`, (e as Error).message);
+            console.error(
+              `[ACP] Query initialization attempt ${attempt} failed:`,
+              (e as Error).message,
+            );
             if (attempt === 1) {
               // Light backoff
-              await new Promise(r => setTimeout(r, 300));
+              await new Promise((r) => setTimeout(r, 300));
               // Recreate auth files just in case
               if (anthropicApiKey) {
-                try { await ensureClaudeAuthFiles(anthropicApiKey); } catch {}
+                try {
+                  await ensureClaudeAuthFiles(anthropicApiKey);
+                } catch {}
               }
               continue;
             }
@@ -679,35 +744,52 @@ async function processPromptWithClaudeCode(
 
         if (!queryResult) {
           if ((initErrorCaptured as Error)?.message?.includes('CLI')) {
-            throw new Error(`Claude CLI not available after retries. Install or ensure PATH includes 'claude'. Error: ${(initErrorCaptured as Error).message}`);
+            throw new Error(
+              `Claude CLI not available after retries. Install or ensure PATH includes 'claude'. Error: ${(initErrorCaptured as Error).message}`,
+            );
           }
-          throw new Error(`Claude Code initialization failed after retries: ${(initErrorCaptured as Error)?.message}`);
+          throw new Error(
+            `Claude Code initialization failed after retries: ${(initErrorCaptured as Error)?.message}`,
+          );
         }
 
         console.log(`[ACP] Query generator created, starting iteration...`);
-        
+
         let hasReceivedMessages = false;
         let lastError = null;
         const stderrChunks: string[] = [];
         const originalStderrWrite = process.stderr.write as any;
         try {
-          process.stderr.write = function(chunk: any, encoding?: any, cb?: any) {
+          process.stderr.write = function (
+            chunk: any,
+            encoding?: any,
+            cb?: any,
+          ) {
             try {
-              const text = typeof chunk === 'string' ? chunk : chunk?.toString?.('utf8');
+              const text =
+                typeof chunk === 'string' ? chunk : chunk?.toString?.('utf8');
               if (text) stderrChunks.push(text);
             } catch {}
-            return originalStderrWrite.call(process.stderr, chunk, encoding, cb);
+            return originalStderrWrite.call(
+              process.stderr,
+              chunk,
+              encoding,
+              cb,
+            );
           } as any;
         } catch {}
-        
+
         try {
           for await (const message of queryResult) {
             hasReceivedMessages = true;
-            console.log(`[ACP] Received message from Claude Code:`, { 
+            console.log(`[ACP] Received message from Claude Code:`, {
               type: (message as any)?.type || 'unknown',
-              content: typeof (message as any)?.content === 'string' ? (message as any).content.substring(0, 100) + '...' : 'non-string'
+              content:
+                typeof (message as any)?.content === 'string'
+                  ? (message as any).content.substring(0, 100) + '...'
+                  : 'non-string',
             });
-            
+
             // Check for cancellation
             if (abortController.signal.aborted) {
               throw new Error('Operation was cancelled');
@@ -724,8 +806,8 @@ async function processPromptWithClaudeCode(
                 progress: {
                   current: messages.length,
                   total: messages.length + 5,
-                  message: `Processing message ${messages.length}`
-                }
+                  message: `Processing message ${messages.length}`,
+                },
               });
             }
           }
@@ -733,71 +815,96 @@ async function processPromptWithClaudeCode(
           lastError = queryError;
           console.error(`[ACP] Query execution error:`, queryError);
           if (!hasReceivedMessages) {
-            const stderrTail = stderrChunks.join('').split('\n').slice(-20).join('\n');
-            console.error('[ACP] CLI stderr tail (no messages received):\n' + stderrTail);
+            const stderrTail = stderrChunks
+              .join('')
+              .split('\n')
+              .slice(-20)
+              .join('\n');
+            console.error(
+              '[ACP] CLI stderr tail (no messages received):\n' + stderrTail,
+            );
             (queryError as any).stderrTail = stderrTail;
             try {
               const diagRun = await runRawCliDiagnostic(prompt);
-              console.error('[ACP] Raw CLI diagnostic result:', { code: diagRun.code, stdoutTail: diagRun.stdout.split('\n').slice(-10).join('\n'), stderrTail: diagRun.stderr.split('\n').slice(-20).join('\n') });
+              console.error('[ACP] Raw CLI diagnostic result:', {
+                code: diagRun.code,
+                stdoutTail: diagRun.stdout.split('\n').slice(-10).join('\n'),
+                stderrTail: diagRun.stderr.split('\n').slice(-20).join('\n'),
+              });
               (queryError as any).rawCli = diagRun;
             } catch (diagE) {
-              console.error('[ACP] Raw CLI diagnostic spawn failed:', (diagE as Error).message);
+              console.error(
+                '[ACP] Raw CLI diagnostic spawn failed:',
+                (diagE as Error).message,
+              );
             }
           }
-          
+
           // If no messages were received, it's likely an authentication issue
           if (!hasReceivedMessages) {
-            throw new Error(`Claude Code authentication failed. Please ensure the Claude CLI is properly authenticated. Original error: ${(queryError as Error).message}`);
+            throw new Error(
+              `Claude Code authentication failed. Please ensure the Claude CLI is properly authenticated. Original error: ${(queryError as Error).message}`,
+            );
           }
-          
+
           // If we got some messages, treat it as a partial success
-          console.warn(`[ACP] Query completed with error but received ${messages.length} messages`);
+          console.warn(
+            `[ACP] Query completed with error but received ${messages.length} messages`,
+          );
         } finally {
-          try { process.stderr.write = originalStderrWrite; } catch {}
+          try {
+            process.stderr.write = originalStderrWrite;
+          } catch {}
         }
-      
-      console.log(`[ACP] Claude Code processing completed with ${messages.length} messages`);
 
-      // Estimate output tokens
-      outputTokens = messages.reduce((sum, msg) => sum + estimateTokensFromMessage(msg), 0);
+        console.log(
+          `[ACP] Claude Code processing completed with ${messages.length} messages`,
+        );
 
-      // Check for file changes and GitHub operations
-      const githubOperations = await detectGitHubOperations(session.workspaceUri);
+        // Estimate output tokens
+        outputTokens = messages.reduce(
+          (sum, msg) => sum + estimateTokensFromMessage(msg),
+          0,
+        );
 
-      // Send completion status
-      if (notificationSender) {
-        notificationSender('session/update', {
-          sessionId,
-          status: 'completed',
-          message: `Completed with ${messages.length} messages`
-        });
-      }
+        // Check for file changes and GitHub operations
+        const githubOperations = await detectGitHubOperations(
+          session.workspaceUri,
+        );
 
-      // Build response
-      const response: SessionPromptResponse['result'] = {
-        stopReason: 'completed',
-        usage: {
-          inputTokens,
-          outputTokens
+        // Send completion status
+        if (notificationSender) {
+          notificationSender('session/update', {
+            sessionId,
+            status: 'completed',
+            message: `Completed with ${messages.length} messages`,
+          });
         }
-      };
 
-      // Add GitHub operations if any were detected
-      if (githubOperations) {
-        response.githubOperations = githubOperations;
-      }
+        // Build response
+        const response: SessionPromptResponse['result'] = {
+          stopReason: 'completed',
+          usage: {
+            inputTokens,
+            outputTokens,
+          },
+        };
 
-      // Add summary of the last message
-      if (messages.length > 0) {
-        const lastMessage = messages[messages.length - 1];
-        response.summary = extractMessageSummary(lastMessage);
-      }
+        // Add GitHub operations if any were detected
+        if (githubOperations) {
+          response.githubOperations = githubOperations;
+        }
 
-      // Complete the operation
-      acpState.completeOperation(sessionId, operationId);
+        // Add summary of the last message
+        if (messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          response.summary = extractMessageSummary(lastMessage);
+        }
 
-      return response;
+        // Complete the operation
+        acpState.completeOperation(sessionId, operationId);
 
+        return response;
       } finally {
         // Restore original API key and log level
         if (originalApiKey !== undefined) {
@@ -805,19 +912,17 @@ async function processPromptWithClaudeCode(
         } else if (anthropicApiKey) {
           delete process.env.ANTHROPIC_API_KEY;
         }
-        
+
         if (originalLogLevel !== undefined) {
           process.env.ANTHROPIC_LOG = originalLogLevel;
         } else {
           delete process.env.ANTHROPIC_LOG;
         }
       }
-
     } finally {
       // Restore original working directory
       process.chdir(originalCwd);
     }
-
   } catch (error) {
     // Complete the operation (even on error)
     acpState.completeOperation(sessionId, operationId);
@@ -828,18 +933,19 @@ async function processPromptWithClaudeCode(
       stack: (error as Error).stack,
       name: (error as Error).name,
       sessionId,
-      operationId
+      operationId,
     });
 
     const errorMessage = (error as Error).message;
-    const isCancelled = errorMessage.includes('cancelled') || abortController.signal.aborted;
+    const isCancelled =
+      errorMessage.includes('cancelled') || abortController.signal.aborted;
 
     // Send appropriate status
     if (notificationSender) {
       notificationSender('session/update', {
         sessionId,
         status: isCancelled ? 'completed' : 'error',
-        message: isCancelled ? 'Operation cancelled' : `Error: ${errorMessage}`
+        message: isCancelled ? 'Operation cancelled' : `Error: ${errorMessage}`,
       });
     }
 
@@ -850,10 +956,12 @@ async function processPromptWithClaudeCode(
       stopReason: isCancelled ? 'cancelled' : 'error',
       usage: {
         inputTokens,
-        outputTokens
+        outputTokens,
       },
-      summary: isCancelled ? 'Operation was cancelled' : `(${classification.code}) ${errorMessage}`,
-      errorCode: classification.code
+      summary: isCancelled
+        ? 'Operation was cancelled'
+        : `(${classification.code}) ${errorMessage}`,
+      errorCode: classification.code,
     } as any;
   }
 }
@@ -864,7 +972,10 @@ async function processPromptWithClaudeCode(
  */
 async function ensureClaudeAuthFiles(apiKey: string): Promise<void> {
   if (!apiKey) return;
-  if (process.env.CLAUDE_CODE_ENV_AUTH_ONLY === '1' || process.env.CLAUDE_CODE_ENV_AUTH_ONLY === 'true') {
+  if (
+    process.env.CLAUDE_CODE_ENV_AUTH_ONLY === '1' ||
+    process.env.CLAUDE_CODE_ENV_AUTH_ONLY === 'true'
+  ) {
     console.log('[ACP] Auth mode: ENV_ONLY (skipping auth file creation)');
     // Optionally rename existing files to avoid interference
     try {
@@ -872,10 +983,21 @@ async function ensureClaudeAuthFiles(apiKey: string): Promise<void> {
       const authFile = path.join(home, '.config', 'claude-code', 'auth.json');
       const legacyFile = path.join(home, '.claude.json');
       const timestamp = Date.now();
-      try { await fs.access(authFile); await fs.rename(authFile, authFile + '.bak.' + timestamp); console.log('[ACP] Renamed existing auth.json to backup'); } catch {}
-      try { await fs.access(legacyFile); await fs.rename(legacyFile, legacyFile + '.bak.' + timestamp); console.log('[ACP] Renamed existing .claude.json to backup'); } catch {}
+      try {
+        await fs.access(authFile);
+        await fs.rename(authFile, authFile + '.bak.' + timestamp);
+        console.log('[ACP] Renamed existing auth.json to backup');
+      } catch {}
+      try {
+        await fs.access(legacyFile);
+        await fs.rename(legacyFile, legacyFile + '.bak.' + timestamp);
+        console.log('[ACP] Renamed existing .claude.json to backup');
+      } catch {}
     } catch (e) {
-      console.warn('[ACP] Unable to rename existing auth files:', (e as Error).message);
+      console.warn(
+        '[ACP] Unable to rename existing auth files:',
+        (e as Error).message,
+      );
     }
     return; // Skip file writing
   }
@@ -893,7 +1015,9 @@ async function ensureClaudeAuthFiles(apiKey: string): Promise<void> {
     if (existing.includes('apiKey')) {
       needWriteAuth = false; // assume usable
     }
-  } catch { /* missing is fine */ }
+  } catch {
+    /* missing is fine */
+  }
 
   if (needWriteAuth) {
     const now = new Date().toISOString();
@@ -902,7 +1026,7 @@ async function ensureClaudeAuthFiles(apiKey: string): Promise<void> {
       refreshToken: `ephemeral-refresh-${Date.now()}`,
       apiKey,
       authenticated: true,
-      lastCheck: now
+      lastCheck: now,
     };
     await fs.writeFile(authFile, JSON.stringify(authPayload, null, 2), 'utf8');
   }
@@ -911,9 +1035,13 @@ async function ensureClaudeAuthFiles(apiKey: string): Promise<void> {
   try {
     const legacyPayload = {
       apiKey,
-      managedSettings: { ANTHROPIC_API_KEY: apiKey }
+      managedSettings: { ANTHROPIC_API_KEY: apiKey },
     };
-    await fs.writeFile(legacyFile, JSON.stringify(legacyPayload, null, 2), 'utf8');
+    await fs.writeFile(
+      legacyFile,
+      JSON.stringify(legacyPayload, null, 2),
+      'utf8',
+    );
   } catch (e) {
     console.error('[ACP] Failed writing legacy .claude.json:', e);
   }
@@ -932,13 +1060,15 @@ async function collectClaudeDiagnostics(): Promise<Record<string, any>> {
     platform: process.platform,
     cwd: process.cwd(),
     hasApiKeyEnv: !!process.env.ANTHROPIC_API_KEY,
-    paths: { authFile, legacyFile }
+    paths: { authFile, legacyFile },
   };
   try {
     const stat = await fs.stat(authFile);
     diag.authFileExists = true;
     diag.authFileMtime = stat.mtime.toISOString();
-  } catch { diag.authFileExists = false; }
+  } catch {
+    diag.authFileExists = false;
+  }
   try {
     const content = await fs.readFile(authFile, 'utf8');
     diag.authFileContainsApiKey = content.includes('apiKey');
@@ -946,8 +1076,11 @@ async function collectClaudeDiagnostics(): Promise<Record<string, any>> {
   try {
     const legacyContent = await fs.readFile(legacyFile, 'utf8');
     diag.legacyFileExists = true;
-    diag.legacyFileContainsManagedSettings = legacyContent.includes('managedSettings');
-  } catch { diag.legacyFileExists = false; }
+    diag.legacyFileContainsManagedSettings =
+      legacyContent.includes('managedSettings');
+  } catch {
+    diag.legacyFileExists = false;
+  }
   return diag;
 }
 
@@ -955,7 +1088,11 @@ async function collectClaudeDiagnostics(): Promise<Record<string, any>> {
  * Collect diagnostics about Claude CLI (version and help)
  */
 async function collectClaudeCliDiagnostics(): Promise<Record<string, any>> {
-  const diag: Record<string, any> = { timestamp: new Date().toISOString(), claudeVersion: null as string | null, helpExcerpt: null as string | null };
+  const diag: Record<string, any> = {
+    timestamp: new Date().toISOString(),
+    claudeVersion: null as string | null,
+    helpExcerpt: null as string | null,
+  };
   try {
     const version = await execFileAsync('claude', ['--version']);
     diag.claudeVersion = version.stdout.trim();
@@ -978,7 +1115,7 @@ function buildPromptFromContent(
   content: ContentBlock[],
   contextFiles?: string[],
   agentContext?: Record<string, unknown>,
-  session?: ACPSession
+  session?: ACPSession,
 ): string {
   let prompt = '';
 
@@ -1002,7 +1139,7 @@ function buildPromptFromContent(
 
   // Add context files if provided
   if (contextFiles && contextFiles.length > 0) {
-    prompt += `Context Files:\n${contextFiles.map(f => `- ${f}`).join('\n')}\n\n`;
+    prompt += `Context Files:\n${contextFiles.map((f) => `- ${f}`).join('\n')}\n\n`;
   }
 
   // Process content blocks
@@ -1060,7 +1197,10 @@ function getMessageText(message: SDKMessage): string {
   // @ts-ignore
   if (typeof message.content === 'string') return message.content;
   // @ts-ignore
-  if (Array.isArray(message.content)) return message.content.map((c: any) => (c.text || JSON.stringify(c))).join('\n');
+  if (Array.isArray(message.content))
+    return message.content
+      .map((c: any) => c.text || JSON.stringify(c))
+      .join('\n');
   return JSON.stringify(message);
 }
 
@@ -1076,7 +1216,9 @@ function extractMessageSummary(message: SDKMessage): string {
 /**
  * Detect GitHub operations from workspace changes
  */
-async function detectGitHubOperations(workspaceUri?: string): Promise<SessionPromptResponse['result']['githubOperations']> {
+async function detectGitHubOperations(
+  workspaceUri?: string,
+): Promise<SessionPromptResponse['result']['githubOperations']> {
   if (!workspaceUri) {
     return undefined;
   }
@@ -1086,7 +1228,7 @@ async function detectGitHubOperations(workspaceUri?: string): Promise<SessionPro
 
     // Check for git changes
     const statusResult = await execFileAsync('git', ['status', '--porcelain'], {
-      cwd: workspacePath
+      cwd: workspacePath,
     });
 
     if (statusResult.stdout.trim().length === 0) {
@@ -1097,20 +1239,26 @@ async function detectGitHubOperations(workspaceUri?: string): Promise<SessionPro
     const filesModified = statusResult.stdout
       .trim()
       .split('\n')
-      .map(line => line.substring(3)) // Remove status prefix
-      .filter(file => file.length > 0);
+      .map((line) => line.substring(3)) // Remove status prefix
+      .filter((file) => file.length > 0);
 
     // Check current branch
-    const branchResult = await execFileAsync('git', ['branch', '--show-current'], {
-      cwd: workspacePath
-    });
+    const branchResult = await execFileAsync(
+      'git',
+      ['branch', '--show-current'],
+      {
+        cwd: workspacePath,
+      },
+    );
     const currentBranch = branchResult.stdout.trim();
 
     return {
       filesModified,
-      branchCreated: currentBranch !== 'main' && currentBranch !== 'master' ? currentBranch : undefined
+      branchCreated:
+        currentBranch !== 'main' && currentBranch !== 'master'
+          ? currentBranch
+          : undefined,
     };
-
   } catch (error) {
     // Git operations failed, return undefined
     return undefined;
@@ -1120,7 +1268,9 @@ async function detectGitHubOperations(workspaceUri?: string): Promise<SessionPro
 /**
  * Load session from persistent storage
  */
-async function loadSessionFromPersistentStorage(sessionId: string): Promise<ACPSession | null> {
+async function loadSessionFromPersistentStorage(
+  sessionId: string,
+): Promise<ACPSession | null> {
   try {
     const sessionDir = getSessionStorageDir();
     const sessionFile = path.join(sessionDir, `${sessionId}.json`);
@@ -1142,14 +1292,15 @@ async function loadSessionFromPersistentStorage(sessionId: string): Promise<ACPS
     const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
     if (Date.now() - session.lastActiveAt > maxAge) {
       if (process.env.NODE_ENV !== 'test') {
-        console.error(`[ACP] Session ${sessionId} has expired, removing from storage`);
+        console.error(
+          `[ACP] Session ${sessionId} has expired, removing from storage`,
+        );
       }
       await deleteSessionFromPersistentStorage(sessionId);
       return null;
     }
 
     return session;
-
   } catch (error) {
     // Session file doesn't exist or is corrupted
     return null;
@@ -1159,7 +1310,9 @@ async function loadSessionFromPersistentStorage(sessionId: string): Promise<ACPS
 /**
  * Save session to persistent storage
  */
-async function saveSessionToPersistentStorage(session: ACPSession): Promise<void> {
+async function saveSessionToPersistentStorage(
+  session: ACPSession,
+): Promise<void> {
   try {
     const sessionDir = getSessionStorageDir();
 
@@ -1170,23 +1323,25 @@ async function saveSessionToPersistentStorage(session: ACPSession): Promise<void
     const sessionData = JSON.stringify(session, null, 2);
 
     await fs.writeFile(sessionFile, sessionData, 'utf-8');
-
   } catch (error) {
     console.error(`[ACP] Failed to save session ${session.sessionId}:`, error);
-    throw createInvalidParamsError(`Session persistence failed: ${(error as Error).message}`);
+    throw createInvalidParamsError(
+      `Session persistence failed: ${(error as Error).message}`,
+    );
   }
 }
 
 /**
  * Delete session from persistent storage
  */
-async function deleteSessionFromPersistentStorage(sessionId: string): Promise<void> {
+async function deleteSessionFromPersistentStorage(
+  sessionId: string,
+): Promise<void> {
   try {
     const sessionDir = getSessionStorageDir();
     const sessionFile = path.join(sessionDir, `${sessionId}.json`);
 
     await fs.unlink(sessionFile);
-
   } catch (error) {
     // File might not exist, ignore error
   }
@@ -1196,10 +1351,11 @@ async function deleteSessionFromPersistentStorage(sessionId: string): Promise<vo
  * Get session storage directory
  */
 function getSessionStorageDir(): string {
-  const baseDir = process.env.ACP_SESSION_STORAGE_DIR || path.join(process.cwd(), '.acp-sessions');
+  const baseDir =
+    process.env.ACP_SESSION_STORAGE_DIR ||
+    path.join(process.cwd(), '.acp-sessions');
   return baseDir;
 }
-
 
 /**
  * Validate session ID format
@@ -1236,12 +1392,13 @@ function createSessionNotFoundError(sessionId: string) {
  */
 export async function handleInitialize(
   params: InitializeRequest['params'],
-  context: RequestContext
+  context: RequestContext,
 ): Promise<InitializeResponse['result']> {
-
   // Validate required parameters
   if (!params || typeof params.protocolVersion !== 'string') {
-    throw createInvalidParamsError('protocolVersion is required and must be a string');
+    throw createInvalidParamsError(
+      'protocolVersion is required and must be a string',
+    );
   }
 
   const { protocolVersion, clientCapabilities, clientInfo } = params;
@@ -1249,7 +1406,9 @@ export async function handleInitialize(
   // Check protocol version compatibility
   const supportedVersion = '0.3.1';
   if (!protocolVersion.startsWith('0.3.')) {
-    const error = new Error(`Unsupported protocol version: ${protocolVersion}`) as any;
+    const error = new Error(
+      `Unsupported protocol version: ${protocolVersion}`,
+    ) as any;
     error.code = ACP_ERROR_CODES.INVALID_PARAMS;
     error.data = { supportedVersion };
     throw error;
@@ -1269,14 +1428,17 @@ export async function handleInitialize(
     if (clientInfo) {
       console.error(`[ACP] Client: ${clientInfo.name} v${clientInfo.version}`);
     }
-    console.error(`[ACP] Agent capabilities:`, JSON.stringify(acpState.getAgentCapabilities(), null, 2));
+    console.error(
+      `[ACP] Agent capabilities:`,
+      JSON.stringify(acpState.getAgentCapabilities(), null, 2),
+    );
   }
 
   // Return enhanced initialization response
   const response = {
     protocolVersion: supportedVersion,
     agentCapabilities: acpState.getAgentCapabilities(),
-    agentInfo: acpState.getAgentInfo()
+    agentInfo: acpState.getAgentInfo(),
   };
 
   // Add optional extended information for debugging
@@ -1292,11 +1454,12 @@ export async function handleInitialize(
  */
 export async function handleSessionNew(
   params: SessionNewRequest['params'] = {},
-  context: RequestContext
+  context: RequestContext,
 ): Promise<SessionNewResponse['result']> {
-
   if (!acpState.isInitialized()) {
-    const error = new Error('Agent not initialized. Call initialize first.') as any;
+    const error = new Error(
+      'Agent not initialized. Call initialize first.',
+    ) as any;
     error.code = ACP_ERROR_CODES.INVALID_REQUEST;
     throw error;
   }
@@ -1305,7 +1468,9 @@ export async function handleSessionNew(
 
   // Validate mode if provided
   if (mode && !['development', 'conversation'].includes(mode)) {
-    throw createInvalidParamsError('mode must be either "development" or "conversation"');
+    throw createInvalidParamsError(
+      'mode must be either "development" or "conversation"',
+    );
   }
 
   // Validate workspace URI format if provided
@@ -1313,10 +1478,14 @@ export async function handleSessionNew(
     try {
       const uri = new URL(workspaceUri);
       if (uri.protocol !== 'file:') {
-        throw createInvalidParamsError('workspaceUri must use file:// protocol');
+        throw createInvalidParamsError(
+          'workspaceUri must use file:// protocol',
+        );
       }
     } catch (error) {
-      throw createInvalidParamsError('workspaceUri must be a valid file:// URI');
+      throw createInvalidParamsError(
+        'workspaceUri must be a valid file:// URI',
+      );
     }
   }
 
@@ -1332,14 +1501,16 @@ export async function handleSessionNew(
     createdAt: now,
     lastActiveAt: now,
     messageHistory: [],
-    sessionOptions
+    sessionOptions,
   };
 
   acpState.setSession(sessionId, session);
 
   // Debug logging (only in non-test environment)
   if (process.env.NODE_ENV !== 'test') {
-    console.error(`[ACP DEBUG] Session created: ${sessionId}, state singleton: ${!!acpState}, session count: ${acpState.getSessionCount()}`);
+    console.error(
+      `[ACP DEBUG] Session created: ${sessionId}, state singleton: ${!!acpState}, session count: ${acpState.getSessionCount()}`,
+    );
   }
 
   // Save to persistent storage if persistence is enabled
@@ -1356,7 +1527,7 @@ export async function handleSessionNew(
 
   return {
     sessionId,
-    workspaceInfo
+    workspaceInfo,
   };
 }
 
@@ -1366,11 +1537,12 @@ export async function handleSessionNew(
 export async function handleSessionPrompt(
   params: SessionPromptRequest['params'],
   context: RequestContext,
-  notificationSender?: (method: string, params: any) => void
+  notificationSender?: (method: string, params: any) => void,
 ): Promise<SessionPromptResponse['result']> {
-
   if (!acpState.isInitialized()) {
-    const error = new Error('Agent not initialized. Call initialize first.') as any;
+    const error = new Error(
+      'Agent not initialized. Call initialize first.',
+    ) as any;
     error.code = ACP_ERROR_CODES.INVALID_REQUEST;
     throw error;
   }
@@ -1392,7 +1564,9 @@ export async function handleSessionPrompt(
 
   // Debug logging (only in non-test environment)
   if (process.env.NODE_ENV !== 'test') {
-    console.error(`[ACP DEBUG] Session lookup: ${sessionId}, found: ${!!session}, state singleton: ${!!acpState}, session count: ${acpState.getSessionCount()}`);
+    console.error(
+      `[ACP DEBUG] Session lookup: ${sessionId}, found: ${!!session}, state singleton: ${!!acpState}, session count: ${acpState.getSessionCount()}`,
+    );
   }
 
   if (!session) {
@@ -1406,20 +1580,29 @@ export async function handleSessionPrompt(
 
   // Debug logging (only in non-test environment)
   if (process.env.NODE_ENV !== 'test') {
-    console.error(`[ACP DEBUG] Content blocks received:`, JSON.stringify(content, null, 2));
+    console.error(
+      `[ACP DEBUG] Content blocks received:`,
+      JSON.stringify(content, null, 2),
+    );
   }
 
   // Validate content blocks
   for (const block of content) {
     if (!block || typeof block !== 'object' || !block.type) {
-      throw createInvalidParamsError('each content block must have a type field');
+      throw createInvalidParamsError(
+        'each content block must have a type field',
+      );
     }
 
     // Validate content field based on type
     if (block.type === 'text' && !block.text) {
-      throw createInvalidParamsError('text content blocks must have a text field');
+      throw createInvalidParamsError(
+        'text content blocks must have a text field',
+      );
     } else if (block.type !== 'text' && !block.content) {
-      throw createInvalidParamsError(`${block.type} content blocks must have a content field`);
+      throw createInvalidParamsError(
+        `${block.type} content blocks must have a content field`,
+      );
     }
   }
 
@@ -1434,7 +1617,9 @@ export async function handleSessionPrompt(
   }
 
   if (process.env.NODE_ENV !== 'test') {
-    console.error(`[ACP] Processing prompt for session ${sessionId} with ${content.length} content blocks`);
+    console.error(
+      `[ACP] Processing prompt for session ${sessionId} with ${content.length} content blocks`,
+    );
   }
 
   // Process with Claude Code SDK
@@ -1444,7 +1629,7 @@ export async function handleSessionPrompt(
     contextFiles,
     agentContext,
     notificationSender,
-    context
+    context,
   );
 
   if (process.env.NODE_ENV !== 'test') {
@@ -1459,11 +1644,12 @@ export async function handleSessionPrompt(
  */
 export async function handleSessionLoad(
   params: SessionLoadRequest['params'],
-  context: RequestContext
+  context: RequestContext,
 ): Promise<SessionLoadResponse['result']> {
-
   if (!acpState.isInitialized()) {
-    const error = new Error('Agent not initialized. Call initialize first.') as any;
+    const error = new Error(
+      'Agent not initialized. Call initialize first.',
+    ) as any;
     error.code = ACP_ERROR_CODES.INVALID_REQUEST;
     throw error;
   }
@@ -1491,7 +1677,9 @@ export async function handleSessionLoad(
       session = persistedSession;
       acpState.setSession(sessionId, session);
       if (process.env.NODE_ENV !== 'test') {
-        console.error(`[ACP] Restored session ${sessionId} from persistent storage`);
+        console.error(
+          `[ACP] Restored session ${sessionId} from persistent storage`,
+        );
       }
     } else {
       throw createSessionNotFoundError(sessionId);
@@ -1508,7 +1696,9 @@ export async function handleSessionLoad(
   }
 
   if (process.env.NODE_ENV !== 'test') {
-    console.error(`[ACP] Loading session ${sessionId} (includeHistory: ${includeHistory})`);
+    console.error(
+      `[ACP] Loading session ${sessionId} (includeHistory: ${includeHistory})`,
+    );
   }
 
   const sessionInfo = {
@@ -1517,16 +1707,19 @@ export async function handleSessionLoad(
     createdAt: session.createdAt,
     lastActiveAt: session.lastActiveAt,
     ...(session.workspaceUri && { workspaceUri: session.workspaceUri }),
-    ...(session.mode && { mode: session.mode })
+    ...(session.mode && { mode: session.mode }),
   };
 
   // Create workspace info
-  const workspaceInfo = await createWorkspaceInfo(session.workspaceUri, session.sessionOptions);
+  const workspaceInfo = await createWorkspaceInfo(
+    session.workspaceUri,
+    session.sessionOptions,
+  );
 
   const result: SessionLoadResponse['result'] = {
     sessionInfo,
     workspaceInfo,
-    historyAvailable: session.messageHistory.length > 0
+    historyAvailable: session.messageHistory.length > 0,
   };
 
   // Include history if requested
@@ -1542,11 +1735,12 @@ export async function handleSessionLoad(
  */
 export async function handleCancel(
   params: CancelRequest['params'],
-  context: RequestContext
+  context: RequestContext,
 ): Promise<CancelResponse['result']> {
-
   if (!acpState.isInitialized()) {
-    const error = new Error('Agent not initialized. Call initialize first.') as any;
+    const error = new Error(
+      'Agent not initialized. Call initialize first.',
+    ) as any;
     error.code = ACP_ERROR_CODES.INVALID_REQUEST;
     throw error;
   }
@@ -1579,10 +1773,12 @@ export async function handleCancel(
 
   if (!hasOperations) {
     if (process.env.NODE_ENV !== 'test') {
-      console.error(`[ACP] No active operations to cancel for session ${sessionId}`);
+      console.error(
+        `[ACP] No active operations to cancel for session ${sessionId}`,
+      );
     }
     return {
-      cancelled: false
+      cancelled: false,
     };
   }
 
@@ -1590,7 +1786,9 @@ export async function handleCancel(
   const cancelled = acpState.cancelOperation(sessionId);
 
   if (process.env.NODE_ENV !== 'test') {
-    console.error(`[ACP] Cancelled ${operationCount} operations for session ${sessionId}`);
+    console.error(
+      `[ACP] Cancelled ${operationCount} operations for session ${sessionId}`,
+    );
   }
 
   // Update session state to indicate cancellation
@@ -1603,12 +1801,15 @@ export async function handleCancel(
     try {
       await saveSessionToPersistentStorage(session);
     } catch (error) {
-      console.error(`[ACP] Failed to save session state after cancellation:`, error);
+      console.error(
+        `[ACP] Failed to save session state after cancellation:`,
+        error,
+      );
     }
   }
 
   return {
-    cancelled
+    cancelled,
   };
 }
 
@@ -1616,11 +1817,11 @@ export async function handleCancel(
  * Export all handlers for registration
  */
 export const ACPHandlers = {
-  'initialize': handleInitialize,
+  initialize: handleInitialize,
   'session/new': handleSessionNew,
   'session/prompt': handleSessionPrompt,
   'session/load': handleSessionLoad,
-  'cancel': handleCancel
+  cancel: handleCancel,
 };
 
 /**
@@ -1633,12 +1834,21 @@ async function ensureGitRepo(workspacePath: string) {
   } catch {}
   try {
     await execFileAsync('git', ['init'], { cwd: workspacePath });
-    await execFileAsync('git', ['config', 'user.name', 'Claude Code Bot'], { cwd: workspacePath });
-    await execFileAsync('git', ['config', 'user.email', 'claude-code@anthropic.com'], { cwd: workspacePath });
+    await execFileAsync('git', ['config', 'user.name', 'Claude Code Bot'], {
+      cwd: workspacePath,
+    });
+    await execFileAsync(
+      'git',
+      ['config', 'user.email', 'claude-code@anthropic.com'],
+      { cwd: workspacePath },
+    );
     console.log('[ACP] Initialized git repository for workspace');
     return true;
   } catch (e) {
-    console.warn('[ACP] Failed to initialize git repository:', (e as Error).message);
+    console.warn(
+      '[ACP] Failed to initialize git repository:',
+      (e as Error).message,
+    );
     return false;
   }
 }
@@ -1649,20 +1859,34 @@ async function ensureGitRepo(workspacePath: string) {
 function classifyClaudeError(err: any): { code: string; message: string } {
   const raw = (err?.message || String(err)).toLowerCase();
   const stderrTail: string = (err as any)?.stderrTail || '';
-  const combined = (raw + '\n' + stderrTail.toLowerCase());
-  if (combined.includes('api key') || combined.includes('authentication')) return { code: 'auth_error', message: err.message || String(err) };
-  if (combined.includes('not found') && combined.includes('claude')) return { code: 'cli_missing', message: err.message || String(err) };
-  if (combined.includes('not a git repository')) return { code: 'workspace_missing', message: err.message || String(err) };
-  if (combined.includes('permission denied') || combined.includes('eacces')) return { code: 'fs_permission', message: err.message || String(err) };
-  if (combined.includes('stack') || combined .match(/referenceerror|typeerror|syntaxerror/)) return { code: 'internal_cli_failure', message: err.message || String(err) };
-  if (raw.includes('cancelled') || raw.includes('canceled')) return { code: 'cancelled', message: err.message || String(err) };
+  const combined = raw + '\n' + stderrTail.toLowerCase();
+  if (combined.includes('api key') || combined.includes('authentication'))
+    return { code: 'auth_error', message: err.message || String(err) };
+  if (combined.includes('not found') && combined.includes('claude'))
+    return { code: 'cli_missing', message: err.message || String(err) };
+  if (combined.includes('not a git repository'))
+    return { code: 'workspace_missing', message: err.message || String(err) };
+  if (combined.includes('permission denied') || combined.includes('eacces'))
+    return { code: 'fs_permission', message: err.message || String(err) };
+  if (
+    combined.includes('stack') ||
+    combined.match(/referenceerror|typeerror|syntaxerror/)
+  )
+    return {
+      code: 'internal_cli_failure',
+      message: err.message || String(err),
+    };
+  if (raw.includes('cancelled') || raw.includes('canceled'))
+    return { code: 'cancelled', message: err.message || String(err) };
   return { code: 'unknown', message: err.message || String(err) };
 }
 
 /**
  * Prepare ephemeral workspace in /tmp for sessions without a workspaceUri
  */
-async function prepareEphemeralWorkspace(session: ACPSession): Promise<string | null> {
+async function prepareEphemeralWorkspace(
+  session: ACPSession,
+): Promise<string | null> {
   if (session.workspaceUri) return null; // already has workspace
   const base = '/tmp';
   const dir = path.join(base, `acp-workspace-${session.sessionId}`);
@@ -1682,18 +1906,34 @@ async function prepareEphemeralWorkspace(session: ACPSession): Promise<string | 
 /**
  * Run raw CLI diagnostic command
  */
-async function runRawCliDiagnostic(prompt: string): Promise<{ code: number | null; stdout: string; stderr: string }> {
+async function runRawCliDiagnostic(
+  prompt: string,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
   const { spawn } = await import('node:child_process');
-  return await new Promise(resolve => {
+  return await new Promise((resolve) => {
     try {
-      const proc = spawn('claude', ['code', '--prompt', prompt.slice(0,800)], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 20000 });
-      let out = ''; let err = '';
-      proc.stdout.on('data', d => { out += d.toString(); });
-      proc.stderr.on('data', d => { err += d.toString(); });
-      proc.on('close', code => resolve({ code, stdout: out, stderr: err }));
-      proc.on('error', () => resolve({ code: null, stdout: out, stderr: err || 'spawn error' }));
+      const proc = spawn('claude', ['code', '--prompt', prompt.slice(0, 800)], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 20000,
+      });
+      let out = '';
+      let err = '';
+      proc.stdout.on('data', (d) => {
+        out += d.toString();
+      });
+      proc.stderr.on('data', (d) => {
+        err += d.toString();
+      });
+      proc.on('close', (code) => resolve({ code, stdout: out, stderr: err }));
+      proc.on('error', () =>
+        resolve({ code: null, stdout: out, stderr: err || 'spawn error' }),
+      );
     } catch (e) {
-      resolve({ code: null, stdout: '', stderr: 'spawn exception: ' + (e as Error).message });
+      resolve({
+        code: null,
+        stdout: '',
+        stderr: 'spawn exception: ' + (e as Error).message,
+      });
     }
   });
 }

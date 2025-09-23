@@ -4,7 +4,13 @@
  */
 
 import { EventEmitter } from 'events';
-import { JSONRPCRequest, JSONRPCResponse, JSONRPCNotification, JSONRPCError, ACP_ERROR_CODES } from '../types/acp-messages.js';
+import {
+  JSONRPCRequest,
+  JSONRPCResponse,
+  JSONRPCNotification,
+  JSONRPCError,
+  ACP_ERROR_CODES,
+} from '../types/acp-messages.js';
 
 export interface JSONRPCHandler {
   method: string;
@@ -113,8 +119,15 @@ export class StdioJSONRPCServer extends EventEmitter {
       // Validate JSON-RPC format
       if (!this.isValidJSONRPC(message)) {
         // Try to preserve the id from the message if available
-        const messageId = message && typeof message === 'object' && message.id !== undefined ? message.id : null;
-        const error = this.createErrorResponse(messageId, ACP_ERROR_CODES.INVALID_REQUEST, 'Invalid Request');
+        const messageId =
+          message && typeof message === 'object' && message.id !== undefined
+            ? message.id
+            : null;
+        const error = this.createErrorResponse(
+          messageId,
+          ACP_ERROR_CODES.INVALID_REQUEST,
+          'Invalid Request',
+        );
         this.sendResponse(error);
         return;
       }
@@ -122,7 +135,7 @@ export class StdioJSONRPCServer extends EventEmitter {
       const context: RequestContext = {
         requestId: message.id || null,
         timestamp: Date.now(),
-        metadata: { method: message.method }
+        metadata: { method: message.method },
       };
 
       // Handle notifications (no response expected)
@@ -134,9 +147,12 @@ export class StdioJSONRPCServer extends EventEmitter {
       // Handle requests (response expected)
       const request = message as JSONRPCRequest;
       await this.handleRequest(request, context);
-
     } catch (parseError) {
-      const error = this.createErrorResponse(null, ACP_ERROR_CODES.PARSE_ERROR, 'Invalid JSON format');
+      const error = this.createErrorResponse(
+        null,
+        ACP_ERROR_CODES.PARSE_ERROR,
+        'Invalid JSON format',
+      );
       this.sendResponse(error);
     }
   }
@@ -144,14 +160,21 @@ export class StdioJSONRPCServer extends EventEmitter {
   /**
    * Handle JSON-RPC request
    */
-  private async handleRequest(request: JSONRPCRequest, context: RequestContext): Promise<void> {
+  private async handleRequest(
+    request: JSONRPCRequest,
+    context: RequestContext,
+  ): Promise<void> {
     const { method, params, id } = request;
 
     try {
       const handler = this.handlers.get(method);
 
       if (!handler) {
-        const error = this.createErrorResponse(id, ACP_ERROR_CODES.METHOD_NOT_FOUND, `method not found: ${method}`);
+        const error = this.createErrorResponse(
+          id,
+          ACP_ERROR_CODES.METHOD_NOT_FOUND,
+          `method not found: ${method}`,
+        );
         this.sendResponse(error);
         return;
       }
@@ -163,12 +186,11 @@ export class StdioJSONRPCServer extends EventEmitter {
       const response: JSONRPCResponse = {
         jsonrpc: '2.0',
         id,
-        result
+        result,
       };
 
       this.sendResponse(response);
       this.emit('request:completed', { method, params, id, result, context });
-
     } catch (handlerError) {
       // Extract error details from thrown Error object
       let errorCode = ACP_ERROR_CODES.INTERNAL_ERROR;
@@ -190,16 +212,30 @@ export class StdioJSONRPCServer extends EventEmitter {
         errorMessage = String(handlerError);
       }
 
-      const error = this.createErrorResponse(id, errorCode, errorMessage, errorData);
+      const error = this.createErrorResponse(
+        id,
+        errorCode,
+        errorMessage,
+        errorData,
+      );
       this.sendResponse(error);
-      this.emit('request:error', { method, params, id, error: handlerError, context });
+      this.emit('request:error', {
+        method,
+        params,
+        id,
+        error: handlerError,
+        context,
+      });
     }
   }
 
   /**
    * Handle JSON-RPC notification
    */
-  private async handleNotification(notification: JSONRPCNotification, context: RequestContext): Promise<void> {
+  private async handleNotification(
+    notification: JSONRPCNotification,
+    context: RequestContext,
+  ): Promise<void> {
     const { method, params } = notification;
 
     try {
@@ -212,10 +248,14 @@ export class StdioJSONRPCServer extends EventEmitter {
         // Notifications for unknown methods are silently ignored per JSON-RPC spec
         this.emit('notification:ignored', { method, params, context });
       }
-
     } catch (handlerError) {
       // Notifications don't return errors, but we can emit for logging
-      this.emit('notification:error', { method, params, error: handlerError, context });
+      this.emit('notification:error', {
+        method,
+        params,
+        error: handlerError,
+        context,
+      });
     }
   }
 
@@ -235,7 +275,7 @@ export class StdioJSONRPCServer extends EventEmitter {
     const notification: JSONRPCNotification = {
       jsonrpc: '2.0',
       method,
-      params
+      params,
     };
     this.sendResponse(notification);
   }
@@ -250,9 +290,9 @@ export class StdioJSONRPCServer extends EventEmitter {
       message.jsonrpc === '2.0' &&
       typeof message.method === 'string' &&
       (message.id === undefined ||
-       typeof message.id === 'string' ||
-       typeof message.id === 'number' ||
-       message.id === null)
+        typeof message.id === 'string' ||
+        typeof message.id === 'number' ||
+        message.id === null)
     );
   }
 
@@ -266,17 +306,22 @@ export class StdioJSONRPCServer extends EventEmitter {
   /**
    * Create standardized error response
    */
-  private createErrorResponse(id: string | number | null, code: number, message: string, data?: any): JSONRPCResponse {
+  private createErrorResponse(
+    id: string | number | null,
+    code: number,
+    message: string,
+    data?: any,
+  ): JSONRPCResponse {
     const error: JSONRPCError = {
       code,
       message,
-      ...(data && { data })
+      ...(data && { data }),
     };
 
     return {
       jsonrpc: '2.0',
       id,
-      error
+      error,
     };
   }
 
@@ -287,7 +332,7 @@ export class StdioJSONRPCServer extends EventEmitter {
     return {
       isRunning: this.isRunning,
       handlerCount: this.handlers.size,
-      methods: Array.from(this.handlers.keys())
+      methods: Array.from(this.handlers.keys()),
     };
   }
 

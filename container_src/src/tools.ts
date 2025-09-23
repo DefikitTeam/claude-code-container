@@ -18,22 +18,28 @@ export interface ToolUpdate {
 /**
  * Extract tool information from tool use
  */
-export function toolInfoFromToolUse(toolUse: any, fileContentCache: Record<string, string>): ToolInfo {
+export function toolInfoFromToolUse(
+  toolUse: any,
+  fileContentCache: Record<string, string>,
+): ToolInfo {
   return {
     name: toolUse.name || 'unknown',
     description: `Tool: ${toolUse.name}`,
-    input: toolUse.input
+    input: toolUse.input,
   };
 }
 
 /**
  * Generate tool update from tool result
  */
-export function toolUpdateFromToolResult(toolResult: any, toolUse: any): ToolUpdate {
+export function toolUpdateFromToolResult(
+  toolResult: any,
+  toolUse: any,
+): ToolUpdate {
   return {
     status: toolResult.is_error ? 'failed' : 'completed',
     output: toolResult.content || '',
-    error: toolResult.is_error ? toolResult.content : undefined
+    error: toolResult.is_error ? toolResult.content : undefined,
   };
 }
 
@@ -48,6 +54,6 @@ export function planEntries(input: any): any[] {
   return input.todos.map((todo: any, index: number) => ({
     id: index,
     text: todo.text || todo.description || 'Todo item',
-    completed: todo.completed || false
+    completed: todo.completed || false,
   }));
 }

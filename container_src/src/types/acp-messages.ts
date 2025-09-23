@@ -35,8 +35,8 @@ export interface JSONRPCError {
 
 export interface ContentBlock {
   type: 'text' | 'image' | 'diff' | 'file' | 'thought' | 'error';
-  content?: string;  // For non-text types
-  text?: string;     // For text type (ACP standard)
+  content?: string; // For non-text types
+  text?: string; // For text type (ACP standard)
   metadata?: {
     filename?: string;
     language?: string;
@@ -230,7 +230,8 @@ export const ACP_ERROR_CODES = {
   OPERATION_CANCELLED: -32003,
 } as const;
 
-export type ACPErrorCode = typeof ACP_ERROR_CODES[keyof typeof ACP_ERROR_CODES];
+export type ACPErrorCode =
+  (typeof ACP_ERROR_CODES)[keyof typeof ACP_ERROR_CODES];
 
 // ===== Union Types for Type Guards =====
 
