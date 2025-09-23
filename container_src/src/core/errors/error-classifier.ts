@@ -1,16 +1,6 @@
-/**
- * Phase 1 Refactor: Error Classifier Placeholder
- * --------------------------------------------------
- * This module will centralize normalization of raw errors (stderr patterns,
- * thrown Error objects, child_process exit codes) into a stable structured
- * shape used by higher layers (PromptProcessor & handlers).
- *
- * DO NOT implement real logic yet — this is a scaffolding file with TODOs.
- * The implementation will be added once we begin migrating logic from
- * the monolithic `acp-handlers.ts`.
- */
 
-// TODO(acp-refactor/phase-1): Refine / expand error codes as real patterns emerge during extraction.
+
+
 export enum ClassifiedErrorCode {
   AuthError = 'auth_error',
   CliMissing = 'cli_missing',
@@ -21,7 +11,7 @@ export enum ClassifiedErrorCode {
   Unknown = 'unknown',
 }
 
-// TODO(acp-refactor/phase-1): Introduce discriminated union if additional metadata per code differs.
+
 export interface ClassifiedError {
   code: ClassifiedErrorCode;
   message: string;
@@ -32,8 +22,6 @@ export interface ClassifiedError {
   meta?: Record<string, unknown>;
 }
 
-// Pattern definition placeholder for stderr / message regex catalog.
-// TODO(acp-refactor/phase-1): Populate with ordered list; first match wins.
 export interface ErrorPattern {
   regex: RegExp;
   code: ClassifiedErrorCode;
@@ -41,7 +29,7 @@ export interface ErrorPattern {
   deriveMessage?: (match: RegExpMatchArray) => string;
 }
 
-// TODO(acp-refactor/phase-1): Build pattern table from existing ad-hoc checks in acp-handlers.ts
+
 const PATTERNS: ErrorPattern[] = [
   // Example (to replace with real patterns on implementation phase):
   // { regex: /ENOENT:.*claude-code/ i, code: ClassifiedErrorCode.CliMissing, isRetryable: false }
@@ -63,16 +51,6 @@ export class ErrorClassifier {
     this.includeOriginal = opts.includeOriginal !== false;
   }
 
-  /**
-   * Classify a thrown error or stderr blob into a normalized structure.
-   *
-   * TODO(acp-refactor/phase-1): Implementation steps (planned):
-   *  1. Extract raw message (string) from any accepted input shape.
-   *  2. Iterate ordered pattern list – first regex match produces classification.
-   *  3. If none match, fall back to heuristic checks (exit codes, cancellation markers).
-   *  4. Default to Unknown with non-retryable flag unless evidence suggests retry.
-   *  5. Return ClassifiedError object with optional original reference.
-   */
   classify(err: unknown): ClassifiedError {
     // Attempt to mimic existing classifyClaudeError behavior from acp-handlers.ts
     try {
@@ -163,8 +141,6 @@ export class ErrorClassifier {
   }
 }
 
-// Convenience singleton (optional; can be replaced with DI-managed instance later).
-// TODO(acp-refactor/phase-1): Revisit once DI wiring finalized in PromptProcessor.
 export const defaultErrorClassifier = new ErrorClassifier();
 
 export default ErrorClassifier;

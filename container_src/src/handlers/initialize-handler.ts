@@ -1,16 +1,43 @@
-/**
- * Refactor Placeholder (Phase 7: initialize handler)
- * --------------------------------------------------
- * Will handle ACP method: initialize (session/environment bootstrap).
- * Depends on future service layer (PromptProcessor not required here yet).
- */
+import { acpState } from './acp-state';
+import type { InitializeRequest, InitializeResponse } from '../types/acp-messages.js';
 
-// TODO(acp-refactor/phase-7): Define request/response types (import from acp-messages when narrowed).
-export async function initializeHandler(_params: any): Promise<any> {
-  // eslint-disable-line @typescript-eslint/no-explicit-any
-  throw new Error(
-    'initializeHandler not implemented (refactor phase 7 placeholder)',
-  );
+// Lightweight validation mirroring monolith semantics
+export async function initializeHandler(
+  params: InitializeRequest['params'],
+): Promise<InitializeResponse['result']> {
+  if (!params || typeof params.protocolVersion !== 'string') {
+    throw Object.assign(new Error('Invalid params: protocolVersion required'), {
+      code: -32602,
+    });
+  }
+
+  const { protocolVersion, clientCapabilities, clientInfo } = params;
+  const supportedVersion = '0.3.1';
+  if (!protocolVersion.startsWith('0.3.')) {
+    throw Object.assign(
+      new Error(
+        `Incompatible protocol version: ${protocolVersion} (expected ${supportedVersion})`,
+      ),
+      { code: -32602 },
+    );
+  }
+
+  if (clientInfo) acpState.setClientInfo(clientInfo);
+  acpState.setInitialized(true);
+  acpState.setInitializationTime(Date.now());
+
+  const response: InitializeResponse['result'] = {
+    protocolVersion: supportedVersion,
+    agentCapabilities: acpState.getAgentCapabilities(),
+    agentInfo: acpState.getAgentInfo(),
+  };
+
+  // (Optional) annotate with clientCapabilities echo in development
+  if (process.env.NODE_ENV === 'development') {
+    (response as any).clientCapabilities = clientCapabilities; // eslint-disable-line @typescript-eslint/no-explicit-any
+    (response as any).clientInfo = acpState.getClientInfo();
+  }
+  return response;
 }
 
 export default initializeHandler;

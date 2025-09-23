@@ -6,16 +6,26 @@
  * and hide filesystem layout. Will also become the place to add JSON schema validation in a later step.
  */
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { ACPSession } from '../../types/acp-session.js'; // path relative to this file
+
+
 // TODO(acp-refactor/phase-2): Define concrete session data shapes (import from existing types once extracted).
 export interface ISessionStore {
-  // Load a session by id; returns undefined if not found (no exception for missing).
-  load(sessionId: string): Promise<any | undefined>; // TODO: replace any with Session type
-  // Persist (create or update) a session.
-  save(sessionId: string, data: any): Promise<void>; // TODO: replace any with Session type
-  // List available session ids (may apply filtering later).
+  load(sessionId: string): Promise<ACPSession | undefined>;
+  save(session: ACPSession): Promise<void>; // id derived from session.sessionId
+  delete(sessionId: string): Promise<void>;
   list(): Promise<string[]>;
-  // Quick existence check (avoids full load when only checking presence).
   exists(sessionId: string): Promise<boolean>;
+}
+
+function getSessionStorageDir(): string {
+  return (
+    process.env.ACP_SESSION_STORAGE_DIR ||
+    path.join(process.cwd(), '.acp-sessions')
+  );
 }
 
 /**
@@ -23,29 +33,72 @@ export interface ISessionStore {
  */
 export class SessionStore implements ISessionStore {
   // TODO(acp-refactor/phase-2): Accept constructor options (base path, fs adapter, logger)
-  constructor(_opts?: { basePath?: string }) {}
+  constructor(private opts?: { basePath?: string }) {}
 
-  async load(_sessionId: string): Promise<any | undefined> {
-    // eslint-disable-line @typescript-eslint/no-explicit-any
-    throw new Error(
-      'SessionStore.load not implemented (refactor phase 2 placeholder)',
-    );
+  private sessionFilePath(sessionId: string): string {
+    const base = this.opts?.basePath ?? getSessionStorageDir();
+    return path.join(base, `${sessionId}.json`);
   }
-  async save(_sessionId: string, _data: any): Promise<void> {
-    // eslint-disable-line @typescript-eslint/no-explicit-any
-    throw new Error(
-      'SessionStore.save not implemented (refactor phase 2 placeholder)',
-    );
+
+  async load(sessionId: string): Promise<ACPSession | undefined> {
+    const file = this.sessionFilePath(sessionId);
+    try {
+      const data = await fs.readFile(file, { encoding: 'utf8' });
+      const session: ACPSession = JSON.parse(data);
+      return session;
+    } catch (e: any) {
+      if (e.code === 'ENOENT') return undefined;
+      // propagate other IO errors
+      throw e;
+    }
   }
+  async save(session: ACPSession): Promise<void> {
+    const sessionId = session.sessionId;
+    const file = this.sessionFilePath(sessionId);
+    const dir = path.dirname(file);
+    try {
+      await fs.mkdir(dir, { recursive: true });
+      const sessionFile = path.join(dir, `${sessionId}.json`);
+      const sessionData = JSON.stringify(session, null, 2);
+
+      await fs.writeFile(sessionFile, sessionData, 'utf-8');
+    } catch (e: any) {
+      // propagate IO errors
+      throw e;
+    }
+  }
+
   async list(): Promise<string[]> {
-    throw new Error(
-      'SessionStore.list not implemented (refactor phase 2 placeholder)',
-    );
+    const dir = this.opts?.basePath ?? getSessionStorageDir();
+    try {
+      const entries = await fs.readdir(dir);
+      return entries
+        .filter((n) => n.endsWith('.json'))
+        .map((n) => n.replace(/\.json$/, ''));
+    } catch (e: any) {
+      if (e.code === 'ENOENT') return [];
+      throw e;
+    }
   }
-  async exists(_sessionId: string): Promise<boolean> {
-    throw new Error(
-      'SessionStore.exists not implemented (refactor phase 2 placeholder)',
-    );
+  async exists(sessionId: string): Promise<boolean> {
+    const file = this.sessionFilePath(sessionId);
+    try {
+      await fs.access(file);
+      return true;
+    } catch (e: any) {
+      if (e.code === 'ENOENT') return false;
+      throw e;
+    }
+  }
+  
+  async delete(sessionId: string): Promise<void> {
+    const file = this.sessionFilePath(sessionId);
+    try {
+      await fs.unlink(file);
+    } catch (e: any) {
+      if (e.code === 'ENOENT') return;
+      throw e;
+    }
   }
 }
 

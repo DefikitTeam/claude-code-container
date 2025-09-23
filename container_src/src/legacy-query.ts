@@ -46,11 +46,11 @@ function extractMessageText(message: SDKMessage): string {
   // Attempt multiple fields based on SDK variability
   // @ts-ignore
   if (typeof message.text === 'string') return message.text;
-  // @ts-ignore
-  if (typeof message.content === 'string') return message.content;
-  // @ts-ignore
-  if (Array.isArray(message.content))
-    return message.content
+  // @ts-ignore - SDK message shape varies
+  if (typeof (message as any).content === 'string') return (message as any).content;
+  // @ts-ignore - SDK message shape varies
+  if (Array.isArray((message as any).content))
+    return (message as any).content
       .map((c: any) => c.text || JSON.stringify(c))
       .join('\n');
   return JSON.stringify(message);

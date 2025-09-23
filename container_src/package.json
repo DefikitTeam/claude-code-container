@@ -19,7 +19,8 @@
     "dev": "npm run build && npm run start",
     "acp": "node dist/index.js",
     "http-bridge": "node dist/index.js --http-bridge",
-    "test": "vitest"
+  "test": "vitest",
+  "check:lines": "node scripts/check-line-limits.mjs"
   },
   "keywords": [
     "claude",
