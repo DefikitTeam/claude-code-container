@@ -1,0 +1,21 @@
+{
+  "name": "lumilink-claude-agent-communication-tests",
+  "version": "1.0.0",
+  "description": "Test scripts for LumiLink-BE and Claude Code Container agent communication via ACP",
+  "type": "module",
+  "scripts": {
+    "test:setup": "./test-agent-communication.sh",
+    "test:container-direct": "node test/agent-communication/claude-code/container-tester.mjs",
+    "test:lumilink-mock": "node test/agent-communication/lumilink-be/mock-agent.mjs",
+    "test:full-suite": "node test/agent-communication/test-suite.mjs",
+    "test:all": "npm run test:setup && npm run test:full-suite",
+    "logs:view": "tail -f test/agent-communication/logs/*.log",
+    "logs:clear": "rm -rf test/agent-communication/logs/*"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

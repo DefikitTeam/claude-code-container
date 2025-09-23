@@ -1,5 +1,13 @@
 import * as http from 'http';
 import { query, type SDKMessage } from '@anthropic-ai/claude-code';
+import { 
+  handleInitialize, 
+  handleSessionNew, 
+  handleSessionPrompt, 
+  handleSessionLoad, 
+  handleCancel 
+} from './handlers/acp-handlers.js';
+import { RequestContext } from './services/stdio-jsonrpc.js';
 
 const PORT = parseInt(process.env.PORT || '8080');
 
@@ -37,12 +45,22 @@ function logWithContext(context: string, message: string, data?: any): void {
 async function healthHandler(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   logWithContext('HEALTH', 'Health check requested');
 
+  // Check Claude CLI availability
+  let claudeCliAvailable = false;
+  try {
+    const { execSync } = await import('node:child_process');
+    execSync('claude --version', { timeout: 5000, stdio: 'pipe' });
+    claudeCliAvailable = true;
+  } catch (error) {
+    console.warn('[HEALTH] Claude CLI not available:', (error as Error).message);
+  }
+
   const response: HealthStatus = {
-    status: 'healthy',
-    message: 'Claude Code Container HTTP Server',
+    status: claudeCliAvailable ? 'healthy' : 'degraded',
+    message: claudeCliAvailable ? 'Claude Code Container HTTP Server' : 'Claude Code Container HTTP Server (Claude CLI not authenticated)',
     timestamp: new Date().toISOString(),
-    claudeCodeAvailable: !!process.env.ANTHROPIC_API_KEY,
-    apiKeyAvailable: !!process.env.ANTHROPIC_API_KEY
+    claudeCodeAvailable: claudeCliAvailable,
+    apiKeyAvailable: false // API keys are passed per-request, not in environment
   };
 
   logWithContext('HEALTH', 'Health check response', {
@@ -95,49 +113,94 @@ async function acpHandler(req: http.IncomingMessage, res: http.ServerResponse): 
       id: jsonRpcRequest.id 
     });
 
-    // Handle ACP methods
+    // Handle ACP methods using real implementations
     let result;
-    switch (jsonRpcRequest.method) {
-      case 'initialize':
-        result = {
-          agentId: "claude-code-container",
-          version: "1.0.0",
-          protocolVersion: "0.3.1",
-          capabilities: {
-            sessionManagement: true,
-            fileOperations: true,
-            codeGeneration: true,
-            taskExecution: true
-          }
-        };
-        break;
+    
+    // Create request context for handlers
+    const requestContext: RequestContext = {
+      requestId: jsonRpcRequest.id,
+      timestamp: Date.now(),
+      metadata: {
+        userId: jsonRpcRequest.params?.userId || 'http-server',
+        sessionId: jsonRpcRequest.params?.sessionId,
+        anthropicApiKey: jsonRpcRequest.params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY, // Use API key from request or fallback to env
+        workspaceUri: jsonRpcRequest.params?.configuration?.workspaceUri,
+        repository: jsonRpcRequest.params?.context?.repository,
+        operation: jsonRpcRequest.params?.context?.operation
+      }
+    };
 
-      case 'session/new':
-        const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        result = {
-          sessionId: sessionId,
-          status: "created"
-        };
-        logWithContext('ACP', 'Created new session', { sessionId });
-        break;
+    try {
+      switch (jsonRpcRequest.method) {
+        case 'initialize':
+          result = await handleInitialize(
+            jsonRpcRequest.params || {},
+            requestContext
+          );
+          break;
 
-      case 'session/prompt':
-        // This would integrate with Claude Code SDK
-        result = {
-          response: "ACP prompt processing not fully implemented yet",
-          stopReason: "success"
-        };
-        break;
+        case 'session/new':
+          result = await handleSessionNew(
+            jsonRpcRequest.params || {},
+            requestContext
+          );
+          break;
 
-      default:
-        logWithContext('ACP', 'Unknown ACP method', { method: jsonRpcRequest.method });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          jsonrpc: "2.0",
-          error: { code: -32601, message: "Method not found" },
-          id: jsonRpcRequest.id
-        }));
-        return;
+        case 'session/prompt':
+          // Create notification sender for progress updates
+          const notificationSender = (method: string, params: any) => {
+            logWithContext('ACP', `Notification: ${method}`, params);
+            // In a real implementation, this would send WebSocket updates
+          };
+          
+          result = await handleSessionPrompt(
+            jsonRpcRequest.params || {},
+            requestContext,
+            notificationSender
+          );
+          break;
+
+        case 'session/load':
+          result = await handleSessionLoad(
+            jsonRpcRequest.params || {},
+            requestContext
+          );
+          break;
+
+        case 'cancel':
+          result = await handleCancel(
+            jsonRpcRequest.params || {},
+            requestContext
+          );
+          break;
+
+        default:
+          logWithContext('ACP', 'Unknown ACP method', { method: jsonRpcRequest.method });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32601, message: "Method not found" },
+            id: jsonRpcRequest.id
+          }));
+          return;
+      }
+    } catch (handlerError) {
+      logWithContext('ACP', 'Handler error', { 
+        method: jsonRpcRequest.method,
+        error: handlerError instanceof Error ? handlerError.message : String(handlerError)
+      });
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jsonrpc: "2.0",
+        error: { 
+          code: -32603, 
+          message: "Internal error",
+          data: handlerError instanceof Error ? handlerError.message : String(handlerError)
+        },
+        id: jsonRpcRequest.id
+      }));
+      return;
     }
 
     // Send successful response

@@ -1,0 +1,219 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Protocol Migration Types Schema",
+  "description": "Schema for protocol migration operations and types",
+  "definitions": {
+    "MigrationStrategy": {
+      "type": "string",
+      "enum": ["immediate", "graceful", "scheduled", "manual"],
+      "description": "Strategy used for protocol migration"
+    },
+    "ProtocolType": {
+      "type": "string",
+      "enum": ["http", "acp"],
+      "description": "Supported protocol types"
+    },
+    "MigrationState": {
+      "type": "string",
+      "enum": ["pending", "in-progress", "completed", "failed", "rolled-back"],
+      "description": "Current state of a migration"
+    },
+    "MigrationReason": {
+      "type": "string",
+      "enum": ["user-requested", "automatic", "performance", "error-recovery", "system-initiated"],
+      "description": "Reason for initiating the migration"
+    }
+  },
+  "type": "object",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["type", "containerId"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "migration.request"
+        },
+        "containerId": {
+          "type": "string",
+          "description": "ID of the container to migrate"
+        },
+        "fromProtocol": {
+          "$ref": "#/definitions/ProtocolType"
+        },
+        "toProtocol": {
+          "$ref": "#/definitions/ProtocolType"
+        },
+        "strategy": {
+          "$ref": "#/definitions/MigrationStrategy"
+        },
+        "reason": {
+          "$ref": "#/definitions/MigrationReason"
+        },
+        "scheduledTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When to perform the migration (for scheduled strategy)"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Migration timeout in milliseconds"
+        },
+        "fallbackEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to enable fallback if migration fails"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional metadata for the migration"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "migrationId", "state"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "migration.status"
+        },
+        "migrationId": {
+          "type": "string",
+          "description": "ID of the migration"
+        },
+        "containerId": {
+          "type": "string",
+          "description": "ID of the container being migrated"
+        },
+        "state": {
+          "$ref": "#/definitions/MigrationState"
+        },
+        "fromProtocol": {
+          "$ref": "#/definitions/ProtocolType"
+        },
+        "toProtocol": {
+          "$ref": "#/definitions/ProtocolType"
+        },
+        "progress": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Progress percentage"
+        },
+        "startTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completionTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object"
+            }
+          }
+        },
+        "attemptCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rollbackInfo": {
+          "type": "object",
+          "properties": {
+            "rolled-back": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "migrationId", "action"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "migration.control"
+        },
+        "migrationId": {
+          "type": "string",
+          "description": "ID of the migration"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["pause", "resume", "cancel", "rollback", "force-complete"],
+          "description": "Control action to perform on the migration"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the control action"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "migration.config"
+        },
+        "defaultStrategy": {
+          "$ref": "#/definitions/MigrationStrategy"
+        },
+        "defaultTimeout": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "autoMigrationEnabled": {
+          "type": "boolean"
+        },
+        "maxMigrationAttempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "migrationCooldown": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cooldown period between migration attempts in milliseconds"
+        },
+        "fallbackThreshold": {
+          "type": "object",
+          "properties": {
+            "errorCount": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "errorRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "latencyIncrease": {
+              "type": "number",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  ]
+}

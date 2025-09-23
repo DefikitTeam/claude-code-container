@@ -10,6 +10,22 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
   // Generic ACP method router - routes all ACP methods to container
   const acpMethodRouter = async (c: any, method: string, params: any) => {
     try {
+      // Optional bypass when containers disabled locally
+      if (c.env.NO_CONTAINERS === 'true') {
+        console.log(`[ACP-BRIDGE] NO_CONTAINERS flag set - returning mock response for ${method}`);
+        return c.json({
+          jsonrpc: '2.0',
+          result: method === 'session/prompt'
+            ? { stopReason: 'mock', usage: { inputTokens: 0, outputTokens: 0 }, summary: 'Mocked (containers disabled)' }
+            : method === 'session/new'
+              ? { sessionId: `mock-session-${Date.now()}`, modes: { currentModeId: 'default', availableModes: [] } }
+              : method === 'initialize'
+                ? { protocolVersion: 1, agentCapabilities: {}, authMethods: [] }
+                : {},
+          id: Date.now()
+        });
+      }
+
       console.log(`[ACP-BRIDGE] Routing method: ${method}`);
 
       // Get container instance for ACP processing (use same ID as working health check)
@@ -17,10 +33,14 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
       const container = c.env.MY_CONTAINER.get(containerId);
 
       // Create JSON-RPC request for container ACP server
+      // Include API key in params so container can access it
       const jsonRpcRequest = {
         jsonrpc: "2.0",
         method: method,
-        params: params,
+        params: {
+          ...params,
+          anthropicApiKey: c.env.ANTHROPIC_API_KEY // Pass API key in request params
+        },
         id: Date.now()
       };
 

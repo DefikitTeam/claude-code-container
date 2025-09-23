@@ -1,0 +1,231 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Container Events Schema",
+  "description": "Schema for container events transmitted via ACP protocol",
+  "type": "object",
+  "required": ["eventId", "eventType", "containerId", "timestamp"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "description": "Unique identifier for the event",
+      "format": "uuid"
+    },
+    "eventType": {
+      "type": "string",
+      "description": "Type of container event",
+      "enum": [
+        "container.created",
+        "container.started",
+        "container.stopped",
+        "container.deleted",
+        "container.error",
+        "container.warning",
+        "resource.limit.reached",
+        "operation.completed",
+        "operation.failed",
+        "file.changed",
+        "git.updated",
+        "health.check",
+        "protocol.change",
+        "protocol.error"
+      ]
+    },
+    "containerId": {
+      "type": "string",
+      "description": "Identifier of the container this event relates to"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO timestamp when the event occurred",
+      "format": "date-time"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "default": "medium",
+      "description": "Event priority level"
+    },
+    "data": {
+      "type": "object",
+      "description": "Event-specific data"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "eventType": { "enum": ["container.created", "container.started"] } }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["metadata", "configuration"],
+            "properties": {
+              "metadata": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "userId": { "type": "string" },
+                  "projectId": { "type": "string" },
+                  "region": { "type": "string" }
+                }
+              },
+              "configuration": {
+                "type": "object",
+                "properties": {
+                  "resources": {
+                    "type": "object",
+                    "properties": {
+                      "cpu": { "type": "number" },
+                      "memory": { "type": "string" },
+                      "storage": { "type": "string" }
+                    }
+                  },
+                  "environment": {
+                    "type": "object"
+                  },
+                  "protocols": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              },
+              "startupTime": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "eventType": { "const": "container.stopped" } }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["reason"],
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["user-requested", "timeout", "error", "system-initiated", "deployment", "scale-down"]
+              },
+              "exitCode": { "type": "number" },
+              "uptime": { "type": "number" },
+              "graceful": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "eventType": { "const": "container.error" } }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["error", "errorCode"],
+            "properties": {
+              "error": { "type": "string" },
+              "errorCode": { "type": "string" },
+              "stackTrace": { "type": "string" },
+              "recoverable": { "type": "boolean" },
+              "autoRecoveryAttempted": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "eventType": { "const": "resource.limit.reached" } }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["resource", "limit", "current"],
+            "properties": {
+              "resource": {
+                "type": "string",
+                "enum": ["cpu", "memory", "storage", "connections", "bandwidth"]
+              },
+              "limit": { "type": "number" },
+              "current": { "type": "number" },
+              "unit": { "type": "string" },
+              "action": {
+                "type": "string",
+                "enum": ["warn", "throttle", "pause", "restart", "terminate"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "eventType": { "enum": ["operation.completed", "operation.failed"] } }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["operationId", "operationType"],
+            "properties": {
+              "operationId": { "type": "string" },
+              "operationType": { "type": "string" },
+              "duration": { "type": "number" },
+              "result": { "type": "object" },
+              "error": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "eventType": { "const": "protocol.change" } }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["fromProtocol", "toProtocol"],
+            "properties": {
+              "fromProtocol": { "type": "string" },
+              "toProtocol": { "type": "string" },
+              "reason": { "type": "string" },
+              "migrationId": { "type": "string" },
+              "fallbackEnabled": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "eventType": { "const": "protocol.error" } }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["protocol", "errorType"],
+            "properties": {
+              "protocol": { "type": "string" },
+              "errorType": {
+                "type": "string",
+                "enum": ["connection", "message", "handshake", "timeout"]
+              },
+              "message": { "type": "string" },
+              "attemptingFallback": { "type": "boolean" },
+              "reconnectAttempt": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
