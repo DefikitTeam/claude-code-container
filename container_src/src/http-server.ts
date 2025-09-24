@@ -27,10 +27,13 @@ interface ContainerResponse {
   logs?: string[];
 }
 
+// Container instance ID for debugging
+const CONTAINER_INSTANCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
 // Enhanced logging utility with context
 function logWithContext(context: string, message: string, data?: any): void {
   const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [${context}] ${message}`;
+  const logMessage = `[${timestamp}] [${context}] [${CONTAINER_INSTANCE_ID}] ${message}`;
 
   if (data) {
     console.error(logMessage, JSON.stringify(data, null, 2));

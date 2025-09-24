@@ -27,9 +27,8 @@ async function createWorkspaceInfo(workspaceUri?: string, sessionOptions?: ACPSe
 export async function sessionNewHandler(
 params: SessionNewRequest['params'] = {}, requestContext: RequestContext,
 ): Promise<SessionNewResponse['result']> {
-  if (!acpState.isInitialized()) {
-    throw Object.assign(new Error('Agent not initialized'), { code: -32000 });
-  }
+  console.error(`[SESSION-NEW] Checking initialization: ${acpState.isInitialized()}`);
+  acpState.ensureInitialized();
   const { workspaceUri, mode = 'development', sessionOptions } = params;
   if (mode && !['development', 'conversation'].includes(mode)) {
     throw Object.assign(new Error(`Invalid mode: ${mode}`), { code: -32602 });
@@ -48,6 +47,7 @@ params: SessionNewRequest['params'] = {}, requestContext: RequestContext,
     sessionOptions,
   };
   acpState.setSession(sessionId, session);
+  console.error(`[SESSION-NEW] Stored session ${sessionId}, total sessions: ${acpState.getSessionCount()}`);
   const workspaceInfo = await createWorkspaceInfo(workspaceUri, sessionOptions);
   return { sessionId, workspaceInfo };
 }

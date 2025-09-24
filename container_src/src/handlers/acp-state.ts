@@ -41,6 +41,15 @@ export class ACPState {
   getInitializationTime(): number | undefined { return this.initializationTime; }
   setInitializationTime(t: number): void { this.initializationTime = t; }
 
+  // Auto-initialize for container instances that weren't formally initialized
+  ensureInitialized(): void {
+    if (!this.initialized) {
+      console.error('[ACP-STATE] Auto-initializing agent in container instance');
+      this.initialized = true;
+      this.initializationTime = Date.now();
+    }
+  }
+
   // --- Agent Meta ---
   getAgentInfo() { return this.agentInfo; }
   getAgentCapabilities(): AgentCapabilities { return this.agentCapabilities; }

@@ -47,8 +47,11 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
 
       console.log(`[ACP-BRIDGE] Routing method: ${method}`);
 
-      // Get container instance for ACP processing (use same ID as working health check)
-      const containerId = c.env.MY_CONTAINER.idFromName('health-check');
+      // Route all ACP operations to a consistent container instance to maintain session state
+      // Using single container pool since session state is stored in memory
+      const containerName = 'acp-session';
+
+      const containerId = c.env.MY_CONTAINER.idFromName(containerName);
       const container = c.env.MY_CONTAINER.get(containerId);
 
       // Create JSON-RPC request for container ACP server
@@ -65,6 +68,8 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
 
       console.log(`[ACP-BRIDGE] Sending to container:`, {
         method,
+        containerName,
+        hasSessionId: !!(params?.sessionId),
         paramsKeys: Object.keys(params || {}),
         containerId: containerId.toString(),
       });
@@ -264,8 +269,8 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
   // Status and health endpoints
   app.get('/acp/status', async (c) => {
     try {
-      // Get status from container as well (use same ID as working health check)
-      const containerId = c.env.MY_CONTAINER.idFromName('health-check');
+      // Get status from container as well (use consistent ACP container name)
+      const containerId = c.env.MY_CONTAINER.idFromName('acp-session');
       const container = c.env.MY_CONTAINER.get(containerId);
 
       const containerResponse = await container.fetch(

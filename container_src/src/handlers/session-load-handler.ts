@@ -22,9 +22,7 @@ async function loadSessionFromPersistentStorage(sessionId: string): Promise<ACPS
 export async function sessionLoadHandler(
 params: SessionLoadRequest['params'], requestContext: RequestContext,
 ): Promise<SessionLoadResponse['result']> {
-  if (!acpState.isInitialized()) {
-    throw Object.assign(new Error('Agent not initialized'), { code: -32000 });
-  }
+  acpState.ensureInitialized();
   if (!params || !params.sessionId) {
     throw Object.assign(new Error('Invalid params: sessionId'), { code: -32602 });
   }

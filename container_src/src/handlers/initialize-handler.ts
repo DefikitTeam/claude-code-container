@@ -26,6 +26,7 @@ params: InitializeRequest['params'], requestContext: RequestContext,
   if (clientInfo) acpState.setClientInfo(clientInfo);
   acpState.setInitialized(true);
   acpState.setInitializationTime(Date.now());
+  console.error(`[INIT] Agent initialized: ${acpState.isInitialized()}`);
 
   const response: InitializeResponse['result'] = {
     protocolVersion: supportedVersion,

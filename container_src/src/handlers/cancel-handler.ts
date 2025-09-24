@@ -23,9 +23,7 @@ async function cancelInFlight(sessionId: string, operationId?: string): Promise<
 export async function cancelHandler(
 params: CancelRequest['params'], requestContext: RequestContext,
 ): Promise<CancelResponse['result']> {
-  if (!acpState.isInitialized()) {
-    throw Object.assign(new Error('Agent not initialized'), { code: -32000 });
-  }
+  acpState.ensureInitialized();
   if (!params || !params.sessionId) {
     throw Object.assign(new Error('Invalid params: sessionId'), { code: -32602 });
   }

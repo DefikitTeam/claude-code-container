@@ -883,11 +883,14 @@ app.get('/container/health', async (c) => {
 // Container ACP endpoint - direct access to container's ACP server
 app.post('/container/acp', async (c) => {
   try {
-    const containerId = c.env.MY_CONTAINER.idFromName('health-check');
-    const container = c.env.MY_CONTAINER.get(containerId);
-
-    // Get request body
+    // Get request body first
     const requestBody = await c.req.text();
+
+    // Use consistent container for all ACP operations
+    const containerName = 'acp-session';
+
+    const containerId = c.env.MY_CONTAINER.idFromName(containerName);
+    const container = c.env.MY_CONTAINER.get(containerId);
 
     // Forward JSON-RPC request to container ACP server
     const response = await container.fetch(
