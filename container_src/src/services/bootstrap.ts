@@ -1,26 +1,26 @@
 // Core / error classifier
-import { defaultErrorClassifier } from '../core/errors/error-classifier';
+import { defaultErrorClassifier } from '../core/errors/error-classifier.js';
 
 // Session store
-import { SessionStore } from './session/session-store';
-import type { ISessionStore } from './session/session-store';
+import { SessionStore } from './session/session-store.js';
+import type { ISessionStore } from './session/session-store.js';
 
 // Workspace
-import { WorkspaceService } from './workspace/workspace-service';
-import type { IWorkspaceService } from './workspace/workspace-service';
+import { WorkspaceService } from './workspace/workspace-service.js';
+import type { IWorkspaceService } from './workspace/workspace-service.js';
 
 // Claude client
-import { ClaudeClient } from './claude/claude-client';
-import type { IClaudeClient } from './claude/claude-client';
+import { ClaudeClient } from './claude/claude-client.js';
+import type { IClaudeClient } from './claude/claude-client.js';
 
 // Prompt processor
-import { PromptProcessor } from './prompt/prompt-processor';
+import { PromptProcessor } from './prompt/prompt-processor.js';
 
 // Git
-import { GitService } from './git/git-service';
+import { GitService } from './git/git-service.js';
 
 // Diagnostics
-import { DiagnosticsService } from '../core/diagnostics/diagnostics-service';
+import { DiagnosticsService } from '../core/diagnostics/diagnostics-service.js';
 
 // Utility path helpers (assume process.cwd() as root for container runtime)
 import path from 'path';

@@ -6,7 +6,7 @@
 // solely on executing a Claude Code query with a provided prompt within an existing workspace.
 //
 // Usage:
-//   import { runLegacyClaudeFlow } from './legacy-query';
+//   import { runLegacyClaudeFlow } from './legacy-query.js';
 //   const { messages, summary } = await runLegacyClaudeFlow({ prompt, workspacePath });
 //
 // Environment expectations:

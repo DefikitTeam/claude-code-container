@@ -1,6 +1,6 @@
-import { acpState } from './acp-state';
+import { acpState } from './acp-state.js';
 import type { InitializeRequest, InitializeResponse } from '../types/acp-messages.js';
-import { RequestContext } from '../services/stdio-jsonrpc';
+import { RequestContext } from '../services/stdio-jsonrpc.js';
 
 // Lightweight validation mirroring monolith semantics
 export async function initializeHandler(

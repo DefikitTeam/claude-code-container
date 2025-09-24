@@ -42,7 +42,6 @@ if (argv['http-bridge']) {
   // Standard ACP mode: stdin/stdout communication (compatible with Zed)
   const { runAcp } = await import('./acp-agent.js');
   runAcp();
+  // Keep process alive in ACP mode only
+  process.stdin.resume();
 }
-
-// Keep process alive
-process.stdin.resume();

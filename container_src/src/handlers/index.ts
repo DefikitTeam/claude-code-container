@@ -12,11 +12,11 @@
  *  3. Remove legacy logic from `acp-handlers.ts` once parity confirmed.
  */
 
-import { initializeHandler } from './initialize-handler';
-import { sessionNewHandler } from './session-new-handler';
-import { sessionPromptHandler } from './session-prompt-handler';
-import { sessionLoadHandler } from './session-load-handler';
-import { cancelHandler } from './cancel-handler';
+import { initializeHandler } from './initialize-handler.js';
+import { sessionNewHandler } from './session-new-handler.js';
+import { sessionPromptHandler } from './session-prompt-handler.js';
+import { sessionLoadHandler } from './session-load-handler.js';
+import { cancelHandler } from './cancel-handler.js';
 
 // TODO(acp-refactor/phase-7): Define strong typing for handler signatures.
 export const handlers = {

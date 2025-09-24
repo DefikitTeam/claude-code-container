@@ -12,15 +12,15 @@
  * This facade becomes the primary integration point for handler layer.
  */
 
-import type { ISessionStore } from '../session/session-store';
-import type { IWorkspaceService } from '../workspace/workspace-service';
-import type { IClaudeClient, ClaudeRunCallbacks } from '../claude/claude-client';
-import type { GitService } from '../git/git-service';
-import type { DiagnosticsService } from '../../core/diagnostics/diagnostics-service';
-import { buildPromptFromContent, estimateTokens } from '../../core/prompts/prompt-utils';
-import { defaultErrorClassifier } from '../../core/errors/error-classifier';
+import type { ISessionStore } from '../session/session-store.js';
+import type { IWorkspaceService } from '../workspace/workspace-service.js';
+import type { IClaudeClient, ClaudeRunCallbacks } from '../claude/claude-client.js';
+import type { GitService } from '../git/git-service.js';
+import type { DiagnosticsService } from '../../core/diagnostics/diagnostics-service.js';
+import { buildPromptFromContent, estimateTokens } from '../../core/prompts/prompt-utils.js';
+import { defaultErrorClassifier } from '../../core/errors/error-classifier.js';
 import type { ContentBlock, SessionPromptResponse } from '../../types/acp-messages';
-import type { ACPSession } from '../../types/acp-session';
+import type { ACPSession } from '../../types/acp-session.js';
 
 // TODO(acp-refactor/phase-6): Add Diagnostics + ErrorClassifier + PromptUtils dependencies.
 export interface PromptProcessorDeps {

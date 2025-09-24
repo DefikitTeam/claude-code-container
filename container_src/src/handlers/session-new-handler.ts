@@ -1,10 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
-import { acpState } from './acp-state';
+import { acpState } from './acp-state.js';
 import type { SessionNewRequest, SessionNewResponse } from '../types/acp-messages.js';
 import type { ACPSession, SessionMode } from '../types/acp-session.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { RequestContext } from '../services/stdio-jsonrpc';
+import { RequestContext } from '../services/stdio-jsonrpc.js';
 
 function generateSessionId(): string { return `session-${uuidv4()}`; }
 

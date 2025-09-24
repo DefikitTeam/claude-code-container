@@ -31,8 +31,6 @@ EXPOSE 8080
 
 # Set default environment for mode detection
 ENV ACP_MODE=http-server
-ENV PORT=8080
 
-# Start the container server with automatic mode detection
-# First run Claude authentication setup, then start the server
-CMD ["/bin/sh", "-c", "/app/setup-claude-auth.sh && node dist/index.js"]
+# Start the container server
+CMD ["node", "--max-old-space-size=256", "dist/index.js", "--http-server"]

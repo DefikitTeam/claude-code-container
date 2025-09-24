@@ -1,9 +1,9 @@
-import { acpState } from './acp-state';
+import { acpState } from './acp-state.js';
 import type { SessionLoadRequest, SessionLoadResponse } from '../types/acp-messages.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ACPSession } from '../types/acp-session.js';
-import { RequestContext } from '../services/stdio-jsonrpc';
+import { RequestContext } from '../services/stdio-jsonrpc.js';
 
 function getSessionStorageDir(): string {
   return process.env.ACP_SESSION_STORAGE_DIR || path.join(process.cwd(), '.acp-sessions');

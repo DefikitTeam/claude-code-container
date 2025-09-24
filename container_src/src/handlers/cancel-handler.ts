@@ -1,7 +1,7 @@
-import { acpState } from './acp-state';
+import { acpState } from './acp-state.js';
 import type { CancelRequest, CancelResponse } from '../types/acp-messages.js';
-import { claudeClient } from '../services/bootstrap';
-import { RequestContext } from '../services/stdio-jsonrpc';
+import { claudeClient } from '../services/bootstrap.js';
+import { RequestContext } from '../services/stdio-jsonrpc.js';
 
 // Fallback local cancel if ClaudeClient not yet wired as singleton
 async function cancelInFlight(sessionId: string, operationId?: string): Promise<boolean> {

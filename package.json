@@ -16,7 +16,6 @@
     "install:all": "npm install && cd container_src && npm install",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prettier": "prettier --write .",
     "postinstall": "echo '📦 Installing container dependencies...' && cd container_src && npm install || echo '⚠️  Container dependencies installation failed'"
   },
   "devDependencies": {

@@ -6,11 +6,11 @@
 // handler files; this shim will be removed in a future major version.
 // ---------------------------------------------------------------------------
 
-export * from './initialize-handler';
-export * from './session-new-handler';
-export * from './session-load-handler';
-export * from './session-prompt-handler';
-export * from './cancel-handler';
+export * from './initialize-handler.js';
+export * from './session-new-handler.js';
+export * from './session-load-handler.js';
+export * from './session-prompt-handler.js';
+export * from './cancel-handler.js';
 
 if (!(globalThis as any).__ACP_HANDLERS_SHIM_WARNED__) { // eslint-disable-line @typescript-eslint/no-explicit-any
   // eslint-disable-next-line no-console

@@ -51,7 +51,6 @@ describe('PromptProcessor', () => {
     processor = new PromptProcessor({
       sessionStore,
       workspaceService,
-      authService,
       claudeClient,
       gitService,
       diagnosticsService,

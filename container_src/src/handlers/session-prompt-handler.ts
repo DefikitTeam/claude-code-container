@@ -1,4 +1,4 @@
-import { acpState } from './acp-state';
+import { acpState } from './acp-state.js';
 import type { SessionPromptRequest, SessionPromptResponse, ContentBlock } from '../types/acp-messages.js';
 import { PromptProcessor } from '../services/prompt/prompt-processor.js';
 import { claudeClientSingleton } from '../services/claude/claude-client.js';
