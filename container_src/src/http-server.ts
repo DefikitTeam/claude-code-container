@@ -1,12 +1,10 @@
 import * as http from 'http';
 import { query, type SDKMessage } from '@anthropic-ai/claude-code';
-import {
-  handleInitialize,
-  handleSessionNew,
-  handleSessionPrompt,
-  handleSessionLoad,
-  handleCancel,
-} from './handlers/acp-handlers.js';
+import { initializeHandler as handleInitialize } from './handlers/initialize-handler.js';
+import { sessionNewHandler as handleSessionNew } from './handlers/session-new-handler.js';
+import { sessionPromptHandler as handleSessionPrompt } from './handlers/session-prompt-handler.js';
+import { sessionLoadHandler as handleSessionLoad } from './handlers/session-load-handler.js';
+import { cancelHandler as handleCancel } from './handlers/cancel-handler.js';
 import { RequestContext } from './services/stdio-jsonrpc.js';
 
 const PORT = parseInt(process.env.PORT || '8080');

@@ -4,6 +4,7 @@ import type { SessionNewRequest, SessionNewResponse } from '../types/acp-message
 import type { ACPSession, SessionMode } from '../types/acp-session.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { RequestContext } from '../services/stdio-jsonrpc';
 
 function generateSessionId(): string { return `session-${uuidv4()}`; }
 
@@ -24,7 +25,7 @@ async function createWorkspaceInfo(workspaceUri?: string, sessionOptions?: ACPSe
 }
 
 export async function sessionNewHandler(
-  params: SessionNewRequest['params'] = {},
+params: SessionNewRequest['params'] = {}, requestContext: RequestContext,
 ): Promise<SessionNewResponse['result']> {
   if (!acpState.isInitialized()) {
     throw Object.assign(new Error('Agent not initialized'), { code: -32000 });

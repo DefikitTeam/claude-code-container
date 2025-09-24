@@ -1,6 +1,7 @@
 import { acpState } from './acp-state';
 import type { CancelRequest, CancelResponse } from '../types/acp-messages.js';
 import { claudeClient } from '../services/bootstrap';
+import { RequestContext } from '../services/stdio-jsonrpc';
 
 // Fallback local cancel if ClaudeClient not yet wired as singleton
 async function cancelInFlight(sessionId: string, operationId?: string): Promise<boolean> {
@@ -20,7 +21,7 @@ async function cancelInFlight(sessionId: string, operationId?: string): Promise<
 }
 
 export async function cancelHandler(
-  params: CancelRequest['params'],
+params: CancelRequest['params'], requestContext: RequestContext,
 ): Promise<CancelResponse['result']> {
   if (!acpState.isInitialized()) {
     throw Object.assign(new Error('Agent not initialized'), { code: -32000 });

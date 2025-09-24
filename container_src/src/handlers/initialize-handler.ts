@@ -1,9 +1,10 @@
 import { acpState } from './acp-state';
 import type { InitializeRequest, InitializeResponse } from '../types/acp-messages.js';
+import { RequestContext } from '../services/stdio-jsonrpc';
 
 // Lightweight validation mirroring monolith semantics
 export async function initializeHandler(
-  params: InitializeRequest['params'],
+params: InitializeRequest['params'], requestContext: RequestContext,
 ): Promise<InitializeResponse['result']> {
   if (!params || typeof params.protocolVersion !== 'string') {
     throw Object.assign(new Error('Invalid params: protocolVersion required'), {

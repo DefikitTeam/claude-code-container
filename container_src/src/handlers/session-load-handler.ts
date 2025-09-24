@@ -3,6 +3,7 @@ import type { SessionLoadRequest, SessionLoadResponse } from '../types/acp-messa
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ACPSession } from '../types/acp-session.js';
+import { RequestContext } from '../services/stdio-jsonrpc';
 
 function getSessionStorageDir(): string {
   return process.env.ACP_SESSION_STORAGE_DIR || path.join(process.cwd(), '.acp-sessions');
@@ -19,7 +20,7 @@ async function loadSessionFromPersistentStorage(sessionId: string): Promise<ACPS
 }
 
 export async function sessionLoadHandler(
-  params: SessionLoadRequest['params'],
+params: SessionLoadRequest['params'], requestContext: RequestContext,
 ): Promise<SessionLoadResponse['result']> {
   if (!acpState.isInitialized()) {
     throw Object.assign(new Error('Agent not initialized'), { code: -32000 });
