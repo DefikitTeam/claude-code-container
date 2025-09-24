@@ -22,10 +22,6 @@ COPY container_src/tsconfig.json ./
 # Build TypeScript to JavaScript
 RUN npx tsc
 
-# Create a startup script to handle Claude authentication
-COPY container_src/scripts/setup-claude-auth.sh /app/setup-claude-auth.sh
-RUN chmod +x /app/setup-claude-auth.sh
-
 # Health check for container (only for HTTP mode)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD if [ "$ACP_MODE" = "stdio" ]; then exit 0; else curl -f http://localhost:8080/health || exit 1; fi

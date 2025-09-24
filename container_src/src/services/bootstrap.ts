@@ -1,16 +1,3 @@
-/**
- * services/bootstrap.ts
- * Centralized construction of service singletons for the refactored ACP runtime.
- *
- * This module wires together the modular services so handlers can import from one place
- * instead of performing ad-hoc instantiation. It also provides a narrow surface that tests
- * can mock by using dependency injection (override exports via jest/vitest module mocking).
- *
- * The bootstrap avoids any heavyweight side-effects (no network, no expensive FS) aside from
- * creating lightweight in-memory / lazy instances. Workspace/session persistence remains
- * delegated to respective services.
- */
-
 // Core / error classifier
 import { defaultErrorClassifier } from '../core/errors/error-classifier';
 
@@ -21,10 +8,6 @@ import type { ISessionStore } from './session/session-store';
 // Workspace
 import { WorkspaceService } from './workspace/workspace-service';
 import type { IWorkspaceService } from './workspace/workspace-service';
-
-// Auth
-import { AuthService } from './auth/auth-service';
-import type { IAuthService } from './auth/auth-service';
 
 // Claude client
 import { ClaudeClient } from './claude/claude-client';
@@ -61,14 +44,6 @@ export function workspaceService(): IWorkspaceService {
   return _workspaceService;
 }
 
-let _authService: IAuthService | undefined;
-export function authService(): IAuthService {
-  if (!_authService) {
-    _authService = new AuthService();
-  }
-  return _authService;
-}
-
 let _gitService: GitService | undefined;
 export function gitService(): GitService {
   if (!_gitService) {
@@ -99,7 +74,6 @@ export function promptProcessor(): PromptProcessor {
     _promptProcessor = new PromptProcessor({
       sessionStore: sessionStore(),
       workspaceService: workspaceService(),
-      authService: authService(),
       claudeClient: claudeClient(),
       gitService: gitService(),
       diagnosticsService: diagnosticsService(),
@@ -115,7 +89,6 @@ export const errorClassifier = defaultErrorClassifier;
 export const services = Object.freeze({
   sessionStore: sessionStore(),
   workspaceService: workspaceService(),
-  authService: authService(),
   claudeClient: claudeClient(),
   promptProcessor: promptProcessor(),
   gitService: gitService(),

@@ -14,7 +14,6 @@
 
 import type { ISessionStore } from '../session/session-store';
 import type { IWorkspaceService } from '../workspace/workspace-service';
-import type { IAuthService } from '../auth/auth-service';
 import type { IClaudeClient, ClaudeRunCallbacks } from '../claude/claude-client';
 import type { GitService } from '../git/git-service';
 import type { DiagnosticsService } from '../../core/diagnostics/diagnostics-service';
@@ -27,7 +26,6 @@ import type { ACPSession } from '../../types/acp-session';
 export interface PromptProcessorDeps {
   sessionStore: ISessionStore;
   workspaceService: IWorkspaceService;
-  authService: IAuthService;
   claudeClient: IClaudeClient;
   gitService?: GitService;
   diagnosticsService?: DiagnosticsService;
@@ -77,12 +75,6 @@ export class PromptProcessor {
       reuse: reuseWorkspace,
       workspaceUri: session.workspaceUri,
       sessionOptions: session.sessionOptions,
-    });
-
-    // 4. Ensure auth (per-request api key)
-    await this.deps.authService.ensureAuth({ apiKey, sessionId }).catch((e) => {
-      // Non-fatal; continue but record error
-      console.warn('[PromptProcessor] ensureAuth failed:', (e as Error).message);
     });
 
     // 4.5 Optional diagnostics pre-run

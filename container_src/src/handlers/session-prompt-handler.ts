@@ -2,18 +2,15 @@ import { acpState } from './acp-state';
 import type { SessionPromptRequest, SessionPromptResponse, ContentBlock } from '../types/acp-messages.js';
 import { PromptProcessor } from '../services/prompt/prompt-processor.js';
 import { claudeClientSingleton } from '../services/claude/claude-client.js';
-import { AuthService } from '../services/auth/auth-service.js';
 import { WorkspaceService } from '../services/workspace/workspace-service.js';
 import { SessionStore } from '../services/session/session-store.js';
 
 // Basic DI singletons (could be hoisted elsewhere):
 const sessionStore = new SessionStore();
 const workspaceService = new WorkspaceService();
-const authService = new AuthService();
 const promptProcessor = new PromptProcessor({
   sessionStore: sessionStore as any, // eslint-disable-line @typescript-eslint/no-explicit-any
   workspaceService,
-  authService,
   claudeClient: claudeClientSingleton,
 });
 

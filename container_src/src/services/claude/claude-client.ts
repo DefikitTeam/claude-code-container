@@ -55,53 +55,6 @@ export class ClaudeClient implements IClaudeClient {
     this.timeoutMs = _deps?.timeoutMs;
   }
 
-  async ensureClaudeAuthFiles(apiKey?: string): Promise<void> {
-    if (!apiKey) return;
-    const home = os.homedir();
-    const configDir = path.join(home, '.config', 'claude-code');
-    const authFile = path.join(configDir, 'auth.json');
-    const legacyFile = path.join(home, '.claude.json');
-
-    await fs.mkdir(configDir, { recursive: true });
-
-    const auth = { anthropic_api_key: apiKey };
-    try {
-      const existing = await fs.readFile(authFile, 'utf8').catch(() => '');
-      if (existing) {
-        try {
-          const parsed = JSON.parse(existing);
-          if (parsed && parsed.anthropic_api_key === apiKey) {
-            // already correct
-          } else {
-            await fs.writeFile(authFile, JSON.stringify(auth, null, 2), {
-              mode: 0o600,
-            });
-          }
-        } catch {
-          await fs.writeFile(authFile, JSON.stringify(auth, null, 2), {
-            mode: 0o600,
-          });
-        }
-      } else {
-        await fs.writeFile(authFile, JSON.stringify(auth, null, 2), {
-          mode: 0o600,
-        });
-      }
-    } catch (e) {
-      // best-effort, surface on failure to caller via thrown error
-      throw e;
-    }
-
-    // legacy
-    try {
-      await fs.writeFile(legacyFile, JSON.stringify({ ANTHROPIC_API_KEY: apiKey }), {
-        mode: 0o600,
-      });
-    } catch {
-      // ignore
-    }
-  }
-
   async collectClaudeDiagnostics(): Promise<Record<string, any>> {
     const home = os.homedir();
     const configDir = path.join(home, '.config', 'claude-code');
@@ -218,15 +171,15 @@ export class ClaudeClient implements IClaudeClient {
 
     try {
       // Ensure auth files if apiKey provided
-      if (opts.apiKey) {
-        try {
-          await this.ensureClaudeAuthFiles(opts.apiKey);
-        } catch (e) {
-          const err = new Error('auth_failed');
-          (err as any).detail = { original: e };
-          throw err;
-        }
-      }
+      // if (opts.apiKey) {
+      //   try {
+      //     await this.ensureClaudeAuthFiles(opts.apiKey);
+      //   } catch (e) {
+      //     const err = new Error('auth_failed');
+      //     (err as any).detail = { original: e };
+      //     throw err;
+      //   }
+      // }
 
       // Allow tests / callers to force-disable SDK or CLI usage for deterministic behavior
       const disableSdk = process.env.CLAUDE_CLIENT_DISABLE_SDK === '1';
