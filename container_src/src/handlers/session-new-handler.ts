@@ -5,6 +5,7 @@ import type { ACPSession, SessionMode } from '../types/acp-session.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { RequestContext } from '../services/stdio-jsonrpc.js';
+import { SessionStore } from '../services/session/session-store.js';
 
 function generateSessionId(): string { return `session-${uuidv4()}`; }
 
@@ -35,6 +36,7 @@ params: SessionNewRequest['params'] = {}, requestContext: RequestContext,
   }
 
   const sessionId = generateSessionId();
+  const sessionStore = new SessionStore();
   const now = Date.now();
   const session: ACPSession = {
     sessionId,
@@ -47,6 +49,7 @@ params: SessionNewRequest['params'] = {}, requestContext: RequestContext,
     sessionOptions,
   };
   acpState.setSession(sessionId, session);
+  await sessionStore.save(session);
   console.error(`[SESSION-NEW] Stored session ${sessionId}, total sessions: ${acpState.getSessionCount()}`);
   const workspaceInfo = await createWorkspaceInfo(workspaceUri, sessionOptions);
   return { sessionId, workspaceInfo };

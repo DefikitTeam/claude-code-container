@@ -1,5 +1,6 @@
 import { acpState } from './acp-state.js';
 import type { SessionPromptRequest, SessionPromptResponse, ContentBlock } from '../types/acp-messages.js';
+import type { RequestContext } from '../services/stdio-jsonrpc.js';
 import { PromptProcessor } from '../services/prompt/prompt-processor.js';
 import { claudeClientSingleton } from '../services/claude/claude-client.js';
 import { WorkspaceService } from '../services/workspace/workspace-service.js';
@@ -22,7 +23,7 @@ function validateContentBlocks(blocks: ContentBlock[]) {
 
 export async function sessionPromptHandler(
   params: SessionPromptRequest['params'],
-  _context: unknown,
+  requestContext: RequestContext | unknown,
   notificationSender?: (method: string, params: any) => void, // eslint-disable-line @typescript-eslint/no-explicit-any
 ): Promise<SessionPromptResponse['result']> {
   acpState.ensureInitialized();
@@ -30,12 +31,27 @@ export async function sessionPromptHandler(
     throw Object.assign(new Error('Invalid params: sessionId & content required'), { code: -32602 });
   }
 
-  const { sessionId, content, contextFiles, agentContext } = params;
+  const { sessionId, content, contextFiles, agentContext, anthropicApiKey } = params as any; // anthropicApiKey optional
+  const apiKey = (anthropicApiKey as string | undefined)
+    || (typeof requestContext === 'object' && requestContext && 'metadata' in requestContext
+      ? (requestContext as RequestContext).metadata?.anthropicApiKey
+      : undefined)
+    || process.env.ANTHROPIC_API_KEY;
   validateContentBlocks(content);
 
   console.error(`[SESSION-PROMPT] Looking for session ${sessionId}, total sessions: ${acpState.getSessionCount()}`);
   console.error(`[SESSION-PROMPT] Available sessions: ${acpState.getAllSessions().map(s => s.sessionId).join(', ')}`);
-  const session = acpState.getSession(sessionId);
+  let session = acpState.getSession(sessionId);
+  // if (!session) {
+  //   throw Object.assign(new Error(`Session not found: ${sessionId}`), { code: -32001 });
+  // }
+  if (!session) {
+    const persisted = await sessionStore.load(sessionId);
+    if (persisted) {
+      acpState.setSession(sessionId, persisted);
+      session = persisted;
+    }
+  }
   if (!session) {
     throw Object.assign(new Error(`Session not found: ${sessionId}`), { code: -32001 });
   }
@@ -48,6 +64,7 @@ export async function sessionPromptHandler(
     content,
     contextFiles,
     agentContext,
+    apiKey,
     notificationSender,
     historyAlreadyAppended: false,
     operationId,

@@ -2,6 +2,39 @@
 
 import { loadManagedSettings, applyEnvironmentSettings } from './utils.js';
 import minimist from 'minimist';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+// Load .dev.vars (dotenv-like) to populate process.env for local dev if not already set
+function loadLocalEnvVars() {
+  const candidates = [
+    path.join(process.cwd(), '.dev.vars'),
+    path.resolve(process.cwd(), '..', '.dev.vars'),
+  ];
+  for (const file of candidates) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      const content = fs.readFileSync(file, 'utf8');
+      for (const rawLine of content.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith('#')) continue;
+        const eq = line.indexOf('=');
+        if (eq <= 0) continue;
+        const key = line.slice(0, eq).trim();
+        const val = line.slice(eq + 1).trim();
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+      // Only load the first existing file
+      break;
+    } catch (e) {
+      // Non-fatal; continue
+    }
+  }
+}
+
+loadLocalEnvVars();
 
 // Load managed settings and apply environment variables
 const managedSettings = loadManagedSettings();

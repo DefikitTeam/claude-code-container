@@ -181,6 +181,11 @@ export class ClaudeClient implements IClaudeClient {
       //   }
       // }
 
+      // If caller supplied apiKey and environment does not yet have it, set it so SDK can pick it up.
+      if (opts.apiKey && !process.env.ANTHROPIC_API_KEY) {
+        process.env.ANTHROPIC_API_KEY = opts.apiKey;
+      }
+
       // Allow tests / callers to force-disable SDK or CLI usage for deterministic behavior
       const disableSdk = process.env.CLAUDE_CLIENT_DISABLE_SDK === '1';
       const disableCli = process.env.CLAUDE_CLIENT_DISABLE_CLI === '1';

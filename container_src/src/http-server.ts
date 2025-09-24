@@ -69,7 +69,7 @@ async function healthHandler(
       : 'Claude Code Container HTTP Server (Claude CLI not authenticated)',
     timestamp: new Date().toISOString(),
     claudeCodeAvailable: claudeCliAvailable,
-    apiKeyAvailable: false, // API keys are passed per-request, not in environment
+    apiKeyAvailable: !!process.env.ANTHROPIC_API_KEY,
   };
 
   logWithContext('HEALTH', 'Health check response', {
