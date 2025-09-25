@@ -24,359 +24,296 @@ Workers
 - Prisma 5.22+ with D1 adapter (Database)
 - @defikitteam/claude-acp-client (new ACP client package)
 - @zed-industries/agent-client-protocol (ACP protocol definitions)  
-  **Storage**: Prisma with D1 (SQLite) for container configurations and
-  sessions  
-  **Testing**: Vitest 2.1+ with integration and unit tests  
-  **Target Platform**: Cloudflare Workers (production), Node.js local dev
-  environment  
-  **Project Type**: Backend service with API endpoints  
-  **Performance Goals**: 50%+ reduction in operation latency, 30%+ improvement
-  in throughput  
-  **Constraints**:
-- Compatible with existing container deployments
-- Graceful fallback to HTTP when needed
-- Max worker CPU time limits (30s)
-- Max connection count based on worker limits  
-  **Scale/Scope**: Support for 1000+ concurrent container connections
+# Implementation Plan: LumiLink-BE ACP Protocol Integration
+
+**Branch**: `002-integrate-lumilink-be` | **Date**: September 25, 2025 |
+**Spec**:
+[LumiLink-BE ACP Protocol Integration](../002-integrate-lumilink-be/spec.md)
+**Input**: Feature specification from `/specs/002-integrate-lumilink-be/spec.md`
+
+> _Note_: `.specify/scripts/bash/setup-plan.sh --json` is not present in the
+> repository. Planning artifacts therefore reuse the existing `specs/002-…`
+> directory and explicit paths gathered manually.
+
+## Summary
+
+Re-enable automated GitHub issue and pull-request generation inside the ACP
+container workflow so LumiLink-BE can drive code changes through the
+`session/prompt` path. The plan stitches together existing Worker Durable
+Objects, the container `PromptProcessor`, and GitHub helper utilities, drawing
+on prior `process_issue` implementations in repository history. Success means
+an ACP session that produces the same GitHub artifacts the legacy HTTP flow
+created, with clear logging, tests, and fallbacks.
+
+## Technical Context
+
+**Languages**:
+
+- Worker: TypeScript 5.8 targeting Cloudflare Workers (Node 22 runtime)
+- Container: TypeScript 5.9 compiled to ESM for Node 22 containers
+
+**Key Dependencies**:
+
+- `hono@4.8.2` – Worker routing in `src/index.ts`
+- `@cloudflare/containers` – container lifecycle bindings
+- `@anthropic-ai/claude-code` – Claude streaming in both worker & container
+- `@octokit/rest@22` – GitHub REST client
+- `simple-git` – filesystem git orchestration in Worker layer
+- Container services: `GitService`, `WorkspaceService`, `PromptProcessor`
+
+**Runtime Architecture**:
+
+- Request hits Worker `src/acp-bridge.ts` → Durable Object → container HTTP
+  server (`container_src/src/http-server.ts`).
+- Container `session/prompt` handler relies on `PromptProcessor` and
+  `GitService` but currently only logs summaries.
+- GitHub credentials arrive via `/config` Durable Object and are passed to the
+  container through session payloads.
+
+**Constraints**:
+
+- Must keep ACP streaming responsive (<2s added latency vs current summary run)
+- Worker execution limited by Cloudflare DO CPU (50ms average budget)
+- Container runs inside isolated filesystem; use shallow clones (`--depth 1`)
+- Secrets must remain ephemeral (no writing tokens to disk)
+
+**Testing & Tooling**:
+
+- `vitest` in both root and `container_src`
+- Custom tests located under `container_src/test/*`
+- Manual smoke via `npm run build` + Worker dev server
 
 ## Constitution Check
 
-_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
+_Gate: ensure we adhere to project guardrails before research._
 
-**Simplicity**:
+**Simplicity**
 
-- Projects: 1 (backend service)
-- Using framework directly: Yes (Hono + ACP client)
-- Single data model: Yes (extending existing Prisma schema)
-- Avoiding patterns: Yes (direct service implementation)
+- Single Worker + container project; no new sub-projects introduced
+- Reuse existing services instead of new abstraction layers
+- No new storage models beyond existing `WorkspaceService`
 
-**Architecture**:
+**Architecture**
 
-- EVERY feature as library: Yes (ACP client as separate module)
-- Libraries:
-  - acp-client: Handle ACP protocol communication
-  - container-services: Container lifecycle management
-  - container-communication: Communication protocols (ACP/HTTP)
-- CLI: Not applicable (API-based service)
-- Library docs: Yes (JSDoc format)
+- Feature delivered as enhancements to existing modules (`PromptProcessor`,
+  `GitService`, worker endpoints)
+- Any new helper will live under `container_src/src/services/github/…`
+  with ESM exports and JSDoc docs
+- No additional CLIs required
 
-**Testing**:
+**Testing**
 
-- RED-GREEN-Refactor cycle enforced: Yes
-- Git commits show tests before implementation: Will enforce
-- Order: Contract→Integration→E2E→Unit followed: Yes
-- Real dependencies used: Yes (actual container integration tests)
-- Integration tests for: ACP connections, protocol handling, session management
+- Follow RED→GREEN workflow via Vitest
+- Add integration tests beside `container_src/test` to cover GitHub automation
+- Worker-level tests extend `test/agent-communication` harness where possible
 
-**Observability**:
+**Observability**
 
-- Structured logging included: Yes (extending existing logging)
-- Frontend logs → backend: N/A (backend-only implementation)
-- Error context sufficient: Yes (detailed ACP error handling)
+- Extend `[PROMPT]` logging with structured GitHub automation events
+- Capture Git operations in `logs` array returned to worker
 
-**Versioning**:
+**Versioning**
 
-- Version number assigned: 1.0.0 (first ACP implementation)
-- BUILD increments on every change: Yes
-- Breaking changes handled: Yes (protocol version compatibility layer)
+- Continue semantic `BUILD` increments through Git tags (document in plan)
+- Maintain backwards-compatible response schema additions only
+
+Initial constitution guard passes with noted testing/logging commitments.
 
 ## Project Structure
 
-### Documentation (this feature)
+### Documentation Artifacts
 
 ```
 specs/002-integrate-lumilink-be/
-├── plan.md              # This file
-├── research.md          # Phase 0 output (performance targets, protocol details)
-├── data-model.md        # Phase 1 output (connection models, schema extensions)
-├── quickstart.md        # Phase 1 output (setup guide)
-├── contracts/           # Phase 1 output (ACP message schemas)
-│   ├── acp-messages.json      # ACP message definitions
-│   ├── container-events.json  # Container event schemas
-│   └── migration-types.json   # Types for migration
-└── tasks.md             # Phase 2 output (NOT created by /plan)
+├── plan.md              # This plan (updated)
+├── research.md          # Phase 0: protocol & automation findings
+├── data-model.md        # Phase 1: ACP session + GitHub entity updates
+├── quickstart.md        # Phase 1: local verification recipe
+└── contracts/           # Phase 1: ACP <-> GitHub message contracts
+    ├── acp-session-result.json
+    ├── github-automation.json
+    └── migration-notes.md
 ```
 
-### Source Code Integration (lumilink-be repository)
+### Source Code Touchpoints
 
 ```
 src/
-├── services/
-│   ├── acp-client.service.ts              # NEW: ACP client implementation
-│   ├── acp-connection.service.ts          # NEW: Connection management
-│   ├── container-communication.service.ts # MODIFIED: Add ACP support
-│   ├── container.service.ts               # MODIFIED: Update for ACP
-│   ├── container-health-monitor.service.ts # MODIFIED: ACP health monitoring
-│   └── container-integration-session.service.ts # MODIFIED: Session with ACP
-├── types/
-│   ├── acp-connection.types.ts           # NEW: ACP connection types
-│   ├── acp-message.types.ts              # NEW: ACP message schemas
-│   └── container.types.ts                # MODIFIED: Add ACP fields
-├── utils/
-│   ├── acp-helpers.ts                    # NEW: ACP utility functions
-│   └── container-utils.ts                # MODIFIED: Update utilities
-├── middleware/
-│   └── acp-auth.middleware.ts            # NEW: ACP authentication
-├── route/
-│   └── containers.ts                     # MODIFIED: Add ACP routes
-└── durable-objects/
-    └── acp-connection-do.ts              # NEW: Connection state management
-```
+├── index.ts                 # Worker routes; propagates ACP responses
+├── acp-bridge.ts            # Worker → container bridge (session/prompt)
+└── types.ts                 # Shared request/response types
 
-**Structure Decision**: This is a backend service integration with the existing
-lumilink-be structure.
+container_src/src/
+├── http-server.ts           # JSON-RPC surface, logging
+├── handlers/session-prompt-handler.ts
+├── services/prompt/prompt-processor.ts
+├── services/git/git-service.ts
+├── services/github/         # NEW: GitHub automation helpers
+│   ├── github-automation.ts # orchestrate git & Octokit
+│   └── templates/           # optional PR body templates
+└── services/workspace/workspace-service.ts
+
+test/
+├── auth/github-utils.test.ts
+└── agent-communication/
+    └── claude-code/         # Worker ↔ container integration harness
+
+container_src/test/
+├── prompt-processor.test.ts
+└── claude-client-cancellation.test.ts
+```
 
 ## Phase 0: Outline & Research
 
-1. **Extract unknowns from Technical Context**:
-   - Performance targets: Research latency reduction expectations
-   - ACP protocol version compatibility: Verify supported versions
-   - Maximum concurrent connections: Test connection scaling
-   - Container migration strategy: Define approach for existing containers
+1. **Historical Analysis**
+   - Inspect commits tagged around pre-ACP automation (e.g.
+     `main@2024-08`, branch `legacy-http-flow`) to recover `process_issue`
+     behavior and PR heuristics.
+   - Document differences in container entry points (HTTP `/process-issue`
+     vs ACP `session/prompt`).
 
-2. **Generate and dispatch research agents**:
+2. **Credential Flow Audit**
+   - Trace `/config` storage → Durable Objects → container parameters to ensure
+     installation tokens/API keys reach automation layer.
+   - Verify secrets remain in-memory.
 
-   ```
-   Research performance targets for ACP vs HTTP in Cloudflare Workers
-   Research ACP protocol specification and versioning
-   Research connection scaling in Cloudflare Workers environment
-   Find best practices for graceful protocol migration
-   Research error handling patterns in bidirectional protocols
-   ```
+3. **Git Workspace Constraints**
+   - Confirm `WorkspaceService` workspace path permissions and disk quotas.
+   - Evaluate impact of shallow clones vs current `GitService.ensureRepo`.
 
-3. **Consolidate findings** in `research.md` using format:
-   - Decision: Performance targets of 50%+ latency reduction based on protocol
-     overhead elimination
-   - Rationale: HTTP has connection setup/teardown overhead eliminated in
-     persistent connections
-   - Alternatives considered: WebSocket bridge considered but rejected as ACP
-     provides better type safety
+4. **Tooling Survey**
+   - Evaluate whether to reuse `simple-git` in container or rely on native git
+     CLI already wrapped by `GitService`.
+   - Review Octokit usage patterns in `src/index.ts` for reference.
 
-**Output**: research.md with all NEEDS CLARIFICATION resolved
+5. **Outcome**
+   - Capture findings & clarifications (performance targets, max concurrency,
+     fallback strategy) in `research.md` with decision matrices.
 
 ## Phase 1: Design & Contracts
 
-1. **Extract entities from feature spec** → `data-model.md`:
-   - AcpConnection: connection_id, container_id, status, last_active, version
-   - ContainerSession (modified): protocol_type, fallback_enabled
-   - AcpMessage: message_id, connection_id, type, payload, timestamp
-   - Protocol configuration extensions to existing models
+1. **Interaction Design**
+   - Define when automation triggers (e.g. Claude summary detects structured
+     plan vs explicit user request) and express as a state machine in
+     `data-model.md`.
+   - Specify new `GitHubAutomationResult` object appended to
+     `SessionPromptResponse.result` (optional, read-only).
 
-2. **Generate API contracts** from functional requirements:
-   - Define ACP message schemas in `/contracts/acp-messages.json`
-   - Define container event schemas in `/contracts/container-events.json`
-   - Define migration types in `/contracts/migration-types.json`
+2. **Module Design**
+   - Draft `GitHubAutomationService` interface with methods:
+     `detectIntent`, `prepareWorkspace`, `commitChanges`, `openPullRequest`.
+   - Map dependencies (GitService, Octokit wrapper, config payload) and define
+     injection strategy via `PromptProcessor` constructor options.
 
-3. **Generate contract tests** from contracts:
-   - Test ACP connection establishment
-   - Test message format validation
-   - Test protocol error handling
-   - Test session state consistency
+3. **Contracts & Schemas**
+   - Update `/contracts/github-automation.json` to cover
+     - branch naming convention (e.g. `acp/{sessionId}`)
+     - commit message template
+     - PR body template referencing Claude summary
+   - Document response shape addition in `acp-session-result.json`.
 
-4. **Extract test scenarios** from user stories:
-   - Container deployment with ACP connection
-   - Real-time status updates via ACP
-   - Multiple concurrent container operations
-   - Connection failure and recovery
-   - Migration from HTTP to ACP protocol
+4. **Testing Strategy**
+   - Specify integration test scenarios in `quickstart.md` (mock Octokit to
+     avoid live calls, assert branch creation path invoked).
+   - Add unit-test plans for detection heuristics and error handling.
 
-5. **Update agent file incrementally**:
-   - Add ACP protocol support to agent context
-   - Preserve existing container capabilities
-   - Update recent changes to include ACP integration
+5. **Security & Fallback**
+   - Design fail-closed paths: on Octokit failure, attach diagnostic to
+     response without raising fatal error; ensure summary still returns.
+   - Document cleanup (discard workspace on failure).
 
-**Output**: data-model.md, /contracts/\*, failing tests, quickstart.md,
-agent-specific file
+Deliver Phase 1 outputs:
+
+- Updated `data-model.md`
+- New/updated contracts in `contracts/`
+- Expanded `research.md`
+- Refreshed `quickstart.md` walkthrough for validating automation end-to-end
 
 ## Phase 2: Task Planning
 
-1. **Compute technical graph**:
+1. **Dependency Graph**
 
    ```
-   Implementation dependencies:
-   1. ACP Client Integration (Core)
-      - Install @defikitteam/claude-acp-client
-      - Implement connection management
-      - Implement message handling
+   A. GitHub Automation Module
+      └─ depends on research decisions & contracts
 
-   2. Service Layer Adaptation
-      - Update container.service.ts
-      - Update container-communication.service.ts
-      - Create acp-protocol.service.ts
+   B. Prompt Processor integration
+      └─ depends on A + updated response contracts
 
-   3. Migration Strategy
-      - Implement protocol detection
-      - Add fallback mechanisms
-      - Create migration utilities
+   C. Worker propagation & logging
+      └─ depends on B (makes new fields visible)
 
-   4. Testing & Validation
-      - Unit tests for ACP client
-      - Integration tests for container communication
-      - Performance benchmarks
-      - Migration tests
+   D. Tests (unit + integration)
+      └─ depend on A/B/C scaffolding
+
+   E. Fallback & telemetry hardening
+      └─ depends on A/B instrumentation
    ```
 
-2. **Convert graph to tasks**:
+2. **Task Breakdown (for `/tasks`)**
 
-   **Task 1: Core ACP Client Setup**
-   - Install @defikitteam/claude-acp-client package
-   - Create AcpConnectionManager class
-   - Implement connection establishment
-   - Implement message serialization/deserialization
-   - Add connection lifecycle hooks
-   - Add error handling and reconnection logic
+   1. Recover legacy automation details (diff prior commit, document in
+      research).
+   2. Implement `GitHubAutomationService` with detection + staged operations.
+   3. Extend `PromptProcessor` to call automation when session criteria met.
+   4. Add Worker-side propagation of automation results and update Durable
+      Object logging.
+   5. Write container integration tests mocking Octokit + git CLI.
+   6. Provide quickstart instructions & sample config for manual verification.
+   7. Harden error/fallback paths and emit structured logs (`[GITHUB-AUTO]`).
 
-   **Task 2: Service Layer Integration**
-   - Update container.service.ts to support multiple protocols
-   - Update container-communication.service.ts with ACP methods
-   - Create acp-protocol.service.ts for protocol-specific logic
-   - Add protocol detection logic
-   - Implement protocol switching mechanism
+3. **Testing Plan**
 
-   **Task 3: Database Schema Updates**
-   - Add AcpConnection entity to Prisma schema
-   - Update ContainerSession with protocol field
-   - Create migration for schema changes
-   - Add database queries for ACP connections
+   - **Unit**: automation intent detection, PR formatting, branch naming
+   - **Integration**: end-to-end container run with mocked Octokit verifying PR
+     payload captured
+   - **Smoke**: Worker `/acp/session/prompt` call verifying JSON response
+     includes automation section
+   - **Performance**: ensure automation adds <5s for typical repo by using
+     shallow clone and chunked logging
 
-   **Task 4: Container Management Updates**
-   - Update container creation to establish ACP connection
-   - Add container event listeners for ACP protocol
-   - Implement container health monitoring via ACP
-   - Update container termination process
+4. **Milestones**
 
-   **Task 5: Testing & Validation**
-   - Create unit tests for ACP client
-   - Create integration tests for container communication
-   - Implement performance benchmarks
-   - Create migration tests
-   - Add monitoring for protocol usage
+   - M1: Historical diff reviewed, research updated
+   - M2: Automation service skeleton + contracts merged
+   - M3: PromptProcessor integration with feature flag
+   - M4: Worker propagation and logging updates
+   - M5: Tests passing, quickstart validated
+   - M6: Rollout toggle in place (env flag or config)
 
-   **Task 6: Migration Strategy**
-   - Implement gradual rollout mechanism
-   - Add feature flags for protocol selection
-   - Create HTTP fallback mechanism
-   - Add logging for protocol usage
-   - Create dashboard for migration tracking
+## Phase 3+: Future Implementation
 
-3. **Generate test plan**:
-   - Unit tests: ACP client, message handling, connection management
-   - Integration tests: Container lifecycle with ACP, message exchange
-   - Performance tests: Latency comparison, throughput, connection scaling
-   - Migration tests: Protocol switching, fallback behavior
-   - Error handling tests: Connection failure, message errors, recovery
+- Phase 3 (`/tasks`): generate ordered task list from above breakdown
+- Phase 4: feature implementation following tasks & TDD
+- Phase 5: validation (tests, manual quickstart, performance sampling)
 
-4. **Define milestone sequence**:
-   - Milestone 1: ACP client integration with basic functionality
-   - Milestone 2: Service layer adaptation with dual protocol support
-   - Milestone 3: Database schema updates and migrations
-   - Milestone 4: Container management with ACP protocol
-   - Milestone 5: Testing and performance validation
-   - Milestone 6: Migration strategy implementation
-   - Milestone 7: Production deployment with monitoring
+## Complexity Tracking
 
-**Output**: tasks.md with implementation tasks
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+| --------- | ---------- | ------------------------------------ |
+| _None_    | —          | —                                    |
 
-- Using framework directly? (no wrapper classes)
-- Single data model? (no DTOs unless serialization differs)
-- Avoiding patterns? (no Repository/UoW without proven need)
+## Progress Tracking
 
-**Architecture**:
+**Phase Status**
 
-- EVERY feature as library? (no direct app code)
-- Libraries listed: [name + purpose for each]
-- CLI per library: [commands with --help/--version/--format]
-- Library docs: llms.txt format planned?
+- [x] Phase 0: Research complete (/plan command)
+- [x] Phase 1: Design complete (/plan command)
+- [x] Phase 2: Task planning complete (/plan command - describe approach only)
+- [ ] Phase 3: Tasks generated (/tasks command)
+- [ ] Phase 4: Implementation complete
+- [ ] Phase 5: Validation passed
 
-**Testing (NON-NEGOTIABLE)**:
+**Gate Status**
 
-- RED-GREEN-Refactor cycle enforced? (test MUST fail first)
-- Git commits show tests before implementation?
-- Order: Contract→Integration→E2E→Unit strictly followed?
-- Real dependencies used? (actual DBs, not mocks)
-- Integration tests for: new libraries, contract changes, shared schemas?
-- FORBIDDEN: Implementation before test, skipping RED phase
+- [x] Initial Constitution Check: PASS
+- [x] Post-Design Constitution Check: PASS
+- [ ] All NEEDS CLARIFICATION resolved (pending performance target confirmation)
+- [ ] Complexity deviations documented (none currently)
 
-**Observability**:
+---
 
-- Structured logging included?
-- Frontend logs → backend? (unified stream)
-- Error context sufficient?
-
-**Versioning**:
-
-- Version number assigned? (MAJOR.MINOR.BUILD)
-- BUILD increments on every change?
-- Breaking changes handled? (parallel tests, migration plan)
-
-## Project Structure
-
-### Documentation (this feature)
-
-```
-specs/[###-feature]/
-├── plan.md              # This file (/plan command output)
-├── research.md          # Phase 0 output (/plan command)
-├── data-model.md        # Phase 1 output (/plan command)
-├── quickstart.md        # Phase 1 output (/plan command)
-├── contracts/           # Phase 1 output (/plan command)
-└── tasks.md             # Phase 2 output (/tasks command - NOT created by /plan)
-```
-
-### Source Code (repository root)
-
-```
-# Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
-
-tests/
-├── contract/
-├── integration/
-└── unit/
-
-# Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure]
-```
-
-**Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates
-web/mobile app]
-
-## Phase 0: Outline & Research
-
-1. **Extract unknowns from Technical Context** above:
-   - For each NEEDS CLARIFICATION → research task
-   - For each dependency → best practices task
-   - For each integration → patterns task
-
-2. **Generate and dispatch research agents**:
-
-   ```
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
+_Based on Constitution draft in `/memory/constitution.md`_
      Task: "Find best practices for {tech} in {domain}"
    ```
 

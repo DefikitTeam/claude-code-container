@@ -211,6 +211,59 @@ model AcpConnectionConfiguration {
 - `reconnectDelay` must be > 0 and <= `maxReconnectDelay`
 - `encryptionLevel` must be one of: "none", "standard", "high"
 
+## Automation Entities
+
+### GitHubAutomationResult
+
+**Purpose**: Captures the outcome of the post-prompt GitHub automation flow (issue creation,
+branch/commit orchestration, PR publishing) and surfaces diagnostics back to LumiLink-BE.
+
+**Schema (JSON)**: See `contracts/github-automation.json`.
+
+**Key Fields**:
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `status` | enum | One of `"success"`, `"skipped"`, `"error"`. Drives downstream UI/telemetry. |
+| `issue` | object? | Present on success. Contains `id`, `number`, `url`, `title`. |
+| `pullRequest` | object? | Populated when a PR was opened. Includes `number`, `url`, `branch`. |
+| `branch` | string? | Feature branch pushed to GitHub (e.g. `claude-code/issue-123-2025-09-24-153000`). |
+| `commit` | object? | Contains `sha` and `message` when automation authored a commit. |
+| `diagnostics` | object | Structured runtime data: `logs[]`, `durationMs`, `attempts`, `errorCode`. |
+| `error` | object? | Detailed failure payload (`code`, `message`, `retryable`, `details`). |
+| `skippedReason` | string? | Human-readable reason when automation elected not to run. |
+
+**Status semantics**:
+
+- `success`: Issue exists and either a PR or final comment was produced. Requires `issue` and
+   `diagnostics.durationMs`. `pullRequest` and `commit` optional.
+- `skipped`: Automation intentionally bypassed (e.g., repo not on allow list). `skippedReason`
+   required; no GitHub mutations performed.
+- `error`: Automation failed. `error` object required and should include actionable `code`
+   (e.g., `installation-token-expired`, `git-push-failed`).
+
+### SessionPromptResponse (Extended)
+
+**Purpose**: ACP container response returned to the Worker/bridge. Extended to include
+automation metadata alongside existing usage metrics.
+
+**Schema (JSON)**: See `contracts/acp-session-result.json`.
+
+**Additions**:
+
+- `githubAutomation`: Optional `GitHubAutomationResult`. Present when automation executed or
+   explicitly skipped; omitted when feature flag disabled.
+- `meta.githubAutomationVersion`: Semantic version string describing the automation contract
+   implementation (e.g., `"1.0.0"`). Enables consumer-side compatibility checks.
+- `meta.workspace`: Extended to require `isEphemeral` flag to assist cleanup verification.
+
+**Usage**:
+
+1. Worker forwards the `githubAutomation` block up to LumiLink-BE clients.
+2. Diagnostics surface in ACP telemetry streams for alerting.
+3. Skipped/error states bubble up without collapsing the envelope `stopReason` (`stopReason`
+    remains tied to Claude run outcome).
+
 ## Relationships
 
 1. **Container to AcpConnection**: One-to-many

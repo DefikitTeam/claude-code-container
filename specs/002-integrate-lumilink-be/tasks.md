@@ -1,240 +1,125 @@
-# Implementation Tasks: LumiLink-BE ACP Protocol Integration
+# GitHub Automation Reattachment – Task Board
 
-## Task Sequence
+This checklist re-enables automated GitHub issue/PR creation inside the ACP `session/prompt` flow. Work through tasks sequentially; each ends with a verification cue so you know when it’s safe to proceed.
 
-### Core Infrastructure (Setup & Dependencies)
+---
 
-**Task 1: Environment Setup**
+## ✅ 0. Prerequisites
+- Current branch: `002-integrate-lumilink-be`
+- Worker & container builds passing (`npm run build:container`)
+- `/config` Durable Object populated with valid GitHub credentials
+- Local git workspace clean (`git status`)
 
-- Install @defikitteam/claude-acp-client package
-- Install @zed-industries/agent-client-protocol package
-- Configure TypeScript paths and imports
-- Update project dependencies in package.json
+**Verify:** Container build succeeds and repo has no pending changes.
 
-**Task 2: Database Schema Updates**
+---
 
-- Create AcpConnection model in Prisma schema
-- Extend ContainerSession model with protocol fields
-- Create ProtocolMigration model
-- Create AcpConnectionConfiguration model
-- Update Container model with protocol fields
-- Generate and apply database migration
-- Create seed data for testing
+## 🧭 1. Recover Legacy Automation Blueprint
+- Locate commits/branches where the legacy `/process-prompt` flow created issues/PRs (search `process_issue`).
+- Capture branch naming, commit message templates, PR body structure, required inputs.
+- Add summary (with links) to `specs/002-integrate-lumilink-be/research.md` under *Legacy automation reference*.
 
-### Base Implementation
+**Verify:** Research doc includes at least one concrete legacy example and documented conventions.
 
-**Task 3: Core ACP Client Service**
+---
 
-- Create src/services/acp-client.service.ts
-- Implement connection establishment logic
-- Implement connection state management
-- Add reconnection and error handling
-- Implement message serialization/deserialization
-- Create connection lifecycle hooks
-- Add basic unit tests
+## 🔍 2. Audit Credential & Workspace Flow
+- Trace `/config` DO → Worker bridge → container handler to confirm secrets flow.
+- Validate `WorkspaceService` behavior (path, permissions, cleanup, shallow clone strategy).
+- Note any assumptions around secret handling and persistence in `research.md`.
 
-**Task 4: ACP Connection Service**
+**Verify:** Research doc includes full credential flow narrative/diagram and confirms secrets remain in-memory.
 
-- Create src/services/acp-connection.service.ts
-- Implement connection management (create, update, close)
-- Add connection monitoring and health checks
-- Implement connection metrics collection
-- Create connection configuration management
-- Add connection logging and debugging tools
-- Create unit tests for connection management
+---
 
-**Task 5: Message Types & Interfaces**
+## 📐 3. Define Automation Contracts & Data Model
+- Update `specs/002-integrate-lumilink-be/data-model.md` with `GitHubAutomationResult`, status codes, branch naming.
+- Create/refresh JSON contracts in `specs/002-integrate-lumilink-be/contracts/`:
+  - `acp-session-result.json` (extended response schema)
+  - `github-automation.json` (issue/PR payload + diagnostics)
+- Ensure fields cover success, skipped automation, and error details.
 
-- Create src/types/acp-message.types.ts
-- Define message interfaces based on contract schema
-- Implement message validation utilities
-- Create message factory functions
-- Add message transformation utilities
-- Create unit tests for message validation
+**Verify:** Schemas lint (e.g., `jq . …`) and data model doc references the new contract files.
 
-**Task 6: Container Communication Adaptation**
+---
 
-- Update src/services/container-communication.service.ts
-- Add ACP protocol support alongside HTTP
-- Implement protocol selection logic
-- Create protocol adapters for operations
-- Update command execution to support ACP
-- Add event subscription capabilities
-- Create integration tests for communication
+## ⚙️ 4. Refresh Quickstart & Test Strategy
+- Expand `quickstart.md` with a “Run automation” section: commands, expected logs, cleanup steps.
+- Outline unit/integration/performance test scenarios that align with these tasks.
 
-### Advanced Features
+**Verify:** Quickstart contains explicit automation walkthrough; test scenarios called out for future `/tasks` generation.
 
-**Task 7: Protocol Migration Service**
+---
 
-- Create src/services/protocol-migration.service.ts
-- Implement migration between protocols
-- Add migration status tracking
-- Create rollback mechanism
-- Implement scheduled migrations
-- Add migration validation
-- Create tests for protocol migration
+## 🛠️ 5. Implement `GitHubAutomationService`
+- Create `container_src/src/services/github/github-automation.ts` with:
+  - Intent detection for when automation runs
+  - Workspace preparation & git operations (branch, commit, diff)
+  - Octokit issue/PR orchestration with templates/rate limits
+  - Cleanup + diagnostic capture
+- Add targeted unit tests for success, skip, and error flows.
 
-**Task 8: Container Health Monitoring**
+**Verify:** `npm run test` in `container_src` green; service exported but not yet invoked elsewhere.
 
-- Update src/services/container-health-monitor.service.ts
-- Add ACP-specific health checks
-- Implement real-time status monitoring
-- Create protocol performance metrics
-- Update alert mechanisms
-- Add protocol-specific recovery actions
-- Create integration tests for health monitoring
+---
 
-**Task 9: ACP Durable Object**
+## 🔗 6. Integrate Automation into `PromptProcessor`
+- Inject the new service via `PromptProcessor` dependencies.
+- After Claude completes, trigger automation (based on detection or explicit agent context).
+- Append `githubAutomation` block to `SessionPromptResponse` and emit `[GITHUB-AUTO]` logs.
 
-- Create src/durable-objects/acp-connection-do.ts
-- Implement connection state persistence
-- Add distributed connection tracking
-- Create connection sharing between workers
-- Implement connection recovery after worker restarts
-- Add message buffering during reconnection
-- Create tests for durable object
+**Verify:** Container response JSON includes `githubAutomation`; logs show automation lifecycle; updated tests assert new field.
 
-**Task 10: API Endpoints & Routes**
+---
 
-- Update src/route/containers.ts
-- Add ACP-specific endpoints
-- Create migration control endpoints
-- Add monitoring endpoints
-- Implement connection management endpoints
-- Create API documentation
-- Add integration tests for endpoints
+## 🌐 7. Propagate Results Through Worker Layer
+- Update Worker bridge (`src/acp-bridge.ts`, `src/index.ts`) and shared types (`src/types.ts`) to surface automation metadata.
+- Ensure Durable Object/session logging captures automation results without leaking secrets.
 
-### Testing & Validation
+**Verify:** Local `/acp/session/prompt` response includes new fields; worker-side tests in `test/agent-communication` pass.
 
-**Task 11: Unit Testing Suite**
+---
 
-- Create tests for ACP client service
-- Create tests for connection management
-- Create tests for message handling
-- Create tests for protocol migration
-- Implement mocks for external dependencies
-- Add code coverage for ACP components
+## 🧪 8. Extend Test Coverage
+- Container integration test: stub Octokit + git CLI to cover success/failure.
+- Worker tests: validate schema compatibility and error propagation.
+- Optional: baseline automation duration (<5s typical repo) and record in research doc.
 
-**Task 12: Integration Testing Suite**
+**Verify:** Root `npm run test` passes; performance sample documented.
 
-- Create container lifecycle tests with ACP
-- Create protocol switching tests
-- Create performance comparison tests
-- Create failure recovery tests
-- Implement test fixtures and helpers
-- Add end-to-end test scenarios
+---
 
-**Task 13: Performance Testing**
+## 📊 9. Telemetry & Fallback Hardening
+- Add structured logging around automation start/success/failure.
+- Implement retry/backoff for Octokit errors with user-visible diagnostics.
+- Ensure workspace cleanup even on failure and gate feature via env flag (e.g., `GITHUB_AUTOMATION_DISABLED`).
 
-- Create latency comparison benchmarks
-- Implement throughput testing
-- Create connection scaling tests
-- Add resource usage measurements
-- Create stress testing scenarios
-- Document performance results
+**Verify:** Logs show lifecycle + errors; toggling flag disables automation cleanly; temp workspace removed post-run.
 
-### Deployment & Migration
+---
 
-**Task 14: Feature Flags & Controls**
+## 📚 10. Rollout Checklist & Documentation
+- Update README/plan with feature flags, verification steps, and known limitations.
+- Summarize automation flow & testing results in `plan.md` “Next steps”.
+- Draft release notes (or internal announcement) highlighting restored automation.
 
-- Create feature flag system for ACP
-- Implement gradual rollout controls
-- Add protocol preference settings
-- Create admin controls for protocol management
-- Implement usage analytics
-- Add monitoring dashboard for protocol usage
+**Verify:** Docs merged with reviewers’ sign-off; rollout instructions executable independently.
 
-**Task 15: Documentation & Training**
+---
 
-- Create user documentation
-- Update API reference
-- Create migration guide for existing users
-- Add troubleshooting guide
-- Create internal developer documentation
-- Prepare training materials
+## Tracking Table
 
-## Task Dependencies
+| Task | Owner | Status | Notes | Evidence |
+| ---- | ----- | ------ | ----- | -------- |
+| 1 | | | | |
+| 2 | | | | |
+| 3 | | | | |
+| 4 | | | | |
+| 5 | | | | |
+| 6 | | | | |
+| 7 | | | | |
+| 8 | | | | |
+| 9 | | | | |
+| 10 | | | | |
 
-```
-Task 1 → Task 2 → Task 3
-Task 3 → Task 4
-Task 3 → Task 5
-Task 3, Task 4, Task 5 → Task 6
-Task 6 → Task 7, Task 8
-Task 4 → Task 9
-Task 6, Task 7 → Task 10
-Task 3, Task 4, Task 5, Task 6 → Task 11
-Task 6, Task 7, Task 8, Task 9, Task 10 → Task 12
-Task 12 → Task 13
-Task 7, Task 10 → Task 14
-Task 6, Task 7, Task 13, Task 14 → Task 15
-```
-
-## Estimated Effort
-
-| Task                                  | Complexity | Estimated Time | Priority |
-| ------------------------------------- | ---------- | -------------- | -------- |
-| 1: Environment Setup                  | Low        | 2 hours        | High     |
-| 2: Database Schema Updates            | Medium     | 4 hours        | High     |
-| 3: Core ACP Client Service            | High       | 8 hours        | High     |
-| 4: ACP Connection Service             | High       | 8 hours        | High     |
-| 5: Message Types & Interfaces         | Medium     | 4 hours        | High     |
-| 6: Container Communication Adaptation | High       | 10 hours       | High     |
-| 7: Protocol Migration Service         | High       | 8 hours        | Medium   |
-| 8: Container Health Monitoring        | Medium     | 6 hours        | Medium   |
-| 9: ACP Durable Object                 | High       | 8 hours        | Medium   |
-| 10: API Endpoints & Routes            | Medium     | 6 hours        | Medium   |
-| 11: Unit Testing Suite                | Medium     | 8 hours        | High     |
-| 12: Integration Testing Suite         | High       | 10 hours       | High     |
-| 13: Performance Testing               | Medium     | 6 hours        | Medium   |
-| 14: Feature Flags & Controls          | Medium     | 6 hours        | Low      |
-| 15: Documentation & Training          | Medium     | 8 hours        | Medium   |
-| **Total**                             |            | **102 hours**  |          |
-
-## Risk Assessment
-
-| Risk                             | Impact | Probability | Mitigation                             |
-| -------------------------------- | ------ | ----------- | -------------------------------------- |
-| ACP client compatibility issues  | High   | Medium      | Thorough testing, fallback mechanism   |
-| Performance not meeting targets  | Medium | Low         | Early benchmarking, optimization phase |
-| Migration failures               | High   | Medium      | Robust rollback, gradual deployment    |
-| Connection scaling issues        | High   | Medium      | Load testing, incremental scaling      |
-| Cloudflare Workers limitations   | Medium | Low         | Design within platform constraints     |
-| Database schema migration issues | Medium | Low         | Test migrations, backup strategy       |
-
-## Success Criteria
-
-1. All unit and integration tests pass
-2. Performance metrics show ≥50% latency reduction
-3. Zero downtime during protocol migration
-4. Successful container operations via ACP
-5. Graceful fallback to HTTP when needed
-6. Documentation and training materials complete
-
-## Milestones
-
-1. **Core Infrastructure Complete**
-   - Tasks 1-2 completed
-   - Database schema migrated
-   - Dependencies installed and configured
-
-2. **Basic ACP Communication Working**
-   - Tasks 3-6 completed
-   - Container can communicate via ACP
-   - Basic operations functional
-
-3. **Full Feature Implementation**
-   - Tasks 7-10 completed
-   - All features implemented
-   - Migration path available
-
-4. **Testing & Validation Complete**
-   - Tasks 11-13 completed
-   - All tests passing
-   - Performance targets met
-
-5. **Production Ready**
-   - Tasks 14-15 completed
-   - Documentation available
-   - Feature flags configured
-   - Ready for production deployment
+Log URLs, test output, or PR links under **Evidence** to speed up review.
