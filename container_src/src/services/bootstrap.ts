@@ -19,6 +19,9 @@ import { PromptProcessor } from './prompt/prompt-processor.js';
 // Git
 import { GitService } from './git/git-service.js';
 
+// GitHub automation
+import { GitHubAutomationService } from './github/github-automation.js';
+
 // Diagnostics
 import { DiagnosticsService } from '../core/diagnostics/diagnostics-service.js';
 
@@ -82,6 +85,16 @@ export function promptProcessor(): PromptProcessor {
   return _promptProcessor;
 }
 
+let _githubAutomationService: GitHubAutomationService | undefined;
+export function githubAutomationService(): GitHubAutomationService {
+  if (!_githubAutomationService) {
+    _githubAutomationService = new GitHubAutomationService({
+      gitService: gitService(),
+    });
+  }
+  return _githubAutomationService;
+}
+
 // Re-export classifier for convenience
 export const errorClassifier = defaultErrorClassifier;
 
@@ -93,6 +106,7 @@ export const services = Object.freeze({
   promptProcessor: promptProcessor(),
   gitService: gitService(),
   diagnosticsService: diagnosticsService(),
+  githubAutomationService: githubAutomationService(),
   errorClassifier,
 });
 
