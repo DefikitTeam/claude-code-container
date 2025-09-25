@@ -5,14 +5,17 @@ import { PromptProcessor } from '../services/prompt/prompt-processor.js';
 import { claudeClientSingleton } from '../services/claude/claude-client.js';
 import { WorkspaceService } from '../services/workspace/workspace-service.js';
 import { SessionStore } from '../services/session/session-store.js';
+import { GitService } from '../services/git/git-service.js';
 
 // Basic DI singletons (could be hoisted elsewhere):
 const sessionStore = new SessionStore();
 const workspaceService = new WorkspaceService();
+const gitService = new GitService();
 const promptProcessor = new PromptProcessor({
   sessionStore: sessionStore as any, // eslint-disable-line @typescript-eslint/no-explicit-any
   workspaceService,
   claudeClient: claudeClientSingleton,
+  gitService,
 });
 
 function validateContentBlocks(blocks: ContentBlock[]) {

@@ -4,17 +4,48 @@ import { loadManagedSettings, applyEnvironmentSettings } from './utils.js';
 import minimist from 'minimist';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Load .dev.vars (dotenv-like) to populate process.env for local dev if not already set
 function loadLocalEnvVars() {
-  const candidates = [
-    path.join(process.cwd(), '.dev.vars'),
-    path.resolve(process.cwd(), '..', '.dev.vars'),
-  ];
+  // If caller explicitly points to a file, prefer it
+  const explicit = process.env.DEV_VARS_PATH;
+  const tryFiles: string[] = [];
+  if (explicit) tryFiles.push(explicit);
+
+  // Search from cwd upward (up to 3 levels)
+  const cwd = process.cwd();
+  tryFiles.push(
+    path.join(cwd, '.dev.vars'),
+    path.resolve(cwd, '..', '.dev.vars'),
+    path.resolve(cwd, '..', '..', '.dev.vars'),
+  );
+
+  // Search relative to compiled file location as well (dist -> project root)
+  // Derive __dirname equivalent for ESM
+  let runtimeDir: string | null = null;
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    runtimeDir = path.dirname(__filename);
+  } catch {}
+  if (runtimeDir) {
+    tryFiles.push(
+      path.resolve(runtimeDir, '..', '.dev.vars'),
+      path.resolve(runtimeDir, '..', '..', '.dev.vars'),
+      path.resolve(runtimeDir, '..', '..', '..', '.dev.vars'),
+    );
+  }
+
+  // As a fallback, also support .env using the same search order
+  const tryEnvFiles = tryFiles.map((p) => p.replace(/\.dev\.vars$/, '.env'));
+
+  let loadedFrom: string | null = null;
+  const candidates = [...tryFiles, ...tryEnvFiles];
   for (const file of candidates) {
     try {
       if (!fs.existsSync(file)) continue;
       const content = fs.readFileSync(file, 'utf8');
+      let count = 0;
       for (const rawLine of content.split(/\r?\n/)) {
         const line = rawLine.trim();
         if (!line || line.startsWith('#')) continue;
@@ -24,13 +55,18 @@ function loadLocalEnvVars() {
         const val = line.slice(eq + 1).trim();
         if (!process.env[key]) {
           process.env[key] = val;
+          count++;
         }
       }
-      // Only load the first existing file
-      break;
+      loadedFrom = file;
+      console.error(`[ENV] Loaded ${count} var(s) from ${file}. ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
+      break; // only load first hit
     } catch (e) {
       // Non-fatal; continue
     }
+  }
+  if (!loadedFrom) {
+    console.error('[ENV] No .dev.vars or .env file found (searched cwd, parents, and __dirname parents)');
   }
 }
 

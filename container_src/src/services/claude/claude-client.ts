@@ -13,6 +13,40 @@ import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 
+const CLAUDE_CLI_CANDIDATES = ['claude-code', 'claude'] as const;
+
+type CliResolution = {
+  command: string;
+  versionStdout?: string | null;
+  versionStderr?: string | null;
+  versionError?: string | null;
+};
+
+async function resolveClaudeCli(): Promise<CliResolution | null> {
+  for (const candidate of CLAUDE_CLI_CANDIDATES) {
+    try {
+      const { stdout, stderr } = await execFileAsync(candidate, ['--version']);
+      return {
+        command: candidate,
+        versionStdout: stdout ? String(stdout).trim() : null,
+        versionStderr: stderr ? String(stderr).trim() : null,
+      };
+    } catch (err: any) {
+      const code = err?.code;
+      if (code === 'ENOENT' || code === 'ENOTFOUND') {
+        continue; // try next candidate
+      }
+      return {
+        command: candidate,
+        versionStdout: err?.stdout ? String(err.stdout).trim() : null,
+        versionStderr: err?.stderr ? String(err.stderr).trim() : null,
+        versionError: typeof err?.message === 'string' ? err.message : String(err),
+      };
+    }
+  }
+  return null;
+}
+
 export interface ClaudeRunCallbacks {
   onStart?: (meta: { startTime: number }) => void;
   onDelta?: (data: { text?: string; tokens?: number }) => void;
@@ -67,12 +101,23 @@ export class ClaudeClient implements IClaudeClient {
       hasApiKeyEnv: !!process.env.ANTHROPIC_API_KEY,
       paths: { authFile, legacyFile },
     };
-    try {
-      const { stdout, stderr } = await execFileAsync('claude-code', ['--version']).catch(() => ({ stdout: null, stderr: null } as any));
-      diag.claudeCodeVersion = stdout ? String(stdout).trim() : null;
-      diag.claudeCodeVersionStderr = stderr ? String(stderr).trim() : null;
-    } catch (e: any) {
-      diag.claudeCodeVersionError = String(e?.message || e);
+    const cliResolution = await resolveClaudeCli();
+    if (cliResolution) {
+      diag.claudeCliCommand = cliResolution.command;
+      if (cliResolution.versionStdout) {
+        diag.claudeCliVersion = cliResolution.versionStdout;
+        diag.claudeCodeVersion = cliResolution.versionStdout;
+      }
+      if (cliResolution.versionStderr) {
+        diag.claudeCliVersionStderr = cliResolution.versionStderr;
+        diag.claudeCodeVersionStderr = cliResolution.versionStderr;
+      }
+      if (cliResolution.versionError) {
+        diag.claudeCliVersionError = cliResolution.versionError;
+        diag.claudeCodeVersionError = cliResolution.versionError;
+      }
+    } else {
+      diag.claudeCliCommand = null;
     }
     return diag;
   }
@@ -170,6 +215,14 @@ export class ClaudeClient implements IClaudeClient {
     let fullText = '';
 
     try {
+      // Fail fast if we have no API key available
+      const effectiveKey = opts.apiKey || process.env.ANTHROPIC_API_KEY;
+      if (!effectiveKey) {
+        const diag = await this.collectClaudeDiagnostics();
+        const err = new Error('anthropic_api_key_missing');
+        (err as any).detail = { diagnostics: diag };
+        throw err;
+      }
       // Ensure auth files if apiKey provided
       // if (opts.apiKey) {
       //   try {
@@ -186,8 +239,9 @@ export class ClaudeClient implements IClaudeClient {
         process.env.ANTHROPIC_API_KEY = opts.apiKey;
       }
 
-      // Allow tests / callers to force-disable SDK or CLI usage for deterministic behavior
-      const disableSdk = process.env.CLAUDE_CLIENT_DISABLE_SDK === '1';
+  // Allow tests / callers to force-disable SDK or CLI usage for deterministic behavior
+  // Prefer SDK by default in all environments; callers can set CLAUDE_CLIENT_DISABLE_SDK=1 to force CLI path
+  const disableSdk = process.env.CLAUDE_CLIENT_DISABLE_SDK === '1';
       const disableCli = process.env.CLAUDE_CLIENT_DISABLE_CLI === '1';
 
       // Try SDK dynamic import (unless disabled)
@@ -196,37 +250,53 @@ export class ClaudeClient implements IClaudeClient {
         try {
           // attempt dynamic import; not all environments will have this package
           // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const sdk = await import('@anthropic-ai/claude-code').catch(() => null as any);
-            const queryFn = sdk?.query ?? sdk?.default?.query ?? null;
-            if (queryFn && typeof queryFn === 'function') {
-              usedSdk = true;
-              // call query and handle possible async iterable
-              const qResult = queryFn({ input: prompt, model: opts.model ?? this.model, stream: true });
-              // qResult might be an async iterable
-              if (qResult && typeof qResult[Symbol.asyncIterator] === 'function') {
-                for await (const part of qResult) {
-                  if (abortController.signal.aborted) throw new Error('cancelled');
-                  // part may be string or object
-                  const text = typeof part === 'string' ? part : (part?.text ?? part?.content ?? JSON.stringify(part));
-                  fullText += text;
-                  const deltaTokens = this.estimateTokens(text);
-                  outputTokens += deltaTokens;
-                  callbacks.onDelta?.({ text, tokens: deltaTokens });
+          const sdk = await import('@anthropic-ai/claude-code').catch(() => null as any);
+          const queryFn = sdk?.query ?? sdk?.default?.query ?? null;
+          if (queryFn && typeof queryFn === 'function') {
+            usedSdk = true;
+            // Correct SDK usage: pass { prompt, options } and consume the async iterator
+            const options: any = {};
+            const model = opts.model ?? this.model;
+            if (model) options.model = model;
+            // Default to bypassing permissions inside containers
+            options.permissionMode = 'bypassPermissions';
+
+            const iterable = queryFn({ prompt, options });
+
+            const extractTextFromSdkMessage = (m: any): string => {
+              try {
+                // Assistant/user message with content array
+                const content = m?.message?.content;
+                if (Array.isArray(content)) {
+                  const parts = content
+                    .filter((p: any) => p && p.type === 'text' && typeof p.text === 'string')
+                    .map((p: any) => p.text as string);
+                  if (parts.length) return parts.join('');
                 }
-              } else if (qResult && typeof qResult.then === 'function') {
-                const awaited = await qResult;
-                const text = String(awaited?.text ?? awaited?.content ?? awaited ?? '');
-                fullText = text;
-                outputTokens = this.estimateTokens(text);
-                callbacks.onDelta?.({ text, tokens: outputTokens });
-              } else {
-                // unknown shape, stringify
-                const text = String(qResult ?? '');
-                fullText = text;
-                outputTokens = this.estimateTokens(text);
-                callbacks.onDelta?.({ text, tokens: outputTokens });
+                // Direct text field
+                if (typeof m?.text === 'string') return m.text as string;
+                // Result success with string result
+                if (m?.type === 'result' && m?.subtype === 'success' && typeof m?.result === 'string') {
+                  return m.result as string;
+                }
+                // Fallback: empty string (avoid noisy JSON dumps)
+                return '';
+              } catch {
+                return '';
+              }
+            };
+
+            for await (const msg of iterable as any) {
+              if (abortController.signal.aborted) break;
+              const textChunk = extractTextFromSdkMessage(msg);
+              if (textChunk) {
+                fullText += textChunk;
+                const deltaTokens = this.estimateTokens(textChunk);
+                outputTokens += deltaTokens;
+                callbacks.onDelta?.({ text: textChunk, tokens: deltaTokens });
               }
             }
+          }
         } catch (sdkErr) {
           // SDK attempt failed - we'll fall back to CLI check
           usedSdk = false;
@@ -241,30 +311,37 @@ export class ClaudeClient implements IClaudeClient {
           throw err;
         }
         // Check for CLI presence (unless disabled above)
-        try {
-            await execFileAsync('claude-code', ['--version']);
-        } catch (e) {
-            const diag = await this.collectClaudeDiagnostics();
-            const err = new Error('claude_runtime_missing');
-            (err as any).detail = { diagnostics: diag, original: e };
-            throw err;
+        const cliResolution = await resolveClaudeCli();
+        if (!cliResolution) {
+          const diag = await this.collectClaudeDiagnostics();
+          const err = new Error('claude_runtime_missing');
+          (err as any).detail = { diagnostics: diag, original: 'cli_not_found' };
+          throw err;
         }
 
         // If CLI exists we would normally spawn it and stream. Because CLI argument sets
-        // vary across versions, attempt a streaming invocation with a heuristic.
-        // We'll try `claude-code query --stdin --stream` and fall back to a single-shot
-        // `claude-code query --text '...'` call. These are best-effort.
+        // vary across versions, attempt to choose args based on detected command.
+        const isLegacyCli = cliResolution.command === 'claude-code';
+        const cliArgs = isLegacyCli
+          ? ['query', '--stdin', '--stream']
+          : ['-p', prompt];
 
-        // First attempt: streaming via spawn with --stdin
-        const child = spawn('claude-code', ['query', '--stdin', '--stream'], {
+        // Spawn CLI (always pipe stdout/stderr so we can stream output)
+        const child = spawn(cliResolution.command, cliArgs, {
           stdio: ['pipe', 'pipe', 'pipe'],
+          cwd: opts.workspacePath || process.cwd(),
         });
         // register child for cancellation
   this.registerInFlight({ sessionId, operationId, abortController, child });
 
-        child.stdin.setDefaultEncoding('utf8');
-        child.stdin.write(prompt);
-        child.stdin.end();
+        if (isLegacyCli) {
+          child.stdin.setDefaultEncoding('utf8');
+          child.stdin.write(prompt);
+          child.stdin.end();
+        } else {
+          // Ensure stdin closed so CLI doesn't wait for additional input
+          child.stdin.end();
+        }
 
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk: string) => {

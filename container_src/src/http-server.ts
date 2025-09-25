@@ -16,6 +16,11 @@ interface HealthStatus {
   timestamp: string;
   claudeCodeAvailable: boolean;
   apiKeyAvailable: boolean;
+  runtimeFlags?: {
+    disableSdk: boolean;
+    disableCli: boolean;
+    sdkStream: boolean;
+  };
 }
 
 // Container response interface
@@ -49,17 +54,19 @@ async function healthHandler(
 ): Promise<void> {
   logWithContext('HEALTH', 'Health check requested');
 
-  // Check Claude CLI availability
+  // Check Claude CLI availability (prefer 'claude-code', fall back to 'claude')
   let claudeCliAvailable = false;
   try {
     const { execSync } = await import('node:child_process');
-    execSync('claude --version', { timeout: 5000, stdio: 'pipe' });
-    claudeCliAvailable = true;
+    try {
+      execSync('claude-code --version', { timeout: 5000, stdio: 'pipe' });
+      claudeCliAvailable = true;
+    } catch {
+      execSync('claude --version', { timeout: 5000, stdio: 'pipe' });
+      claudeCliAvailable = true;
+    }
   } catch (error) {
-    console.warn(
-      '[HEALTH] Claude CLI not available:',
-      (error as Error).message,
-    );
+    console.warn('[HEALTH] Claude CLI not available:', (error as Error).message);
   }
 
   const response: HealthStatus = {
@@ -70,6 +77,11 @@ async function healthHandler(
     timestamp: new Date().toISOString(),
     claudeCodeAvailable: claudeCliAvailable,
     apiKeyAvailable: !!process.env.ANTHROPIC_API_KEY,
+    runtimeFlags: {
+      disableSdk: process.env.CLAUDE_CLIENT_DISABLE_SDK === '1',
+      disableCli: process.env.CLAUDE_CLIENT_DISABLE_CLI === '1',
+      sdkStream: process.env.CLAUDE_CLIENT_SDK_STREAM === '1',
+    },
   };
 
   logWithContext('HEALTH', 'Health check response', {
@@ -350,6 +362,51 @@ async function requestHandler(
       await processHandler(req, res);
     } else if (url === '/acp' && method === 'POST') {
       await acpHandler(req, res);
+    } else if (url === '/acp/initialize' && method === 'POST') {
+      try {
+        const raw = await readRequestBody(req);
+        const params = JSON.parse(raw);
+        const ctx: RequestContext = {
+          requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          timestamp: Date.now(),
+          metadata: {
+            userId: params?.userId || 'http-server',
+            anthropicApiKey: params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
+          },
+        };
+        const result = await handleInitialize(params || {}, ctx);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', result, id: Date.now() }));
+      } catch (e: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: e?.message || 'Internal error' }, id: Date.now() }));
+      }
+      return;
+    } else if (url === '/acp/session/prompt' && method === 'POST') {
+      // Convenience REST alias for testing: directly pass params to sessionPromptHandler
+      try {
+        const raw = await readRequestBody(req);
+        const params = JSON.parse(raw);
+        const ctx: RequestContext = {
+          requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          timestamp: Date.now(),
+          metadata: {
+            userId: params?.userId || 'http-server',
+            sessionId: params?.sessionId,
+            anthropicApiKey: params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
+            workspaceUri: params?.configuration?.workspaceUri,
+            repository: params?.context?.repository,
+            operation: params?.context?.operation,
+          },
+        };
+        const notifier = (m: string, p: any) => logWithContext('ACP', 'Notification', { method: m, params: p });
+        const result = await handleSessionPrompt(params, ctx, notifier);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', result, id: Date.now() }));
+      } catch (e: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: e?.message || 'Internal error' }, id: Date.now() }));
+      }
     } else {
       logWithContext('HTTP', 'Route not found', { method, url });
       res.writeHead(404, { 'Content-Type': 'application/json' });

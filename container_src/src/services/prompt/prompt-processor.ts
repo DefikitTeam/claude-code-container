@@ -59,6 +59,18 @@ export class PromptProcessor {
       abortSignal,
     } = opts;
 
+    const operationId = opts.operationId ?? `prompt-${Date.now()}`;
+    const logFullContent = process.env.ACP_LOG_FULL_CONTENT === '1';
+    const logPrefix = `[PROMPT][${sessionId}${operationId ? `:${operationId}` : ''}]`;
+    const logFull = (...parts: Array<string | number | boolean | undefined>) => {
+      if (!logFullContent) return;
+      const message = parts
+        .filter((p) => p !== undefined)
+        .map((p) => (typeof p === 'string' ? p : JSON.stringify(p)))
+        .join(' ');
+      console.error(`${logPrefix} ${message}`);
+    };
+
     if (!sessionId) throw new Error('sessionId required');
     if (!Array.isArray(content) || content.length === 0) throw new Error('content must be non-empty array');
 
@@ -68,6 +80,7 @@ export class PromptProcessor {
     // 2. Build prompt text from content blocks
     const prompt = buildPromptFromContent(content, contextFiles, agentContext, session);
     const inputEst = estimateTokens(prompt).estimatedTokens;
+    logFull('prompt', prompt);
 
     // 3. Prepare workspace
     const wsDesc = await this.deps.workspaceService.prepare({
@@ -98,10 +111,12 @@ export class PromptProcessor {
           message: 'Processing with Claude...',
           progress: { current: 0, total: 3, message: 'Queued' },
         });
+        logFull('run_start', `estimatedInputTokens=${inputEst}`);
       },
       onDelta: (delta) => {
         if (delta.text) fullText += delta.text;
         if (delta.tokens) outputTokens += delta.tokens;
+        if (delta.text) logFull('delta', delta.text);
         notificationSender?.('session/update', {
             sessionId,
             status: 'working',
@@ -111,6 +126,7 @@ export class PromptProcessor {
       },
       onComplete: () => {
         finished = true;
+        logFull('run_complete', `outputTokens=${outputTokens}`, 'full_text', fullText);
         notificationSender?.('session/update', {
           sessionId,
           status: 'completed',
@@ -118,12 +134,13 @@ export class PromptProcessor {
         });
       },
       onError: (err) => {
+        logFull('run_error', err instanceof Error ? err.message : String(err));
         completionError = err;
       },
     };
 
     try {
-      await this.deps.claudeClient.runPrompt(prompt, { sessionId, operationId: opts.operationId, workspacePath: wsDesc.path, apiKey, abortSignal }, callbacks);
+      await this.deps.claudeClient.runPrompt(prompt, { sessionId, operationId, workspacePath: wsDesc.path, apiKey, abortSignal }, callbacks);
     } catch (err) {
       completionError = err;
     }
@@ -137,6 +154,7 @@ export class PromptProcessor {
       const stderr: string | undefined = typeof detail.stderr === 'string' ? detail.stderr.slice(0, 4000) : undefined;
       const exitCode: number | undefined = typeof detail.exitCode === 'number' ? detail.exitCode : undefined;
       const rawDiagnostics = detail.diagnostics;
+      logFull('run_failed', classified.code, classified.message, stderr, rawDiagnostics ? JSON.stringify(rawDiagnostics) : undefined);
       notificationSender?.('session/update', {
         sessionId,
         status: classified.code === 'cancelled' ? 'completed' : 'error',
@@ -192,6 +210,7 @@ export class PromptProcessor {
       usage: { inputTokens: inputEst, outputTokens },
       summary: fullText.substring(0, 200) + (fullText.length > 200 ? '...' : ''),
     };
+    console.error(`[PROMPT-SUMMARY][${sessionId}${operationId ? `:${operationId}` : ''}] ${response.summary ?? ''}`);
     if (githubOperations) response.githubOperations = githubOperations;
     // attach minimal meta (duration) – existing shape allows additional fields
     (response as any).meta = {
