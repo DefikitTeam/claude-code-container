@@ -5,6 +5,7 @@ export interface Env {
   MY_CONTAINER: DurableObjectNamespace;
   GITHUB_APP_CONFIG: DurableObjectNamespace;
   USER_CONFIG: DurableObjectNamespace;
+  ACP_SESSION: DurableObjectNamespace;
 
   // Environment variables
   ANTHROPIC_API_KEY?: string;
@@ -126,6 +127,7 @@ export interface PromptProcessingResult {
   error?: string;
   repository?: string;
   branch?: string;
+  githubAutomation?: GitHubAutomationResult;
 }
 
 export interface StoredGitHubConfig {
@@ -185,4 +187,122 @@ export interface ACPSession {
   capabilities: string[];
   createdAt: number;
   lastSeenAt: number;
+}
+
+// --- GitHub automation contracts shared with worker consumers ---
+
+export type GitHubAutomationStatus = 'success' | 'skipped' | 'error';
+
+export interface GitHubAutomationIssueReference {
+  id: number;
+  number: number;
+  url: string;
+  title: string;
+}
+
+export interface GitHubAutomationPullRequestReference {
+  number: number;
+  url: string;
+  branch: string;
+  draft?: boolean;
+}
+
+export interface GitHubAutomationCommitReference {
+  sha: string;
+  message: string;
+}
+
+export interface GitHubAutomationErrorDetail {
+  code: string;
+  message: string;
+  retryable?: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface GitHubAutomationDiagnostics {
+  durationMs: number;
+  attempts?: number;
+  logs?: string[];
+  errorCode?: string;
+  startTimestamp?: string;
+  endTimestamp?: string;
+}
+
+export interface GitHubAutomationResult {
+  status: GitHubAutomationStatus;
+  issue?: GitHubAutomationIssueReference;
+  pullRequest?: GitHubAutomationPullRequestReference;
+  branch?: string;
+  commit?: GitHubAutomationCommitReference;
+  skippedReason?: string;
+  error?: GitHubAutomationErrorDetail;
+  diagnostics: GitHubAutomationDiagnostics;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ACPSessionPromptUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface ACPSessionPromptWorkspaceMeta {
+  sessionId: string;
+  path: string;
+  isEphemeral: boolean;
+  git?: {
+    currentBranch?: string;
+    hasUncommittedChanges?: boolean;
+    remoteUrl?: string;
+    lastCommit?: string;
+  };
+}
+
+export interface ACPSessionPromptMeta {
+  durationMs?: number;
+  preDiagnostics?: Record<string, unknown>;
+  workspace?: ACPSessionPromptWorkspaceMeta;
+  githubAutomationVersion?: string;
+}
+
+export interface ACPSessionPromptResult {
+  stopReason: 'completed' | 'cancelled' | 'error';
+  usage: ACPSessionPromptUsage;
+  summary?: string;
+  githubOperations?: Record<string, unknown>;
+  githubAutomation?: GitHubAutomationResult;
+  errorCode?: string;
+  diagnostics?: Record<string, unknown>;
+  meta?: ACPSessionPromptMeta;
+}
+
+export interface GitHubAutomationAuditDiagnostics {
+  durationMs?: number;
+  attempts?: number;
+  errorCode?: string;
+  logCount?: number;
+}
+
+export interface GitHubAutomationAudit {
+  status: GitHubAutomationStatus;
+  branch?: string;
+  issue?: Pick<GitHubAutomationIssueReference, 'number' | 'url' | 'title'>;
+  pullRequest?: Pick<
+    GitHubAutomationPullRequestReference,
+    'number' | 'url' | 'branch' | 'draft'
+  >;
+  commitSha?: string;
+  commitMessage?: string;
+  skippedReason?: string;
+  error?: Pick<GitHubAutomationErrorDetail, 'code' | 'message' | 'retryable'>;
+  diagnostics?: GitHubAutomationAuditDiagnostics;
+}
+
+export interface SessionPromptAuditRecord {
+  type: 'session_prompt_result';
+  timestamp: string;
+  sessionId: string;
+  stopReason: 'completed' | 'cancelled' | 'error';
+  usage?: ACPSessionPromptUsage;
+  githubAutomation?: GitHubAutomationAudit;
+  githubAutomationVersion?: string;
 }

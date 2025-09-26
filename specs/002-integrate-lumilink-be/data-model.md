@@ -260,8 +260,9 @@ automation metadata alongside existing usage metrics.
 **Usage**:
 
 1. Worker forwards the `githubAutomation` block up to LumiLink-BE clients.
-2. Diagnostics surface in ACP telemetry streams for alerting.
-3. Skipped/error states bubble up without collapsing the envelope `stopReason` (`stopReason`
+2. Worker records a sanitized automation audit entry in `ACPSessionDO` (branch, PR, error code only) to avoid secret leakage while preserving history.
+3. Diagnostics surface in ACP telemetry streams for alerting.
+4. Skipped/error states bubble up without collapsing the envelope `stopReason` (`stopReason`
     remains tied to Claude run outcome).
 
 ## Relationships

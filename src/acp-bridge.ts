@@ -5,6 +5,11 @@ import type {
   ACPSession,
   GitHubIssuePayload,
   ContainerRequest,
+  ACPSessionPromptResult,
+  SessionPromptAuditRecord,
+  GitHubAutomationResult,
+  GitHubAutomationAudit,
+  GitHubAutomationAuditDiagnostics,
 } from './types';
 
 // Enhanced ACP bridge that routes all ACP methods to container's enhanced handlers
@@ -141,6 +146,14 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
           },
           500,
         );
+      }
+
+      if (method === 'session/prompt' && containerResult?.result) {
+        await handleSessionPromptSideEffects({
+          env: c.env,
+          sessionId: params?.sessionId,
+          result: containerResult.result as ACPSessionPromptResult,
+        });
       }
 
       console.log(`[ACP-BRIDGE] Successfully routed ${method} to container`);
@@ -312,3 +325,156 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
 }
 
 export { sessions };
+
+const MAX_COMMIT_MESSAGE_AUDIT_LENGTH = 160;
+
+async function handleSessionPromptSideEffects(args: {
+  env: Env;
+  sessionId?: string;
+  result: ACPSessionPromptResult;
+}) {
+  const { env, sessionId, result } = args;
+
+  const sanitizedAutomation = sanitizeGitHubAutomation(result.githubAutomation);
+  if (!sanitizedAutomation) {
+    return;
+  }
+
+  const resolvedSessionId =
+    sessionId || result.meta?.workspace?.sessionId || null;
+
+  if (!resolvedSessionId) {
+    console.warn(
+      '[ACP-BRIDGE] Unable to log automation result - missing sessionId',
+    );
+    return;
+  }
+
+  const auditRecord: SessionPromptAuditRecord = {
+    type: 'session_prompt_result',
+    timestamp: new Date().toISOString(),
+    sessionId: resolvedSessionId,
+    stopReason: result.stopReason,
+    usage: result.usage,
+    githubAutomation: sanitizedAutomation,
+    githubAutomationVersion: result.meta?.githubAutomationVersion,
+  };
+
+  await appendSessionAudit(env, auditRecord.sessionId, auditRecord);
+}
+
+function sanitizeGitHubAutomation(
+  automation?: GitHubAutomationResult,
+): GitHubAutomationAudit | undefined {
+  if (!automation) {
+    return undefined;
+  }
+
+  const audit: GitHubAutomationAudit = {
+    status: automation.status,
+  };
+
+  if (automation.branch) {
+    audit.branch = automation.branch;
+  }
+
+  if (automation.issue) {
+    audit.issue = {
+      number: automation.issue.number,
+      url: automation.issue.url,
+      title: automation.issue.title,
+    };
+  }
+
+  if (automation.pullRequest) {
+    audit.pullRequest = {
+      number: automation.pullRequest.number,
+      url: automation.pullRequest.url,
+      branch: automation.pullRequest.branch,
+      draft: automation.pullRequest.draft,
+    };
+  }
+
+  if (automation.commit) {
+    audit.commitSha = automation.commit.sha;
+    if (automation.commit.message) {
+      audit.commitMessage = truncate(automation.commit.message, MAX_COMMIT_MESSAGE_AUDIT_LENGTH);
+    }
+  }
+
+  if (automation.skippedReason) {
+    audit.skippedReason = automation.skippedReason;
+  }
+
+  if (automation.error) {
+    audit.error = {
+      code: automation.error.code,
+      message: automation.error.message,
+      retryable: automation.error.retryable,
+    };
+  }
+
+  const diagnostics = automation.diagnostics;
+  const auditDiagnostics: GitHubAutomationAuditDiagnostics = {};
+
+  if (typeof diagnostics?.durationMs === 'number') {
+    auditDiagnostics.durationMs = diagnostics.durationMs;
+  }
+
+  if (typeof diagnostics?.attempts === 'number') {
+    auditDiagnostics.attempts = diagnostics.attempts;
+  }
+
+  if (diagnostics?.errorCode) {
+    auditDiagnostics.errorCode = diagnostics.errorCode;
+  }
+
+  if (Array.isArray(diagnostics?.logs)) {
+    auditDiagnostics.logCount = diagnostics.logs.length;
+  }
+
+  if (Object.keys(auditDiagnostics).length > 0) {
+    audit.diagnostics = auditDiagnostics;
+  }
+
+  return audit;
+}
+
+async function appendSessionAudit(
+  env: Env,
+  sessionId: string,
+  record: SessionPromptAuditRecord,
+) {
+  const namespace = env.ACP_SESSION;
+  if (!namespace) {
+    console.warn('[ACP-BRIDGE] ACP_SESSION namespace not configured');
+    return;
+  }
+
+  try {
+    const id = namespace.idFromName(sessionId);
+    const stub = namespace.get(id);
+    await stub.fetch(
+      new Request(`https://acp-session/${encodeURIComponent(sessionId)}/audit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+      }),
+    );
+  } catch (error) {
+    console.warn('[ACP-BRIDGE] Failed to append session audit', error);
+  }
+}
+
+function truncate(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
+export const __acpBridgeInternals = {
+  sanitizeGitHubAutomation,
+  handleSessionPromptSideEffects,
+  truncate,
+};

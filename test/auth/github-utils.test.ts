@@ -11,6 +11,7 @@ import type { UserConfig } from '../../src/types';
 // Mock the app-config module
 vi.mock('../../src/app-config', () => ({
   getFixedGitHubAppConfig: vi.fn(),
+  validateFixedAppConfig: vi.fn(() => true),
 }));
 
 // Mock global fetch

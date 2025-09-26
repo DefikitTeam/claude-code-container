@@ -12,6 +12,7 @@ import {
   GitHubAppConfigDO,
   MyContainer,
   UserConfigDO,
+  ACPSessionDO,
 } from './durable-objects';
 import { CryptoUtils } from './crypto';
 import { addInstallationEndpoints } from './installation-endpoints';
@@ -30,7 +31,7 @@ import { getTokenManager } from './token-manager';
 import { webhookAuthMiddleware, quickAuthValidation } from './auth-middleware';
 
 // Export Durable Objects only
-export { GitHubAppConfigDO, MyContainer, UserConfigDO };
+export { GitHubAppConfigDO, MyContainer, UserConfigDO, ACPSessionDO };
 
 // Create Hono app with proper typing for Cloudflare Workers
 const app = new Hono<{

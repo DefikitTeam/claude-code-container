@@ -14,6 +14,7 @@ declare namespace Cloudflare {
       import('./src/index').GitHubAppConfigDO
     >;
     USER_CONFIG: DurableObjectNamespace<import('./src/index').UserConfigDO>;
+    ACP_SESSION: DurableObjectNamespace<import('./src/index').ACPSessionDO>;
   }
 }
 interface Env extends Cloudflare.Env {}
