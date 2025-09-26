@@ -3,6 +3,9 @@ import { PromptProcessor } from '../src/services/prompt/prompt-processor';
 import type { ACPSession } from '../src/types/acp-session';
 import { ClassifiedErrorCode, defaultErrorClassifier } from '../src/core/errors/error-classifier';
 import type { GitHubAutomationResult } from '../src/services/github/github-automation.js';
+import { GitHubAutomationService } from '../src/services/github/github-automation.js';
+import type { GitService } from '../src/services/git/git-service.js';
+import type { Octokit } from '@octokit/rest';
 
 function makeSession(overrides: Partial<ACPSession> = {}): ACPSession {
   return {
@@ -164,6 +167,163 @@ describe('PromptProcessor', () => {
     expect((res as any).meta.githubAutomationVersion).toBe('1.0.0'); // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(res.githubOperations?.branchCreated).toBe(automationResult.branch);
   });
+
+  describe('GitHub automation integration', () => {
+    it('executes automation end-to-end and merges legacy githubOperations', async () => {
+      const git = createIntegrationGitService();
+      const octokit = createIntegrationOctokit();
+
+      const automationService = new GitHubAutomationService({
+        gitService: git.gitService,
+        octokitFactory: () => octokit.octokit,
+        now: () => new Date('2025-09-25T12:00:00Z'),
+        branchPrefix: 'integration',
+      });
+
+      const integrationSessionStore = {
+        load: vi.fn(async () => makeSession({
+          sessionId: 'sess-automation',
+          sessionOptions: { persistHistory: false, enableGitOps: true, contextFiles: [] },
+        })),
+        save: vi.fn(async () => {}),
+        delete: vi.fn(async () => {}),
+        list: vi.fn(async () => []),
+        exists: vi.fn(async () => true),
+      };
+
+      const integrationWorkspace = {
+        prepare: vi.fn(async () => ({
+          sessionId: 'sess-automation',
+          path: '/tmp/workspace',
+          isEphemeral: true,
+          createdAt: Date.now(),
+          gitInfo: {
+            currentBranch: 'main',
+            hasUncommittedChanges: true,
+            remoteUrl: 'https://github.com/org/repo.git',
+            lastCommit: 'Initial commit',
+          },
+        })),
+        getPath: vi.fn(() => '/tmp/workspace'),
+        cleanup: vi.fn(async () => {}),
+      };
+
+      const integrationClaude = {
+        runPrompt: vi.fn(async (_prompt: string, _opts: any, callbacks: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          callbacks.onStart?.({});
+          callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
+          callbacks.onComplete?.({ fullText: 'Hello world' });
+          return { fullText: 'Hello world', tokens: { input: 1, output: 3 } };
+        }),
+        cancel: vi.fn(async () => {}),
+        cancelOperation: vi.fn(async () => {}),
+      };
+
+      const integrationProcessor = new PromptProcessor({
+        sessionStore: integrationSessionStore,
+        workspaceService: integrationWorkspace,
+        claudeClient: integrationClaude,
+        gitService: git.gitService,
+        githubAutomationService: automationService,
+      });
+
+      const result = await integrationProcessor.processPrompt({
+        sessionId: 'sess-automation',
+        content: [{ type: 'text', text: 'Please fix bug' }],
+        githubToken: 'token-abc',
+        agentContext: {
+          repository: 'org/repo',
+          automation: {
+            issueTitle: 'Fix bug reported by QA',
+            labels: ['bug', 'critical'],
+          },
+        },
+      });
+
+      expect(result.githubAutomation?.status).toBe('success');
+      expect(result.githubAutomation?.issue?.number).toBe(42);
+      expect(result.githubAutomation?.pullRequest?.number).toBe(77);
+      expect(result.githubAutomation?.branch).toMatch(/^integration\/issue-42-/);
+      expect(result.githubOperations?.branchCreated).toBe(result.githubAutomation?.branch);
+      expect(result.githubOperations?.pullRequestCreated?.number).toBe(77);
+      expect(octokit.issuesCreate).toHaveBeenCalledTimes(1);
+      expect(octokit.pullsCreate).toHaveBeenCalledTimes(1);
+      expect(git.runGit.mock.calls.some(([_, args]) => args[0] === 'push')).toBe(true);
+    });
+
+    it('captures automation errors and surfaces diagnostics', async () => {
+      const git = createIntegrationGitService({ failPush: true });
+      const octokit = createIntegrationOctokit();
+
+      const automationService = new GitHubAutomationService({
+        gitService: git.gitService,
+        octokitFactory: () => octokit.octokit,
+        now: () => new Date('2025-09-25T12:00:00Z'),
+      });
+
+      const integrationSessionStore = {
+        load: vi.fn(async () => makeSession({
+          sessionId: 'sess-automation-error',
+          sessionOptions: { persistHistory: false, enableGitOps: true, contextFiles: [] },
+        })),
+        save: vi.fn(async () => {}),
+        delete: vi.fn(async () => {}),
+        list: vi.fn(async () => []),
+        exists: vi.fn(async () => true),
+      };
+
+      const integrationWorkspace = {
+        prepare: vi.fn(async () => ({
+          sessionId: 'sess-automation-error',
+          path: '/tmp/workspace',
+          isEphemeral: true,
+          createdAt: Date.now(),
+          gitInfo: {
+            currentBranch: 'main',
+            hasUncommittedChanges: true,
+            remoteUrl: 'https://github.com/org/repo.git',
+            lastCommit: 'Initial commit',
+          },
+        })),
+        getPath: vi.fn(() => '/tmp/workspace'),
+        cleanup: vi.fn(async () => {}),
+      };
+
+      const integrationClaude = {
+        runPrompt: vi.fn(async (_prompt: string, _opts: any, callbacks: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          callbacks.onStart?.({});
+          callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
+          callbacks.onComplete?.({ fullText: 'Hello world' });
+          return { fullText: 'Hello world', tokens: { input: 1, output: 3 } };
+        }),
+        cancel: vi.fn(async () => {}),
+        cancelOperation: vi.fn(async () => {}),
+      };
+
+      const integrationProcessor = new PromptProcessor({
+        sessionStore: integrationSessionStore,
+        workspaceService: integrationWorkspace,
+        claudeClient: integrationClaude,
+        gitService: git.gitService,
+        githubAutomationService: automationService,
+      });
+
+      const result = await integrationProcessor.processPrompt({
+        sessionId: 'sess-automation-error',
+        content: [{ type: 'text', text: 'Please fix bug' }],
+        githubToken: 'token-error',
+        agentContext: {
+          repository: 'org/repo',
+        },
+      });
+
+      expect(result.githubAutomation?.status).toBe('error');
+      expect(result.githubAutomation?.error?.code).toBe('git-push-failed');
+      expect(result.githubAutomation?.diagnostics?.logs?.length).toBeGreaterThan(0);
+      expect(result.githubOperations?.branchCreated).toBeUndefined();
+      expect(git.runGit.mock.calls.filter(([_, args]) => args[0] === 'push').length).toBe(1);
+    });
+  });
 });
 
 function defaultAutomationSkip(): GitHubAutomationResult {
@@ -172,4 +332,94 @@ function defaultAutomationSkip(): GitHubAutomationResult {
     skippedReason: 'test-skip',
     diagnostics: { durationMs: 0, attempts: 1, logs: [] },
   };
+}
+
+function createIntegrationOctokit() {
+  const issuesCreate = vi.fn(async () => ({
+    data: {
+      id: 1,
+      number: 42,
+      html_url: 'https://github.com/org/repo/issues/42',
+      title: 'Fix bug reported by QA',
+    },
+  }));
+  const issuesComment = vi.fn(async () => ({}));
+  const pullsCreate = vi.fn(async () => ({
+    data: {
+      number: 77,
+      html_url: 'https://github.com/org/repo/pull/77',
+      draft: false,
+    },
+  }));
+
+  const octokit = {
+    rest: {
+      issues: {
+        create: issuesCreate,
+        createComment: issuesComment,
+      },
+      pulls: {
+        create: pullsCreate,
+      },
+    },
+  } as unknown as Octokit;
+
+  return { octokit, issuesCreate, issuesComment, pullsCreate };
+}
+
+function createIntegrationGitService(options: { failPush?: boolean } = {}) {
+  const runGit = vi.fn(async (_path: string, args: string[]) => {
+    const key = args.join(' ');
+    if (key === 'status --porcelain') {
+      return { stdout: ' M src/index.ts\n', stderr: '', code: 0 };
+    }
+    if (key === 'diff --cached --name-only') {
+      return { stdout: 'src/index.ts\n', stderr: '', code: 0 };
+    }
+    if (key === 'rev-parse HEAD') {
+      return { stdout: 'deadbeefdeadbeef\n', stderr: '', code: 0 };
+    }
+    if (key === 'remote get-url --push origin') {
+      return { stdout: 'https://github.com/org/repo.git\n', stderr: '', code: 0 };
+    }
+    if (key.startsWith('remote set-url --push')) {
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    if (key.startsWith('config user.')) {
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    if (key.startsWith('add --all')) {
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    if (key.startsWith('commit -m')) {
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    if (key.startsWith('push')) {
+      if (options.failPush) {
+        return { stdout: '', stderr: 'permission denied', code: 1 };
+      }
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    if (key.startsWith('fetch')) {
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    if (key.startsWith('pull')) {
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    if (key.startsWith('checkout')) {
+      return { stdout: '', stderr: '', code: 0 };
+    }
+    return { stdout: '', stderr: '', code: 0 };
+  });
+
+  const gitService: Partial<GitService> = {
+    ensureRepo: vi.fn(async () => {}),
+    runGit,
+    createBranch: vi.fn(async () => {}),
+    checkoutBranch: vi.fn(async () => {}),
+    hasUncommittedChanges: vi.fn(async () => true),
+    listChangedFiles: vi.fn(async () => ['src/index.ts']),
+  };
+
+  return { gitService: gitService as GitService, runGit };
 }

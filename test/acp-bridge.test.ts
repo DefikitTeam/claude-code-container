@@ -60,6 +60,33 @@ describe('acp-bridge automation propagation', () => {
     });
   });
 
+  it('sanitizes error automation responses and strips raw logs', () => {
+    const errorAutomation: GitHubAutomationResult = {
+      ...baseAutomation,
+      status: 'error',
+      error: {
+        code: 'git-push-failed',
+        message: 'Failed to push branch',
+        retryable: true,
+      },
+      diagnostics: {
+        ...baseAutomation.diagnostics,
+        errorCode: 'git-push-failed',
+        logs: ['git push origin feature', 'permission denied'],
+      },
+    };
+
+    const sanitized = sanitizeGitHubAutomation(errorAutomation);
+
+    expect(sanitized?.status).toBe('error');
+    expect(sanitized?.error?.code).toBe('git-push-failed');
+    expect(sanitized?.diagnostics?.errorCode).toBe('git-push-failed');
+    expect(sanitized?.diagnostics?.logCount).toBe(2);
+    expect(
+      'logs' in (sanitized?.diagnostics as Record<string, unknown> | undefined ?? {}),
+    ).toBe(false);
+  });
+
   it('records sanitized automation result via durable object', async () => {
     let recordedBody: SessionDurableRecord | undefined;
 
@@ -108,14 +135,84 @@ describe('acp-bridge automation propagation', () => {
       'logs' in (recordedBody?.githubAutomation?.diagnostics ?? {}),
     ).toBe(false);
   });
+
+  it('records error automation details without leaking diagnostics logs', async () => {
+    let recordedBody: SessionDurableRecord | undefined;
+
+    const fetchMock = vi.fn(async (request: Request) => {
+      recordedBody = await request.clone().json();
+      return new Response('{}', { status: 200 });
+    });
+
+    const namespace = {
+      idFromName: vi.fn(() => ({
+        toString: () => 'stub-id',
+      })),
+      get: vi.fn(() => ({ fetch: fetchMock })),
+    } as any;
+
+    const env = {
+      ACP_SESSION: namespace,
+    } as unknown as Env;
+
+    const result: ACPSessionPromptResult = {
+      stopReason: 'error',
+      usage: { inputTokens: 12, outputTokens: 34 },
+      githubAutomation: {
+        status: 'error',
+        diagnostics: {
+          durationMs: 555,
+          attempts: 1,
+          errorCode: 'git-push-failed',
+          logs: ['git push origin', 'permission denied'],
+        },
+        error: {
+          code: 'git-push-failed',
+          message: 'Failed to push branch',
+          retryable: true,
+        },
+      },
+      meta: {
+        workspace: {
+          sessionId: 'session-error',
+          path: '/tmp/workspace',
+          isEphemeral: true,
+        },
+        githubAutomationVersion: '1.0.0',
+      },
+    };
+
+    await handleSessionPromptSideEffects({
+      env,
+      sessionId: 'session-error',
+      result,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(recordedBody?.githubAutomation?.status).toBe('error');
+    expect(recordedBody?.githubAutomation?.error?.code).toBe('git-push-failed');
+    expect(recordedBody?.githubAutomation?.diagnostics?.errorCode).toBe(
+      'git-push-failed',
+    );
+    expect(
+      'logs' in (recordedBody?.githubAutomation?.diagnostics ?? {}),
+    ).toBe(false);
+  });
 });
 
 type SessionDurableRecord = {
   sessionId: string;
   githubAutomationVersion?: string;
   githubAutomation?: {
+    status?: string;
+    error?: {
+      code?: string;
+      message?: string;
+      retryable?: boolean;
+    };
     diagnostics?: {
       logCount?: number;
+      errorCode?: string;
     };
   };
 };
