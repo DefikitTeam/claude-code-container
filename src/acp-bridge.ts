@@ -74,7 +74,7 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
       console.log(`[ACP-BRIDGE] Sending to container:`, {
         method,
         containerName,
-        hasSessionId: !!(params?.sessionId),
+        hasSessionId: !!params?.sessionId,
         paramsKeys: Object.keys(params || {}),
         containerId: containerId.toString(),
       });
@@ -398,7 +398,10 @@ function sanitizeGitHubAutomation(
   if (automation.commit) {
     audit.commitSha = automation.commit.sha;
     if (automation.commit.message) {
-      audit.commitMessage = truncate(automation.commit.message, MAX_COMMIT_MESSAGE_AUDIT_LENGTH);
+      audit.commitMessage = truncate(
+        automation.commit.message,
+        MAX_COMMIT_MESSAGE_AUDIT_LENGTH,
+      );
     }
   }
 
@@ -455,11 +458,14 @@ async function appendSessionAudit(
     const id = namespace.idFromName(sessionId);
     const stub = namespace.get(id);
     await stub.fetch(
-      new Request(`https://acp-session/${encodeURIComponent(sessionId)}/audit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record),
-      }),
+      new Request(
+        `https://acp-session/${encodeURIComponent(sessionId)}/audit`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record),
+        },
+      ),
     );
   } catch (error) {
     console.warn('[ACP-BRIDGE] Failed to append session audit', error);

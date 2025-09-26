@@ -66,7 +66,10 @@ async function healthHandler(
       claudeCliAvailable = true;
     }
   } catch (error) {
-    console.warn('[HEALTH] Claude CLI not available:', (error as Error).message);
+    console.warn(
+      '[HEALTH] Claude CLI not available:',
+      (error as Error).message,
+    );
   }
 
   const response: HealthStatus = {
@@ -371,7 +374,8 @@ async function requestHandler(
           timestamp: Date.now(),
           metadata: {
             userId: params?.userId || 'http-server',
-            anthropicApiKey: params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
+            anthropicApiKey:
+              params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
           },
         };
         const result = await handleInitialize(params || {}, ctx);
@@ -379,7 +383,13 @@ async function requestHandler(
         res.end(JSON.stringify({ jsonrpc: '2.0', result, id: Date.now() }));
       } catch (e: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: e?.message || 'Internal error' }, id: Date.now() }));
+        res.end(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32603, message: e?.message || 'Internal error' },
+            id: Date.now(),
+          }),
+        );
       }
       return;
     } else if (url === '/acp/session/prompt' && method === 'POST') {
@@ -393,19 +403,27 @@ async function requestHandler(
           metadata: {
             userId: params?.userId || 'http-server',
             sessionId: params?.sessionId,
-            anthropicApiKey: params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
+            anthropicApiKey:
+              params?.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
             workspaceUri: params?.configuration?.workspaceUri,
             repository: params?.context?.repository,
             operation: params?.context?.operation,
           },
         };
-        const notifier = (m: string, p: any) => logWithContext('ACP', 'Notification', { method: m, params: p });
+        const notifier = (m: string, p: any) =>
+          logWithContext('ACP', 'Notification', { method: m, params: p });
         const result = await handleSessionPrompt(params, ctx, notifier);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ jsonrpc: '2.0', result, id: Date.now() }));
       } catch (e: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: e?.message || 'Internal error' }, id: Date.now() }));
+        res.end(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32603, message: e?.message || 'Internal error' },
+            id: Date.now(),
+          }),
+        );
       }
     } else {
       logWithContext('HTTP', 'Route not found', { method, url });

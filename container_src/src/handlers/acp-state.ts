@@ -22,39 +22,68 @@ export class ACPState {
   private agentInfo = {
     name: 'Claude Code Container',
     version: '1.0.0',
-    description: 'AI-powered containerized development assistant with GitHub integration',
+    description:
+      'AI-powered containerized development assistant with GitHub integration',
     environment: this.detectEnvironment(),
   };
 
   private agentCapabilities: AgentCapabilities = this.detectCapabilities();
 
   // --- Session Management ---
-  getSession(sessionId: string): ACPSession | undefined { return this.sessions.get(sessionId); }
-  setSession(sessionId: string, session: ACPSession): void { this.sessions.set(sessionId, session); }
-  deleteSession(sessionId: string): boolean { return this.sessions.delete(sessionId); }
-  getAllSessions(): ACPSession[] { return Array.from(this.sessions.values()); }
-  getSessionCount(): number { return this.sessions.size; }
+  getSession(sessionId: string): ACPSession | undefined {
+    return this.sessions.get(sessionId);
+  }
+  setSession(sessionId: string, session: ACPSession): void {
+    this.sessions.set(sessionId, session);
+  }
+  deleteSession(sessionId: string): boolean {
+    return this.sessions.delete(sessionId);
+  }
+  getAllSessions(): ACPSession[] {
+    return Array.from(this.sessions.values());
+  }
+  getSessionCount(): number {
+    return this.sessions.size;
+  }
 
   // --- Lifecycle ---
-  isInitialized(): boolean { return this.initialized; }
-  setInitialized(v: boolean): void { this.initialized = v; }
-  getInitializationTime(): number | undefined { return this.initializationTime; }
-  setInitializationTime(t: number): void { this.initializationTime = t; }
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+  setInitialized(v: boolean): void {
+    this.initialized = v;
+  }
+  getInitializationTime(): number | undefined {
+    return this.initializationTime;
+  }
+  setInitializationTime(t: number): void {
+    this.initializationTime = t;
+  }
 
   // Auto-initialize for container instances that weren't formally initialized
   ensureInitialized(): void {
     if (!this.initialized) {
-      console.error('[ACP-STATE] Auto-initializing agent in container instance');
+      console.error(
+        '[ACP-STATE] Auto-initializing agent in container instance',
+      );
       this.initialized = true;
       this.initializationTime = Date.now();
     }
   }
 
   // --- Agent Meta ---
-  getAgentInfo() { return this.agentInfo; }
-  getAgentCapabilities(): AgentCapabilities { return this.agentCapabilities; }
-  setClientInfo(info?: { name: string; version: string }): void { this.clientInfo = info; }
-  getClientInfo() { return this.clientInfo; }
+  getAgentInfo() {
+    return this.agentInfo;
+  }
+  getAgentCapabilities(): AgentCapabilities {
+    return this.agentCapabilities;
+  }
+  setClientInfo(info?: { name: string; version: string }): void {
+    this.clientInfo = info;
+  }
+  getClientInfo() {
+    return this.clientInfo;
+  }
 
   // --- Operation Tracking ---
   startOperation(sessionId: string, operationId: string): AbortController {
@@ -66,13 +95,21 @@ export class ACPState {
     if (operationId) {
       const key = `${sessionId}:${operationId}`;
       const ac = this.activeOperations.get(key);
-      if (ac) { ac.abort(); this.activeOperations.delete(key); return true; }
+      if (ac) {
+        ac.abort();
+        this.activeOperations.delete(key);
+        return true;
+      }
       return false;
     }
     // cancel all for session
     let any = false;
     for (const [key, ac] of this.activeOperations.entries()) {
-      if (key.startsWith(sessionId + ':')) { ac.abort(); this.activeOperations.delete(key); any = true; }
+      if (key.startsWith(sessionId + ':')) {
+        ac.abort();
+        this.activeOperations.delete(key);
+        any = true;
+      }
     }
     return any;
   }
@@ -80,11 +117,17 @@ export class ACPState {
     this.activeOperations.delete(`${sessionId}:${operationId}`);
   }
   hasActiveOperations(sessionId: string): boolean {
-    for (const key of this.activeOperations.keys()) { if (key.startsWith(sessionId + ':')) return true; }
+    for (const key of this.activeOperations.keys()) {
+      if (key.startsWith(sessionId + ':')) return true;
+    }
     return false;
   }
   getActiveOperationCount(sessionId: string): number {
-    let c = 0; for (const key of this.activeOperations.keys()) { if (key.startsWith(sessionId + ':')) c++; } return c;
+    let c = 0;
+    for (const key of this.activeOperations.keys()) {
+      if (key.startsWith(sessionId + ':')) c++;
+    }
+    return c;
   }
 
   // --- Internal Detection ---

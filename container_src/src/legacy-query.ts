@@ -47,7 +47,8 @@ function extractMessageText(message: SDKMessage): string {
   // @ts-ignore
   if (typeof message.text === 'string') return message.text;
   // @ts-ignore - SDK message shape varies
-  if (typeof (message as any).content === 'string') return (message as any).content;
+  if (typeof (message as any).content === 'string')
+    return (message as any).content;
   // @ts-ignore - SDK message shape varies
   if (Array.isArray((message as any).content))
     return (message as any).content

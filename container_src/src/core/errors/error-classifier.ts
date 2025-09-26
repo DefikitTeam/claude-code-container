@@ -1,6 +1,3 @@
-
-
-
 export enum ClassifiedErrorCode {
   AuthError = 'auth_error',
   CliMissing = 'cli_missing',
@@ -10,7 +7,6 @@ export enum ClassifiedErrorCode {
   Cancelled = 'cancelled',
   Unknown = 'unknown',
 }
-
 
 export interface ClassifiedError {
   code: ClassifiedErrorCode;
@@ -28,7 +24,6 @@ export interface ErrorPattern {
   isRetryable: boolean;
   deriveMessage?: (match: RegExpMatchArray) => string;
 }
-
 
 const PATTERNS: ErrorPattern[] = [
   // Example (to replace with real patterns on implementation phase):

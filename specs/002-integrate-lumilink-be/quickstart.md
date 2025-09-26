@@ -108,9 +108,9 @@ curl -X POST http://localhost:8787/acp/session/new \
 
 ### 3. Send an ACP session prompt (automation happy path)
 
-Substitute the `sessionId` from the previous command. The `content` array follows
-the ACP schema. Include repository context so the automation layer knows where
-to operate.
+Substitute the `sessionId` from the previous command. The `content` array
+follows the ACP schema. Include repository context so the automation layer knows
+where to operate.
 
 ```bash
 curl -X POST http://localhost:8787/acp/session/prompt \
@@ -147,7 +147,10 @@ The worker responds with a JSON-RPC envelope:
       "inputTokens": 1234,
       "outputTokens": 567
     },
-    "githubAutomation": { "status": "success", "branch": "claude-code/issue-123" },
+    "githubAutomation": {
+      "status": "success",
+      "branch": "claude-code/issue-123"
+    },
     "meta": { "githubAutomationVersion": "1.0.0" }
   },
   "id": 1695692800000
@@ -174,7 +177,7 @@ Failures will emit `[GITHUB-AUTO] error` with `code` matching the JSON contract.
 3. If changes were pushed, confirm the linked pull request and the summary body
    includes `.claude-pr-summary.md` contents.
 4. Confirm the ACP response `result.githubAutomation` matches the artifacts
-  (branch URL, issue number, PR URL).
+   (branch URL, issue number, PR URL).
 
 ### 6. Cleanup
 
@@ -216,7 +219,8 @@ suites before shipping automation changes.
   - Verifies `githubAutomation` block matches schema in
     `contracts/github-automation.json`
 - Worker-side (`test/agent-communication/github-automation.test.mjs`)
-  - Drives `/acp/session/new` and `/acp/session/prompt` with mocked Durable Object config
+  - Drives `/acp/session/new` and `/acp/session/prompt` with mocked Durable
+    Object config
   - Asserts JSON-RPC `result.githubAutomation` propagates to HTTP response
   - Exercises retry behaviour when container returns `503`
 

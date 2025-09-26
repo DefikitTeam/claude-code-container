@@ -40,7 +40,8 @@ async function resolveClaudeCli(): Promise<CliResolution | null> {
         command: candidate,
         versionStdout: err?.stdout ? String(err.stdout).trim() : null,
         versionStderr: err?.stderr ? String(err.stderr).trim() : null,
-        versionError: typeof err?.message === 'string' ? err.message : String(err),
+        versionError:
+          typeof err?.message === 'string' ? err.message : String(err),
       };
     }
   }
@@ -134,7 +135,10 @@ export class ClaudeClient implements IClaudeClient {
     list.push(entry);
     this.inFlightBySession.set(entry.sessionId, list);
     if (entry.operationId) {
-      this.inFlightByOperation.set(`${entry.sessionId}:${entry.operationId}`, entry);
+      this.inFlightByOperation.set(
+        `${entry.sessionId}:${entry.operationId}`,
+        entry,
+      );
     }
   }
 
@@ -144,7 +148,10 @@ export class ClaudeClient implements IClaudeClient {
     if (idx >= 0) list.splice(idx, 1);
     if (list.length) this.inFlightBySession.set(entry.sessionId, list);
     else this.inFlightBySession.delete(entry.sessionId);
-    if (entry.operationId) this.inFlightByOperation.delete(`${entry.sessionId}:${entry.operationId}`);
+    if (entry.operationId)
+      this.inFlightByOperation.delete(
+        `${entry.sessionId}:${entry.operationId}`,
+      );
   }
 
   async cancel(sessionId: string): Promise<void> {
@@ -154,7 +161,9 @@ export class ClaudeClient implements IClaudeClient {
       try {
         entry.abortController.abort();
         if (entry.child && typeof entry.child.kill === 'function') {
-          try { entry.child.kill('SIGINT'); } catch {}
+          try {
+            entry.child.kill('SIGINT');
+          } catch {}
         }
       } finally {
         this.unregisterInFlight(entry);
@@ -168,7 +177,9 @@ export class ClaudeClient implements IClaudeClient {
     try {
       entry.abortController.abort();
       if (entry.child && typeof entry.child.kill === 'function') {
-        try { entry.child.kill('SIGINT'); } catch {}
+        try {
+          entry.child.kill('SIGINT');
+        } catch {}
       }
     } finally {
       this.unregisterInFlight(entry);
@@ -191,8 +202,10 @@ export class ClaudeClient implements IClaudeClient {
     },
     callbacks: ClaudeRunCallbacks = {},
   ): Promise<{ fullText: string; tokens?: { input: number; output: number } }> {
-  const sessionId = opts.sessionId || `session-${Date.now()}`;
-  const operationId = opts.operationId || `op-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    const sessionId = opts.sessionId || `session-${Date.now()}`;
+    const operationId =
+      opts.operationId ||
+      `op-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const startTime = Date.now();
 
     // Use an internal abort controller if caller didn't provide one, but respect caller's signal
@@ -205,7 +218,12 @@ export class ClaudeClient implements IClaudeClient {
       opts.abortSignal.addEventListener('abort', onAbort, { once: true });
     }
 
-  this.registerInFlight({ sessionId, operationId, abortController, child: null });
+    this.registerInFlight({
+      sessionId,
+      operationId,
+      abortController,
+      child: null,
+    });
 
     callbacks.onStart?.({ startTime });
 
@@ -239,9 +257,9 @@ export class ClaudeClient implements IClaudeClient {
         process.env.ANTHROPIC_API_KEY = opts.apiKey;
       }
 
-  // Allow tests / callers to force-disable SDK or CLI usage for deterministic behavior
-  // Prefer SDK by default in all environments; callers can set CLAUDE_CLIENT_DISABLE_SDK=1 to force CLI path
-  const disableSdk = process.env.CLAUDE_CLIENT_DISABLE_SDK === '1';
+      // Allow tests / callers to force-disable SDK or CLI usage for deterministic behavior
+      // Prefer SDK by default in all environments; callers can set CLAUDE_CLIENT_DISABLE_SDK=1 to force CLI path
+      const disableSdk = process.env.CLAUDE_CLIENT_DISABLE_SDK === '1';
       const disableCli = process.env.CLAUDE_CLIENT_DISABLE_CLI === '1';
 
       // Try SDK dynamic import (unless disabled)
@@ -250,7 +268,9 @@ export class ClaudeClient implements IClaudeClient {
         try {
           // attempt dynamic import; not all environments will have this package
           // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const sdk = await import('@anthropic-ai/claude-code').catch(() => null as any);
+          const sdk = await import('@anthropic-ai/claude-code').catch(
+            () => null as any,
+          );
           const queryFn = sdk?.query ?? sdk?.default?.query ?? null;
           if (queryFn && typeof queryFn === 'function') {
             usedSdk = true;
@@ -269,14 +289,21 @@ export class ClaudeClient implements IClaudeClient {
                 const content = m?.message?.content;
                 if (Array.isArray(content)) {
                   const parts = content
-                    .filter((p: any) => p && p.type === 'text' && typeof p.text === 'string')
+                    .filter(
+                      (p: any) =>
+                        p && p.type === 'text' && typeof p.text === 'string',
+                    )
                     .map((p: any) => p.text as string);
                   if (parts.length) return parts.join('');
                 }
                 // Direct text field
                 if (typeof m?.text === 'string') return m.text as string;
                 // Result success with string result
-                if (m?.type === 'result' && m?.subtype === 'success' && typeof m?.result === 'string') {
+                if (
+                  m?.type === 'result' &&
+                  m?.subtype === 'success' &&
+                  typeof m?.result === 'string'
+                ) {
                   return m.result as string;
                 }
                 // Fallback: empty string (avoid noisy JSON dumps)
@@ -315,7 +342,10 @@ export class ClaudeClient implements IClaudeClient {
         if (!cliResolution) {
           const diag = await this.collectClaudeDiagnostics();
           const err = new Error('claude_runtime_missing');
-          (err as any).detail = { diagnostics: diag, original: 'cli_not_found' };
+          (err as any).detail = {
+            diagnostics: diag,
+            original: 'cli_not_found',
+          };
           throw err;
         }
 
@@ -332,7 +362,12 @@ export class ClaudeClient implements IClaudeClient {
           cwd: opts.workspacePath || process.cwd(),
         });
         // register child for cancellation
-  this.registerInFlight({ sessionId, operationId, abortController, child });
+        this.registerInFlight({
+          sessionId,
+          operationId,
+          abortController,
+          child,
+        });
 
         if (isLegacyCli) {
           child.stdin.setDefaultEncoding('utf8');
@@ -356,17 +391,24 @@ export class ClaudeClient implements IClaudeClient {
         child.stderr.setEncoding('utf8');
         child.stderr.on('data', (c: string) => stderrChunks.push(c));
 
-        const exitPromise: Promise<{ code: number | null; stderr: string }> = new Promise((resolve, reject) => {
-          child.on('error', (err) => reject(err));
-          child.on('close', (code) => resolve({ code, stderr: stderrChunks.join('') }));
-        });
+        const exitPromise: Promise<{ code: number | null; stderr: string }> =
+          new Promise((resolve, reject) => {
+            child.on('error', (err) => reject(err));
+            child.on('close', (code) =>
+              resolve({ code, stderr: stderrChunks.join('') }),
+            );
+          });
 
         const exit = await exitPromise;
         if (abortController.signal.aborted) throw new Error('cancelled');
         if (exit.code !== 0) {
           const diag = await this.collectClaudeDiagnostics();
           const err = new Error(exit.stderr || `claude_cli_exit_${exit.code}`);
-          (err as any).detail = { diagnostics: diag, stderr: exit.stderr, exitCode: exit.code };
+          (err as any).detail = {
+            diagnostics: diag,
+            stderr: exit.stderr,
+            exitCode: exit.code,
+          };
           throw err;
         }
       }

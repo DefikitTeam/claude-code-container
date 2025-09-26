@@ -64,6 +64,7 @@ pull request for the implemented features.
 <commit_process> <commit> <message>descriptive summary of changes</message>
 <format>conventional commits if applicable</format> </commit> <push>
 <target>spec branch</target> <remote>origin</remote> </push> <pull_request>
+
 <title>descriptive PR title</title> <description>functionality
 recap</description> </pull_request> </commit_process>
 

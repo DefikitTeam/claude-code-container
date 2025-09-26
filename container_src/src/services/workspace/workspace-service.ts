@@ -41,7 +41,8 @@ export interface IWorkspaceService {
 function getDefaultSessionBase(): string {
   // Honor env override for session workspace base
   return (
-    process.env.ACP_WORKSPACE_BASE_DIR || path.join(os.tmpdir(), 'acp-workspaces')
+    process.env.ACP_WORKSPACE_BASE_DIR ||
+    path.join(os.tmpdir(), 'acp-workspaces')
   );
 }
 
@@ -50,22 +51,23 @@ function getEphemeralDir(sessionId: string): string {
   return path.join(base, `acp-workspace-${sessionId}`);
 }
 
-async function getGitInfo(workspacePath: string): Promise<
-  | {
-      currentBranch: string;
-      hasUncommittedChanges: boolean;
-      remoteUrl?: string;
-      lastCommit?: string;
-    }
-  | null
-> {
+async function getGitInfo(workspacePath: string): Promise<{
+  currentBranch: string;
+  hasUncommittedChanges: boolean;
+  remoteUrl?: string;
+  lastCommit?: string;
+} | null> {
   try {
     const gitDir = path.join(workspacePath, '.git');
     await fs.access(gitDir);
 
-    const branchResult = await execFileAsync('git', ['branch', '--show-current'], {
-      cwd: workspacePath,
-    });
+    const branchResult = await execFileAsync(
+      'git',
+      ['branch', '--show-current'],
+      {
+        cwd: workspacePath,
+      },
+    );
     const currentBranch = branchResult.stdout.trim() || 'main';
 
     const statusResult = await execFileAsync('git', ['status', '--porcelain'], {
@@ -75,9 +77,13 @@ async function getGitInfo(workspacePath: string): Promise<
 
     let remoteUrl: string | undefined;
     try {
-      const remoteResult = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
-        cwd: workspacePath,
-      });
+      const remoteResult = await execFileAsync(
+        'git',
+        ['remote', 'get-url', 'origin'],
+        {
+          cwd: workspacePath,
+        },
+      );
       remoteUrl = remoteResult.stdout.trim() || undefined;
     } catch (e) {
       remoteUrl = undefined;
@@ -85,9 +91,13 @@ async function getGitInfo(workspacePath: string): Promise<
 
     let lastCommit: string | undefined;
     try {
-      const lastResult = await execFileAsync('git', ['log', '-1', '--pretty=%B'], {
-        cwd: workspacePath,
-      });
+      const lastResult = await execFileAsync(
+        'git',
+        ['log', '-1', '--pretty=%B'],
+        {
+          cwd: workspacePath,
+        },
+      );
       lastCommit = lastResult.stdout.trim() || undefined;
     } catch (e) {
       lastCommit = undefined;
@@ -99,17 +109,20 @@ async function getGitInfo(workspacePath: string): Promise<
   }
 }
 
-async function getBasicGitInfo(workspacePath: string): Promise<
-  | { currentBranch: string; hasUncommittedChanges: boolean }
-  | null
-> {
+async function getBasicGitInfo(
+  workspacePath: string,
+): Promise<{ currentBranch: string; hasUncommittedChanges: boolean } | null> {
   try {
     const gitDir = path.join(workspacePath, '.git');
     await fs.access(gitDir);
 
-    const branchResult = await execFileAsync('git', ['branch', '--show-current'], {
-      cwd: workspacePath,
-    });
+    const branchResult = await execFileAsync(
+      'git',
+      ['branch', '--show-current'],
+      {
+        cwd: workspacePath,
+      },
+    );
     const currentBranch = branchResult.stdout.trim() || 'main';
 
     const statusResult = await execFileAsync('git', ['status', '--porcelain'], {
@@ -189,7 +202,12 @@ export class WorkspaceService implements IWorkspaceService {
       desc.gitInfo = await getGitInfo(resolvedPath);
     } else {
       const basic = await getBasicGitInfo(resolvedPath);
-      desc.gitInfo = basic ? { currentBranch: basic.currentBranch, hasUncommittedChanges: basic.hasUncommittedChanges } : null;
+      desc.gitInfo = basic
+        ? {
+            currentBranch: basic.currentBranch,
+            hasUncommittedChanges: basic.hasUncommittedChanges,
+          }
+        : null;
     }
 
     this.map.set(sessionId, desc);

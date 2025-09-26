@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PromptProcessor } from '../src/services/prompt/prompt-processor';
 import type { ACPSession } from '../src/types/acp-session';
-import { ClassifiedErrorCode, defaultErrorClassifier } from '../src/core/errors/error-classifier';
+import {
+  ClassifiedErrorCode,
+  defaultErrorClassifier,
+} from '../src/core/errors/error-classifier';
 import type { GitHubAutomationResult } from '../src/services/github/github-automation.js';
 import { GitHubAutomationService } from '../src/services/github/github-automation.js';
 import type { GitService } from '../src/services/git/git-service.js';
@@ -16,7 +19,11 @@ function makeSession(overrides: Partial<ACPSession> = {}): ACPSession {
     createdAt: Date.now() - 1000,
     lastActiveAt: Date.now() - 500,
     messageHistory: overrides.messageHistory || [],
-    sessionOptions: { persistHistory: false, enableGitOps: false, contextFiles: [] },
+    sessionOptions: {
+      persistHistory: false,
+      enableGitOps: false,
+      contextFiles: [],
+    },
     ...overrides,
   };
 }
@@ -40,11 +47,18 @@ describe('PromptProcessor', () => {
       save: vi.fn(async () => {}),
     };
     workspaceService = {
-      prepare: vi.fn(async () => ({ sessionId: 'sess-1', path: process.cwd(), isEphemeral: true, createdAt: Date.now(), gitInfo: null })),
+      prepare: vi.fn(async () => ({
+        sessionId: 'sess-1',
+        path: process.cwd(),
+        isEphemeral: true,
+        createdAt: Date.now(),
+        gitInfo: null,
+      })),
     };
     authService = { ensureAuth: vi.fn(async () => {}) };
     claudeClient = {
-      runPrompt: vi.fn(async (_prompt: string, _opts: any, callbacks: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      runPrompt: vi.fn(async (_prompt: string, _opts: any, callbacks: any) => {
+        // eslint-disable-line @typescript-eslint/no-explicit-any
         callbacks.onStart?.({ startTime: Date.now() });
         callbacks.onDelta?.({ text: 'Hello', tokens: 2 });
         callbacks.onComplete?.({ fullText: 'Hello', durationMs: 10 });
@@ -107,7 +121,7 @@ describe('PromptProcessor', () => {
     });
     expect(res.stopReason).toBe('error');
     // errorCode from PromptProcessor uses classified.code which is enum string value
-  expect(res.errorCode).toBe(ClassifiedErrorCode.AuthError);
+    expect(res.errorCode).toBe(ClassifiedErrorCode.AuthError);
     const diag = res.diagnostics as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(typeof diag).toBe('object');
     // stderr may be undefined if not captured; allow either contains or undefined fallback
@@ -132,9 +146,21 @@ describe('PromptProcessor', () => {
       status: 'success',
       branch: 'claude-code/issue-42-20250101-000000',
       diagnostics: { durationMs: 1200, attempts: 1, logs: [] },
-      issue: { id: 1, number: 42, url: 'https://github.com/org/repo/issues/42', title: 'Add automation badge' },
-      pullRequest: { number: 88, url: 'https://github.com/org/repo/pull/88', branch: 'claude-code/issue-42-20250101-000000' },
-      commit: { sha: 'deadbeef', message: 'Fix issue #42: Add automation badge' },
+      issue: {
+        id: 1,
+        number: 42,
+        url: 'https://github.com/org/repo/issues/42',
+        title: 'Add automation badge',
+      },
+      pullRequest: {
+        number: 88,
+        url: 'https://github.com/org/repo/pull/88',
+        branch: 'claude-code/issue-42-20250101-000000',
+      },
+      commit: {
+        sha: 'deadbeef',
+        message: 'Fix issue #42: Add automation badge',
+      },
     };
     githubAutomationService.execute.mockResolvedValueOnce(automationResult);
     workspaceService.prepare.mockResolvedValueOnce({
@@ -149,14 +175,23 @@ describe('PromptProcessor', () => {
         lastCommit: 'Initial commit',
       },
     });
-    sessionStore.load.mockResolvedValue(makeSession({
-      sessionOptions: { persistHistory: false, enableGitOps: true, contextFiles: [] },
-    }));
+    sessionStore.load.mockResolvedValue(
+      makeSession({
+        sessionOptions: {
+          persistHistory: false,
+          enableGitOps: true,
+          contextFiles: [],
+        },
+      }),
+    );
 
     const res = await processor.processPrompt({
       sessionId: 'sess-1',
       content: [{ type: 'text', text: 'Automation-enabled prompt' }],
-      agentContext: { repository: 'org/repo', automation: { issueTitle: 'Add automation badge' } },
+      agentContext: {
+        repository: 'org/repo',
+        automation: { issueTitle: 'Add automation badge' },
+      },
     });
 
     expect(githubAutomationService.execute).toHaveBeenCalledTimes(1);
@@ -181,10 +216,16 @@ describe('PromptProcessor', () => {
       });
 
       const integrationSessionStore = {
-        load: vi.fn(async () => makeSession({
-          sessionId: 'sess-automation',
-          sessionOptions: { persistHistory: false, enableGitOps: true, contextFiles: [] },
-        })),
+        load: vi.fn(async () =>
+          makeSession({
+            sessionId: 'sess-automation',
+            sessionOptions: {
+              persistHistory: false,
+              enableGitOps: true,
+              contextFiles: [],
+            },
+          }),
+        ),
         save: vi.fn(async () => {}),
         delete: vi.fn(async () => {}),
         list: vi.fn(async () => []),
@@ -209,12 +250,15 @@ describe('PromptProcessor', () => {
       };
 
       const integrationClaude = {
-        runPrompt: vi.fn(async (_prompt: string, _opts: any, callbacks: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-          callbacks.onStart?.({});
-          callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
-          callbacks.onComplete?.({ fullText: 'Hello world' });
-          return { fullText: 'Hello world', tokens: { input: 1, output: 3 } };
-        }),
+        runPrompt: vi.fn(
+          async (_prompt: string, _opts: any, callbacks: any) => {
+            // eslint-disable-line @typescript-eslint/no-explicit-any
+            callbacks.onStart?.({});
+            callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
+            callbacks.onComplete?.({ fullText: 'Hello world' });
+            return { fullText: 'Hello world', tokens: { input: 1, output: 3 } };
+          },
+        ),
         cancel: vi.fn(async () => {}),
         cancelOperation: vi.fn(async () => {}),
       };
@@ -243,12 +287,18 @@ describe('PromptProcessor', () => {
       expect(result.githubAutomation?.status).toBe('success');
       expect(result.githubAutomation?.issue?.number).toBe(42);
       expect(result.githubAutomation?.pullRequest?.number).toBe(77);
-      expect(result.githubAutomation?.branch).toMatch(/^integration\/issue-42-/);
-      expect(result.githubOperations?.branchCreated).toBe(result.githubAutomation?.branch);
+      expect(result.githubAutomation?.branch).toMatch(
+        /^integration\/issue-42-/,
+      );
+      expect(result.githubOperations?.branchCreated).toBe(
+        result.githubAutomation?.branch,
+      );
       expect(result.githubOperations?.pullRequestCreated?.number).toBe(77);
       expect(octokit.issuesCreate).toHaveBeenCalledTimes(1);
       expect(octokit.pullsCreate).toHaveBeenCalledTimes(1);
-      expect(git.runGit.mock.calls.some(([_, args]) => args[0] === 'push')).toBe(true);
+      expect(
+        git.runGit.mock.calls.some(([_, args]) => args[0] === 'push'),
+      ).toBe(true);
     });
 
     it('captures automation errors and surfaces diagnostics', async () => {
@@ -262,10 +312,16 @@ describe('PromptProcessor', () => {
       });
 
       const integrationSessionStore = {
-        load: vi.fn(async () => makeSession({
-          sessionId: 'sess-automation-error',
-          sessionOptions: { persistHistory: false, enableGitOps: true, contextFiles: [] },
-        })),
+        load: vi.fn(async () =>
+          makeSession({
+            sessionId: 'sess-automation-error',
+            sessionOptions: {
+              persistHistory: false,
+              enableGitOps: true,
+              contextFiles: [],
+            },
+          }),
+        ),
         save: vi.fn(async () => {}),
         delete: vi.fn(async () => {}),
         list: vi.fn(async () => []),
@@ -290,12 +346,15 @@ describe('PromptProcessor', () => {
       };
 
       const integrationClaude = {
-        runPrompt: vi.fn(async (_prompt: string, _opts: any, callbacks: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-          callbacks.onStart?.({});
-          callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
-          callbacks.onComplete?.({ fullText: 'Hello world' });
-          return { fullText: 'Hello world', tokens: { input: 1, output: 3 } };
-        }),
+        runPrompt: vi.fn(
+          async (_prompt: string, _opts: any, callbacks: any) => {
+            // eslint-disable-line @typescript-eslint/no-explicit-any
+            callbacks.onStart?.({});
+            callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
+            callbacks.onComplete?.({ fullText: 'Hello world' });
+            return { fullText: 'Hello world', tokens: { input: 1, output: 3 } };
+          },
+        ),
         cancel: vi.fn(async () => {}),
         cancelOperation: vi.fn(async () => {}),
       };
@@ -319,9 +378,13 @@ describe('PromptProcessor', () => {
 
       expect(result.githubAutomation?.status).toBe('error');
       expect(result.githubAutomation?.error?.code).toBe('git-push-failed');
-      expect(result.githubAutomation?.diagnostics?.logs?.length).toBeGreaterThan(0);
+      expect(
+        result.githubAutomation?.diagnostics?.logs?.length,
+      ).toBeGreaterThan(0);
       expect(result.githubOperations?.branchCreated).toBeUndefined();
-      expect(git.runGit.mock.calls.filter(([_, args]) => args[0] === 'push').length).toBe(1);
+      expect(
+        git.runGit.mock.calls.filter(([_, args]) => args[0] === 'push').length,
+      ).toBe(1);
     });
   });
 });
@@ -380,7 +443,11 @@ function createIntegrationGitService(options: { failPush?: boolean } = {}) {
       return { stdout: 'deadbeefdeadbeef\n', stderr: '', code: 0 };
     }
     if (key === 'remote get-url --push origin') {
-      return { stdout: 'https://github.com/org/repo.git\n', stderr: '', code: 0 };
+      return {
+        stdout: 'https://github.com/org/repo.git\n',
+        stderr: '',
+        code: 0,
+      };
     }
     if (key.startsWith('remote set-url --push')) {
       return { stdout: '', stderr: '', code: 0 };

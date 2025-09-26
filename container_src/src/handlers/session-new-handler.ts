@@ -1,16 +1,26 @@
 import { v4 as uuidv4 } from 'uuid';
 import { acpState } from './acp-state.js';
-import type { SessionNewRequest, SessionNewResponse } from '../types/acp-messages.js';
+import type {
+  SessionNewRequest,
+  SessionNewResponse,
+} from '../types/acp-messages.js';
 import type { ACPSession, SessionMode } from '../types/acp-session.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { RequestContext } from '../services/stdio-jsonrpc.js';
 import { SessionStore } from '../services/session/session-store.js';
 
-function generateSessionId(): string { return `session-${uuidv4()}`; }
+function generateSessionId(): string {
+  return `session-${uuidv4()}`;
+}
 
-async function createWorkspaceInfo(workspaceUri?: string, sessionOptions?: ACPSession['sessionOptions']) {
-  const rootPath = workspaceUri ? new URL(workspaceUri).pathname : process.cwd();
+async function createWorkspaceInfo(
+  workspaceUri?: string,
+  sessionOptions?: ACPSession['sessionOptions'],
+) {
+  const rootPath = workspaceUri
+    ? new URL(workspaceUri).pathname
+    : process.cwd();
   const info = { rootPath, hasUncommittedChanges: false } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
   try {
     await fs.access(rootPath, fs.constants.R_OK | fs.constants.W_OK);
@@ -26,9 +36,12 @@ async function createWorkspaceInfo(workspaceUri?: string, sessionOptions?: ACPSe
 }
 
 export async function sessionNewHandler(
-params: SessionNewRequest['params'] = {}, requestContext: RequestContext,
+  params: SessionNewRequest['params'] = {},
+  requestContext: RequestContext,
 ): Promise<SessionNewResponse['result']> {
-  console.error(`[SESSION-NEW] Checking initialization: ${acpState.isInitialized()}`);
+  console.error(
+    `[SESSION-NEW] Checking initialization: ${acpState.isInitialized()}`,
+  );
   acpState.ensureInitialized();
   const { workspaceUri, mode = 'development', sessionOptions } = params;
   if (mode && !['development', 'conversation'].includes(mode)) {
@@ -50,7 +63,9 @@ params: SessionNewRequest['params'] = {}, requestContext: RequestContext,
   };
   acpState.setSession(sessionId, session);
   await sessionStore.save(session);
-  console.error(`[SESSION-NEW] Stored session ${sessionId}, total sessions: ${acpState.getSessionCount()}`);
+  console.error(
+    `[SESSION-NEW] Stored session ${sessionId}, total sessions: ${acpState.getSessionCount()}`,
+  );
   const workspaceInfo = await createWorkspaceInfo(workspaceUri, sessionOptions);
   return { sessionId, workspaceInfo };
 }

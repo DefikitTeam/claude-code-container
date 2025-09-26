@@ -4,10 +4,7 @@
   "description": "Outcome payload returned by the GitHub automation service after a Claude session prompt.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "status",
-    "diagnostics"
-  ],
+  "required": ["status", "diagnostics"],
   "properties": {
     "status": {
       "type": "string",

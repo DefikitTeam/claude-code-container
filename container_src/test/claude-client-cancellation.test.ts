@@ -20,9 +20,11 @@ describe('ClaudeClient cancellation', () => {
       error = e;
     }
     const duration = Date.now() - start;
-  expect(error).toBeTruthy();
-  const msg = String(error?.message);
-  expect(['claude_runtime_missing', 'anthropic_api_key_missing']).toContain(msg);
+    expect(error).toBeTruthy();
+    const msg = String(error?.message);
+    expect(['claude_runtime_missing', 'anthropic_api_key_missing']).toContain(
+      msg,
+    );
     // Should fail fast (< 2s)
     expect(duration).toBeLessThan(2000);
   });

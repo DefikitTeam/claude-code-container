@@ -23,7 +23,8 @@ Workers
 - Hono 4.7+ (API framework)
 - Prisma 5.22+ with D1 adapter (Database)
 - @defikitteam/claude-acp-client (new ACP client package)
-- @zed-industries/agent-client-protocol (ACP protocol definitions)  
+- @zed-industries/agent-client-protocol (ACP protocol definitions)
+
 # Implementation Plan: LumiLink-BE ACP Protocol Integration
 
 **Branch**: `002-integrate-lumilink-be` | **Date**: September 25, 2025 |
@@ -41,8 +42,8 @@ Re-enable automated GitHub issue and pull-request generation inside the ACP
 container workflow so LumiLink-BE can drive code changes through the
 `session/prompt` path. The plan stitches together existing Worker Durable
 Objects, the container `PromptProcessor`, and GitHub helper utilities, drawing
-on prior `process_issue` implementations in repository history. Success means
-an ACP session that produces the same GitHub artifacts the legacy HTTP flow
+on prior `process_issue` implementations in repository history. Success means an
+ACP session that produces the same GitHub artifacts the legacy HTTP flow
 created, with clear logging, tests, and fallbacks.
 
 ## Technical Context
@@ -97,8 +98,8 @@ _Gate: ensure we adhere to project guardrails before research._
 
 - Feature delivered as enhancements to existing modules (`PromptProcessor`,
   `GitService`, worker endpoints)
-- Any new helper will live under `container_src/src/services/github/…`
-  with ESM exports and JSDoc docs
+- Any new helper will live under `container_src/src/services/github/…` with ESM
+  exports and JSDoc docs
 - No additional CLIs required
 
 **Testing**
@@ -166,11 +167,11 @@ container_src/test/
 ## Phase 0: Outline & Research
 
 1. **Historical Analysis**
-   - Inspect commits tagged around pre-ACP automation (e.g.
-     `main@2024-08`, branch `legacy-http-flow`) to recover `process_issue`
-     behavior and PR heuristics.
-   - Document differences in container entry points (HTTP `/process-issue`
-     vs ACP `session/prompt`).
+   - Inspect commits tagged around pre-ACP automation (e.g. `main@2024-08`,
+     branch `legacy-http-flow`) to recover `process_issue` behavior and PR
+     heuristics.
+   - Document differences in container entry points (HTTP `/process-issue` vs
+     ACP `session/prompt`).
 
 2. **Credential Flow Audit**
    - Trace `/config` storage → Durable Objects → container parameters to ensure
@@ -200,8 +201,8 @@ container_src/test/
      `SessionPromptResponse.result` (optional, read-only).
 
 2. **Module Design**
-   - Draft `GitHubAutomationService` interface with methods:
-     `detectIntent`, `prepareWorkspace`, `commitChanges`, `openPullRequest`.
+   - Draft `GitHubAutomationService` interface with methods: `detectIntent`,
+     `prepareWorkspace`, `commitChanges`, `openPullRequest`.
    - Map dependencies (GitService, Octokit wrapper, config payload) and define
      injection strategy via `PromptProcessor` constructor options.
 
@@ -218,8 +219,8 @@ container_src/test/
    - Add unit-test plans for detection heuristics and error handling.
 
 5. **Security & Fallback**
-   - Design fail-closed paths: on Octokit failure, attach diagnostic to
-     response without raising fatal error; ensure summary still returns.
+   - Design fail-closed paths: on Octokit failure, attach diagnostic to response
+     without raising fatal error; ensure summary still returns.
    - Document cleanup (discard workspace on failure).
 
 Deliver Phase 1 outputs:
@@ -251,7 +252,6 @@ Deliver Phase 1 outputs:
    ```
 
 2. **Task Breakdown (for `/tasks`)**
-
    1. Recover legacy automation details (diff prior commit, document in
       research).
    2. Implement `GitHubAutomationService` with detection + staged operations.
@@ -263,7 +263,6 @@ Deliver Phase 1 outputs:
    7. Harden error/fallback paths and emit structured logs (`[GITHUB-AUTO]`).
 
 3. **Testing Plan**
-
    - **Unit**: automation intent detection, PR formatting, branch naming
    - **Integration**: end-to-end container run with mocked Octokit verifying PR
      payload captured
@@ -273,7 +272,6 @@ Deliver Phase 1 outputs:
      shallow clone and chunked logging
 
 4. **Milestones**
-
    - M1: Historical diff reviewed, research updated
    - M2: Automation service skeleton + contracts merged
    - M3: PromptProcessor integration with feature flag
@@ -313,14 +311,15 @@ Deliver Phase 1 outputs:
 
 ---
 
-_Based on Constitution draft in `/memory/constitution.md`_
-     Task: "Find best practices for {tech} in {domain}"
-   ```
+_Based on Constitution draft in `/memory/constitution.md`_ Task: "Find best
+practices for {tech} in {domain}"
+
+```
 
 3. **Consolidate findings** in `research.md` using format:
-   - Decision: [what was chosen]
-   - Rationale: [why chosen]
-   - Alternatives considered: [what else evaluated]
+- Decision: [what was chosen]
+- Rationale: [why chosen]
+- Alternatives considered: [what else evaluated]
 
 **Output**: research.md with all NEEDS CLARIFICATION resolved
 
@@ -329,31 +328,31 @@ _Based on Constitution draft in `/memory/constitution.md`_
 _Prerequisites: research.md complete_
 
 1. **Extract entities from feature spec** → `data-model.md`:
-   - Entity name, fields, relationships
-   - Validation rules from requirements
-   - State transitions if applicable
+- Entity name, fields, relationships
+- Validation rules from requirements
+- State transitions if applicable
 
 2. **Generate API contracts** from functional requirements:
-   - For each user action → endpoint
-   - Use standard REST/GraphQL patterns
-   - Output OpenAPI/GraphQL schema to `/contracts/`
+- For each user action → endpoint
+- Use standard REST/GraphQL patterns
+- Output OpenAPI/GraphQL schema to `/contracts/`
 
 3. **Generate contract tests** from contracts:
-   - One test file per endpoint
-   - Assert request/response schemas
-   - Tests must fail (no implementation yet)
+- One test file per endpoint
+- Assert request/response schemas
+- Tests must fail (no implementation yet)
 
 4. **Extract test scenarios** from user stories:
-   - Each story → integration test scenario
-   - Quickstart test = story validation steps
+- Each story → integration test scenario
+- Quickstart test = story validation steps
 
 5. **Update agent file incrementally** (O(1) operation):
-   - Run `/scripts/bash/update-agent-context.sh copilot` for your AI assistant
-   - If exists: Add only NEW tech from current plan
-   - Preserve manual additions between markers
-   - Update recent changes (keep last 3)
-   - Keep under 150 lines for token efficiency
-   - Output to repository root
+- Run `/scripts/bash/update-agent-context.sh copilot` for your AI assistant
+- If exists: Add only NEW tech from current plan
+- Preserve manual additions between markers
+- Update recent changes (keep last 3)
+- Keep under 150 lines for token efficiency
+- Output to repository root
 
 **Output**: data-model.md, /contracts/\*, failing tests, quickstart.md,
 agent-specific file
@@ -386,9 +385,9 @@ _This section describes what the /tasks command will do - DO NOT execute during
 
 _These phases are beyond the scope of the /plan command_
 
-**Phase 3**: Task execution (/tasks command creates tasks.md)  
+**Phase 3**: Task execution (/tasks command creates tasks.md)
 **Phase 4**: Implementation (execute tasks.md following constitutional
-principles)  
+principles)
 **Phase 5**: Validation (run tests, execute quickstart.md, performance
 validation)
 
@@ -424,3 +423,4 @@ _This checklist is updated during execution flow_
 ---
 
 _Based on Constitution v2.1.1 - See `/memory/constitution.md`_
+```

@@ -13,8 +13,15 @@ import path from 'node:path';
 const execFileAsync = promisify(execFile);
 
 export interface IGitService {
-  runGit(cwd: string, args: string[], opts?: { timeoutMs?: number }): Promise<{ stdout: string; stderr: string; code: number | null }>;
-  ensureRepo(path: string, opts?: { defaultBranch?: string; cloneUrl?: string }): Promise<void>;
+  runGit(
+    cwd: string,
+    args: string[],
+    opts?: { timeoutMs?: number },
+  ): Promise<{ stdout: string; stderr: string; code: number | null }>;
+  ensureRepo(
+    path: string,
+    opts?: { defaultBranch?: string; cloneUrl?: string },
+  ): Promise<void>;
   getStatus(path: string): Promise<string>;
   hasUncommittedChanges(path: string): Promise<boolean>;
   getCurrentBranch(path: string): Promise<string | null>;
@@ -26,7 +33,10 @@ export interface IGitService {
     remoteUrl?: string;
     lastCommit?: string;
   } | null>;
-  listChangedFiles(path: string, opts?: { staged?: boolean }): Promise<string[]>;
+  listChangedFiles(
+    path: string,
+    opts?: { staged?: boolean },
+  ): Promise<string[]>;
   createBranch(path: string, branchName: string, from?: string): Promise<void>;
   checkoutBranch(path: string, branchName: string): Promise<void>;
   stageFiles(path: string, files: string[]): Promise<void>;
@@ -39,21 +49,39 @@ export class GitService implements IGitService {
   // Allows dependency injection for run wrapper in future
   constructor(_deps?: {}) {}
 
-  async runGit(cwd: string, args: string[], opts?: { timeoutMs?: number }): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  async runGit(
+    cwd: string,
+    args: string[],
+    opts?: { timeoutMs?: number },
+  ): Promise<{ stdout: string; stderr: string; code: number | null }> {
     try {
-      const res = await execFileAsync('git', args, { cwd, timeout: opts?.timeoutMs });
-      return { stdout: String(res.stdout || ''), stderr: String(res.stderr || ''), code: 0 };
+      const res = await execFileAsync('git', args, {
+        cwd,
+        timeout: opts?.timeoutMs,
+      });
+      return {
+        stdout: String(res.stdout || ''),
+        stderr: String(res.stderr || ''),
+        code: 0,
+      };
     } catch (e: any) {
       // If git binary missing or other execution error
       if (e.code === 'ENOENT') {
         throw new Error('git-not-found');
       }
       // execFile throws on non-zero exit; capture stdout/stderr if present
-      return { stdout: String(e.stdout || ''), stderr: String(e.stderr || ''), code: typeof e.code === 'number' ? e.code : null };
+      return {
+        stdout: String(e.stdout || ''),
+        stderr: String(e.stderr || ''),
+        code: typeof e.code === 'number' ? e.code : null,
+      };
     }
   }
 
-  async ensureRepo(repoPath: string, opts?: { defaultBranch?: string; cloneUrl?: string }): Promise<void> {
+  async ensureRepo(
+    repoPath: string,
+    opts?: { defaultBranch?: string; cloneUrl?: string },
+  ): Promise<void> {
     try {
       const gitDir = path.join(repoPath, '.git');
       // If .git exists, assume repo exists
@@ -76,7 +104,13 @@ export class GitService implements IGitService {
         // If path not empty, cloning into existing dir requires it to be empty. Attempt clone into temp then move.
         const parent = path.dirname(repoPath);
         await fs.mkdir(parent, { recursive: true });
-        const res = await this.runGit(parent, ['clone', '--depth', '1', opts.cloneUrl, repoPath]);
+        const res = await this.runGit(parent, [
+          'clone',
+          '--depth',
+          '1',
+          opts.cloneUrl,
+          repoPath,
+        ]);
         if (res.code !== 0) {
           // fall through to init
         } else {
@@ -156,23 +190,40 @@ export class GitService implements IGitService {
         this.getRemoteUrl(repoPath),
         this.getLastCommitMessage(repoPath),
       ]);
-      return { currentBranch: branch, hasUncommittedChanges, remoteUrl, lastCommit };
+      return {
+        currentBranch: branch,
+        hasUncommittedChanges,
+        remoteUrl,
+        lastCommit,
+      };
     } catch (e) {
       return null;
     }
   }
 
-  async listChangedFiles(repoPath: string, opts?: { staged?: boolean }): Promise<string[]> {
+  async listChangedFiles(
+    repoPath: string,
+    opts?: { staged?: boolean },
+  ): Promise<string[]> {
     try {
-      const args = opts?.staged ? ['diff', '--name-only', '--cached'] : ['diff', '--name-only'];
+      const args = opts?.staged
+        ? ['diff', '--name-only', '--cached']
+        : ['diff', '--name-only'];
       const res = await this.runGit(repoPath, args);
-      return res.stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      return res.stdout
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
     } catch (e) {
       return [];
     }
   }
 
-  async createBranch(repoPath: string, branchName: string, from?: string): Promise<void> {
+  async createBranch(
+    repoPath: string,
+    branchName: string,
+    from?: string,
+  ): Promise<void> {
     if (from) {
       await this.runGit(repoPath, ['checkout', '-b', branchName, from]);
     } else {
@@ -194,7 +245,11 @@ export class GitService implements IGitService {
     await this.runGit(repoPath, ['commit', '-m', message]);
   }
 
-  async push(repoPath: string, remote = 'origin', branch?: string): Promise<void> {
+  async push(
+    repoPath: string,
+    remote = 'origin',
+    branch?: string,
+  ): Promise<void> {
     const args = ['push', remote];
     if (branch) args.push(branch);
     await this.runGit(repoPath, args);

@@ -42,7 +42,9 @@ export function sessionStore(): ISessionStore {
 let _workspaceService: IWorkspaceService | undefined;
 export function workspaceService(): IWorkspaceService {
   if (!_workspaceService) {
-    _workspaceService = new WorkspaceService({ baseDir: path.join(process.cwd(), 'tmp-workspaces') });
+    _workspaceService = new WorkspaceService({
+      baseDir: path.join(process.cwd(), 'tmp-workspaces'),
+    });
   }
   return _workspaceService;
 }
@@ -66,7 +68,9 @@ export function diagnosticsService(): DiagnosticsService {
 let _claudeClient: IClaudeClient | undefined;
 export function claudeClient(): IClaudeClient {
   if (!_claudeClient) {
-    _claudeClient = new ClaudeClient({ model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet' });
+    _claudeClient = new ClaudeClient({
+      model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet',
+    });
   }
   return _claudeClient;
 }

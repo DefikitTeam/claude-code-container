@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { ErrorClassifier, ClassifiedErrorCode } from '../src/core/errors/error-classifier';
+import {
+  ErrorClassifier,
+  ClassifiedErrorCode,
+} from '../src/core/errors/error-classifier';
 
 describe('ErrorClassifier', () => {
   const classifier = new ErrorClassifier();
@@ -11,7 +14,9 @@ describe('ErrorClassifier', () => {
   });
 
   it('classifies CLI missing', () => {
-    const err = Object.assign(new Error('Claude binary not found'), { stderrTail: 'not found' });
+    const err = Object.assign(new Error('Claude binary not found'), {
+      stderrTail: 'not found',
+    });
     const c = classifier.classify(err);
     expect(c.code).toBe(ClassifiedErrorCode.CliMissing);
   });

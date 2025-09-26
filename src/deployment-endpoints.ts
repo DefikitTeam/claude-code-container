@@ -513,9 +513,7 @@ async function updateDeploymentAuth(
 /**
  * Execute container deployment (simulation)
  */
-async function executeContainerDeployment(
-  config: any,
-): Promise<{
+async function executeContainerDeployment(config: any): Promise<{
   success: boolean;
   error?: string;
   message?: string;

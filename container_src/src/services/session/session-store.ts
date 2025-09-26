@@ -11,7 +11,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { ACPSession } from '../../types/acp-session.js'; // path relative to this file
 
-
 // TODO(acp-refactor/phase-2): Define concrete session data shapes (import from existing types once extracted).
 export interface ISessionStore {
   load(sessionId: string): Promise<ACPSession | undefined>;
@@ -90,7 +89,7 @@ export class SessionStore implements ISessionStore {
       throw e;
     }
   }
-  
+
   async delete(sessionId: string): Promise<void> {
     const file = this.sessionFilePath(sessionId);
     try {

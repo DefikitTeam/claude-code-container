@@ -83,7 +83,8 @@ describe('acp-bridge automation propagation', () => {
     expect(sanitized?.diagnostics?.errorCode).toBe('git-push-failed');
     expect(sanitized?.diagnostics?.logCount).toBe(2);
     expect(
-      'logs' in (sanitized?.diagnostics as Record<string, unknown> | undefined ?? {}),
+      'logs' in
+        ((sanitized?.diagnostics as Record<string, unknown> | undefined) ?? {}),
     ).toBe(false);
   });
 
@@ -131,9 +132,9 @@ describe('acp-bridge automation propagation', () => {
     expect(recordedBody?.sessionId).toBe('session-123');
     expect(recordedBody?.githubAutomation?.diagnostics?.logCount).toBe(2);
     expect(recordedBody?.githubAutomationVersion).toBe('1.0.0');
-    expect(
-      'logs' in (recordedBody?.githubAutomation?.diagnostics ?? {}),
-    ).toBe(false);
+    expect('logs' in (recordedBody?.githubAutomation?.diagnostics ?? {})).toBe(
+      false,
+    );
   });
 
   it('records error automation details without leaking diagnostics logs', async () => {
@@ -194,9 +195,9 @@ describe('acp-bridge automation propagation', () => {
     expect(recordedBody?.githubAutomation?.diagnostics?.errorCode).toBe(
       'git-push-failed',
     );
-    expect(
-      'logs' in (recordedBody?.githubAutomation?.diagnostics ?? {}),
-    ).toBe(false);
+    expect('logs' in (recordedBody?.githubAutomation?.diagnostics ?? {})).toBe(
+      false,
+    );
   });
 });
 

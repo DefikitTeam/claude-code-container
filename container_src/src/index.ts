@@ -59,14 +59,18 @@ function loadLocalEnvVars() {
         }
       }
       loadedFrom = file;
-      console.error(`[ENV] Loaded ${count} var(s) from ${file}. ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`);
+      console.error(
+        `[ENV] Loaded ${count} var(s) from ${file}. ANTHROPIC_API_KEY present: ${!!process.env.ANTHROPIC_API_KEY}`,
+      );
       break; // only load first hit
     } catch (e) {
       // Non-fatal; continue
     }
   }
   if (!loadedFrom) {
-    console.error('[ENV] No .dev.vars or .env file found (searched cwd, parents, and __dirname parents)');
+    console.error(
+      '[ENV] No .dev.vars or .env file found (searched cwd, parents, and __dirname parents)',
+    );
   }
 }
 

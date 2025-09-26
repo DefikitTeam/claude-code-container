@@ -16,7 +16,11 @@ function createGitServiceMock(overrides: Partial<GitService> = {}): GitService {
       return { stdout: 'deadbeefdeadbeef\n', stderr: '', code: 0 };
     }
     if (args[0] === 'remote' && args[1] === 'get-url') {
-      return { stdout: 'https://github.com/org/repo.git\n', stderr: '', code: 0 };
+      return {
+        stdout: 'https://github.com/org/repo.git\n',
+        stderr: '',
+        code: 0,
+      };
     }
     return { stdout: '', stderr: '', code: 0 };
   });
@@ -173,7 +177,11 @@ describe('GitHubAutomationService', () => {
           return { stdout: 'deadbeefdeadbeef\n', stderr: '', code: 0 };
         }
         if (args[0] === 'remote' && args[1] === 'get-url') {
-          return { stdout: 'https://github.com/org/repo.git\n', stderr: '', code: 0 };
+          return {
+            stdout: 'https://github.com/org/repo.git\n',
+            stderr: '',
+            code: 0,
+          };
         }
         return { stdout: '', stderr: '', code: 0 };
       }),

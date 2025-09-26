@@ -154,7 +154,10 @@ class AutomationError extends Error {
 export class GitHubAutomationService {
   private readonly git: GitService;
   private readonly octokitFactory: (token: string) => Octokit;
-  private readonly logger?: (event: string, details?: Record<string, unknown>) => void;
+  private readonly logger?: (
+    event: string,
+    details?: Record<string, unknown>,
+  ) => void;
   private readonly branchPrefix: string;
   private readonly defaultLabels: string[];
   private readonly gitIdentity: GitIdentity;
@@ -168,11 +171,13 @@ export class GitHubAutomationService {
     this.gitIdentity = options.gitIdentity || DEFAULT_IDENTITY;
     this.nowFn = options.now || (() => new Date());
     this.octokitFactory =
-      options.octokitFactory || ((token: string) => new Octokit({ auth: token }));
+      options.octokitFactory ||
+      ((token: string) => new Octokit({ auth: token }));
   }
 
   detectIntent(signals: AutomationIntentSignals = {}): AutomationDecision {
-    const contextMode = extractModeFromAgentContext(signals.agentContext) || signals.mode;
+    const contextMode =
+      extractModeFromAgentContext(signals.agentContext) || signals.mode;
     if (signals.disabled) {
       return {
         run: false,
@@ -196,7 +201,8 @@ export class GitHubAutomationService {
       return {
         run: false,
         mode: 'none',
-        reason: signals.reason || 'Automation explicitly skipped by agent context',
+        reason:
+          signals.reason || 'Automation explicitly skipped by agent context',
         explicit: signals.explicit,
       };
     }
@@ -208,7 +214,9 @@ export class GitHubAutomationService {
     };
   }
 
-  async execute(context: GitHubAutomationContext): Promise<GitHubAutomationResult> {
+  async execute(
+    context: GitHubAutomationContext,
+  ): Promise<GitHubAutomationResult> {
     const start = this.nowFn();
     const logs: string[] = [];
     const decision = this.detectIntent(context.intent);
@@ -225,7 +233,10 @@ export class GitHubAutomationService {
       return this.buildErrorResult(
         start,
         logs,
-        new AutomationError('missing-repository', 'Repository owner/name are required'),
+        new AutomationError(
+          'missing-repository',
+          'Repository owner/name are required',
+        ),
       );
     }
 
@@ -259,7 +270,12 @@ export class GitHubAutomationService {
         );
       }
 
-      commit = await this.commitChanges(context, prepared, logs, issue || undefined);
+      commit = await this.commitChanges(
+        context,
+        prepared,
+        logs,
+        issue || undefined,
+      );
       if (!commit && !context.allowEmptyCommit) {
         return this.buildSkippedResult(
           'Nothing to commit after staging',
@@ -272,7 +288,14 @@ export class GitHubAutomationService {
 
       if (!context.dryRun) {
         await this.pushBranch(context, prepared, logs);
-        pullRequest = await this.openPullRequest(octokit!, context, prepared, commit!, issue!, logs);
+        pullRequest = await this.openPullRequest(
+          octokit!,
+          context,
+          prepared,
+          commit!,
+          issue!,
+          logs,
+        );
         await this.commentOnIssue(octokit!, context, issue!, pullRequest, logs);
       } else {
         this.log(logs, 'automation.dryRun', {
@@ -304,7 +327,13 @@ export class GitHubAutomationService {
         code: automationError.code,
         message: automationError.message,
       });
-      return this.buildErrorResult(start, logs, automationError, issue, prepared?.branchName);
+      return this.buildErrorResult(
+        start,
+        logs,
+        automationError,
+        issue,
+        prepared?.branchName,
+      );
     }
   }
 
@@ -314,7 +343,8 @@ export class GitHubAutomationService {
     logs: string[],
   ): Promise<PreparedWorkspace> {
     const workspacePath = context.workspacePath;
-    const baseBranch = context.baseBranchOverride || context.repository.defaultBranch;
+    const baseBranch =
+      context.baseBranchOverride || context.repository.defaultBranch;
     const authedCloneUrl = buildAuthedUrl(
       context.repository.cloneUrl,
       context.auth.installationToken,
@@ -333,11 +363,21 @@ export class GitHubAutomationService {
 
     await this.git.runGit(workspacePath, ['fetch', 'origin', baseBranch]);
     await this.git.checkoutBranch(workspacePath, baseBranch);
-    await this.git.runGit(workspacePath, ['pull', '--ff-only', 'origin', baseBranch]);
+    await this.git.runGit(workspacePath, [
+      'pull',
+      '--ff-only',
+      'origin',
+      baseBranch,
+    ]);
 
     const branchName =
       context.branchNameOverride ||
-      buildBranchName(this.branchPrefix, issue, context.sessionId, this.nowFn());
+      buildBranchName(
+        this.branchPrefix,
+        issue,
+        context.sessionId,
+        this.nowFn(),
+      );
 
     try {
       await this.git.createBranch(workspacePath, branchName, baseBranch);
@@ -369,8 +409,16 @@ export class GitHubAutomationService {
       email: context.git?.email || this.gitIdentity.email,
     };
 
-    await this.git.runGit(prepared.path, ['config', 'user.name', identity.name]);
-    await this.git.runGit(prepared.path, ['config', 'user.email', identity.email]);
+    await this.git.runGit(prepared.path, [
+      'config',
+      'user.name',
+      identity.name,
+    ]);
+    await this.git.runGit(prepared.path, [
+      'config',
+      'user.email',
+      identity.email,
+    ]);
 
     await this.git.runGit(prepared.path, ['add', '--all']);
 
@@ -381,7 +429,11 @@ export class GitHubAutomationService {
     }
 
     const commitMessage = buildCommitMessage(issue, context.prompt.title);
-    const commitResult = await this.git.runGit(prepared.path, ['commit', '-m', commitMessage]);
+    const commitResult = await this.git.runGit(prepared.path, [
+      'commit',
+      '-m',
+      commitMessage,
+    ]);
 
     if (commitResult.code && commitResult.code !== 0) {
       throw new AutomationError('git-commit-failed', 'Git commit failed', {
@@ -420,7 +472,10 @@ export class GitHubAutomationService {
     const sanitizedRemote = context.repository.cloneUrl
       ? sanitizeRemote(context.repository.cloneUrl)
       : `https://github.com/${context.repository.owner}/${context.repository.name}.git`;
-    const authedRemote = buildAuthedUrl(sanitizedRemote, context.auth.installationToken);
+    const authedRemote = buildAuthedUrl(
+      sanitizedRemote,
+      context.auth.installationToken,
+    );
 
     let previousPushUrl: string | undefined;
     if (authedRemote) {
@@ -473,8 +528,15 @@ export class GitHubAutomationService {
     issue: GitHubIssueReference,
     logs: string[],
   ): Promise<PullRequestMetadata> {
-    const prTitle = derivePullRequestTitle(issue, context.prompt.title, context.summaryMarkdown);
-    const prBody = buildPullRequestBody(issue, context.summaryMarkdown || context.prompt.body);
+    const prTitle = derivePullRequestTitle(
+      issue,
+      context.prompt.title,
+      context.summaryMarkdown,
+    );
+    const prBody = buildPullRequestBody(
+      issue,
+      context.summaryMarkdown || context.prompt.body,
+    );
 
     const response = await octokit.rest.pulls.create({
       owner: context.repository.owner,
@@ -535,7 +597,8 @@ export class GitHubAutomationService {
       };
     }
 
-    const title = context.prompt.title?.trim() || deriveIssueTitle(context.prompt.body);
+    const title =
+      context.prompt.title?.trim() || deriveIssueTitle(context.prompt.body);
     const body = buildIssueBody(context.prompt.body, context.summaryMarkdown);
     const labels = context.labels || this.defaultLabels;
 
@@ -614,7 +677,11 @@ export class GitHubAutomationService {
     };
   }
 
-  private log(messageStore: string[], event: string, details?: Record<string, unknown>) {
+  private log(
+    messageStore: string[],
+    event: string,
+    details?: Record<string, unknown>,
+  ) {
     const entry = details
       ? `${event}: ${JSON.stringify(redactSensitiveFields(details))}`
       : event;
@@ -622,7 +689,10 @@ export class GitHubAutomationService {
     this.logger?.(event, details ? redactSensitiveFields(details) : undefined);
   }
 
-  private async throwIfGitFailed(result: { code: number | null; stderr: string }, code: string) {
+  private async throwIfGitFailed(
+    result: { code: number | null; stderr: string },
+    code: string,
+  ) {
     if (result.code && result.code !== 0) {
       throw new AutomationError(code, 'Git command failed', {
         details: {
@@ -660,8 +730,12 @@ function buildIssueBody(prompt: string, summaryMarkdown?: string): string {
   return sections.join('\n');
 }
 
-function buildPullRequestBody(issue: GitHubIssueReference, summary: string): string {
-  const sanitizedSummary = summary.trim() || 'Automated fix generated by Claude Code.';
+function buildPullRequestBody(
+  issue: GitHubIssueReference,
+  summary: string,
+): string {
+  const sanitizedSummary =
+    summary.trim() || 'Automated fix generated by Claude Code.';
   return `${sanitizedSummary}\n\n---\nFixes #${issue.number}\n\n🤖 This pull request was generated automatically by Claude Code.`;
 }
 
@@ -679,21 +753,30 @@ function derivePullRequestTitle(
   if (summary) {
     const firstLine = summary.trim().split(/\r?\n/, 1)[0];
     if (firstLine) {
-      return firstLine.length > 120 ? `${firstLine.slice(0, 117)}...` : firstLine;
+      return firstLine.length > 120
+        ? `${firstLine.slice(0, 117)}...`
+        : firstLine;
     }
   }
   if (promptTitle) {
-    return promptTitle.length > 120 ? `${promptTitle.slice(0, 117)}...` : promptTitle;
+    return promptTitle.length > 120
+      ? `${promptTitle.slice(0, 117)}...`
+      : promptTitle;
   }
   return `Fix issue #${issue.number}`;
 }
 
-function buildCommitMessage(issue?: GitHubIssueReference, promptTitle?: string): string {
+function buildCommitMessage(
+  issue?: GitHubIssueReference,
+  promptTitle?: string,
+): string {
   if (issue) {
     const suffix = promptTitle ? `: ${promptTitle}` : '';
     return `Fix issue #${issue.number}${suffix}`;
   }
-  return promptTitle ? `Apply automation: ${promptTitle}` : 'Apply automated changes';
+  return promptTitle
+    ? `Apply automation: ${promptTitle}`
+    : 'Apply automated changes';
 }
 
 function buildBranchName(
@@ -724,7 +807,10 @@ function formatTimestamp(date: Date): string {
   return `${year}-${month}-${day}-${hours}${minutes}${seconds}`;
 }
 
-function buildAuthedUrl(url: string | undefined, token: string): string | undefined {
+function buildAuthedUrl(
+  url: string | undefined,
+  token: string,
+): string | undefined {
   if (!url) return undefined;
   const sanitized = sanitizeRemote(url);
   const withoutProtocol = sanitized.replace(/^https?:\/\//i, '');
@@ -747,7 +833,11 @@ async function collectChangedFiles(
   options: { staged?: boolean } = {},
 ): Promise<string[]> {
   if (options.staged) {
-    const result = await git.runGit(workspacePath, ['diff', '--cached', '--name-only']);
+    const result = await git.runGit(workspacePath, [
+      'diff',
+      '--cached',
+      '--name-only',
+    ]);
     return parseChangedFileList(result.stdout);
   }
   const status = await git.runGit(workspacePath, ['status', '--porcelain']);
@@ -763,7 +853,9 @@ function parseChangedFileList(stdout: string): string[] {
     .map((relative) => relative.replace(/^\.\//, ''));
 }
 
-function redactSensitiveFields(details: Record<string, unknown>): Record<string, unknown> {
+function redactSensitiveFields(
+  details: Record<string, unknown>,
+): Record<string, unknown> {
   const clone = { ...details };
   if (clone['cloneUrl'] && typeof clone['cloneUrl'] === 'string') {
     clone['cloneUrl'] = redactToken(clone['cloneUrl']);
@@ -786,12 +878,16 @@ function normalizeAutomationError(error: unknown): AutomationError {
     return error;
   }
   if (error instanceof Error) {
-    return new AutomationError('unexpected-error', error.message || 'Unexpected error', {
-      details: {
-        name: error.name,
-        stack: error.stack,
+    return new AutomationError(
+      'unexpected-error',
+      error.message || 'Unexpected error',
+      {
+        details: {
+          name: error.name,
+          stack: error.stack,
+        },
       },
-    });
+    );
   }
   return new AutomationError('unexpected-error', 'Unknown automation error', {
     details: {

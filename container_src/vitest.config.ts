@@ -6,7 +6,12 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 30000,
     hookTimeout: 10000,
-  include: ['tests/**/*.test.ts', 'tests/**/*.test.js', 'test/**/*.test.ts', 'test/**/*.test.js'],
+    include: [
+      'tests/**/*.test.ts',
+      'tests/**/*.test.js',
+      'test/**/*.test.ts',
+      'test/**/*.test.js',
+    ],
     exclude: ['node_modules/**', 'dist/**'],
   },
   resolve: {

@@ -4,10 +4,7 @@
   "description": "Container response envelope for ACP session prompt executions (extended with GitHub automation telemetry).",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "stopReason",
-    "usage"
-  ],
+  "required": ["stopReason", "usage"],
   "properties": {
     "stopReason": {
       "type": "string",

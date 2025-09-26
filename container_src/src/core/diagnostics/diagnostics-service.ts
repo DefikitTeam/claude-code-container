@@ -1,5 +1,3 @@
-
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -16,7 +14,12 @@ export interface IDiagnosticsService {
   gitDiagnostics(workspacePath: string): Promise<Record<string, any> | null>;
 }
 
-type ExecResult = { code: number | null; stdout: string; stderr: string; timedOut?: boolean };
+type ExecResult = {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut?: boolean;
+};
 
 const DEFAULT_CLI_TIMEOUT = 10_000; // 10s
 const MAX_OUTPUT = 64 * 1024; // 64 KB
@@ -81,7 +84,12 @@ export class DiagnosticsService implements IDiagnosticsService {
     return diag;
   }
 
-  private execSpawn(cmd: string, args: string[], cwd?: string, timeout = DEFAULT_CLI_TIMEOUT): Promise<ExecResult> {
+  private execSpawn(
+    cmd: string,
+    args: string[],
+    cwd?: string,
+    timeout = DEFAULT_CLI_TIMEOUT,
+  ): Promise<ExecResult> {
     return new Promise((resolve) => {
       let stdout = '';
       let stderr = '';
@@ -110,7 +118,10 @@ export class DiagnosticsService implements IDiagnosticsService {
         if (finished) return;
         finished = true;
         clearTimeout(to);
-        const message = (err as any).code === 'ENOENT' ? `not-found:${cmd}` : (err as Error).message;
+        const message =
+          (err as any).code === 'ENOENT'
+            ? `not-found:${cmd}`
+            : (err as Error).message;
         resolve({ code: null, stdout: '', stderr: message, timedOut });
       });
 
@@ -118,7 +129,12 @@ export class DiagnosticsService implements IDiagnosticsService {
         if (finished) return;
         finished = true;
         clearTimeout(to);
-        resolve({ code: code === null ? null : code, stdout, stderr, timedOut });
+        resolve({
+          code: code === null ? null : code,
+          stdout,
+          stderr,
+          timedOut,
+        });
       });
     });
   }
@@ -137,7 +153,8 @@ export class DiagnosticsService implements IDiagnosticsService {
     try {
       const ver = await this.execSpawn('claude', ['--version']);
       diag.versionResult = ver;
-      if (ver.code !== null && ver.stdout) diag.claudeVersion = ver.stdout.trim().split('\n')[0];
+      if (ver.code !== null && ver.stdout)
+        diag.claudeVersion = ver.stdout.trim().split('\n')[0];
       // help
       const help = await this.execSpawn('claude', ['--help']);
       diag.helpResult = help;
@@ -150,32 +167,48 @@ export class DiagnosticsService implements IDiagnosticsService {
     return diag;
   }
 
-  async gitDiagnostics(workspacePath: string): Promise<Record<string, any> | null> {
+  async gitDiagnostics(
+    workspacePath: string,
+  ): Promise<Record<string, any> | null> {
     try {
       const gitDir = path.join(workspacePath, '.git');
       await fs.access(gitDir);
 
       const result: Record<string, any> = {};
       try {
-        const branch = await execFileAsync('git', ['branch', '--show-current'], { cwd: workspacePath });
-        result.currentBranch = (branch.stdout || '').toString().trim() || 'main';
+        const branch = await execFileAsync(
+          'git',
+          ['branch', '--show-current'],
+          { cwd: workspacePath },
+        );
+        result.currentBranch =
+          (branch.stdout || '').toString().trim() || 'main';
       } catch (e) {
         result.currentBranch = 'main';
       }
       try {
-        const status = await execFileAsync('git', ['status', '--porcelain'], { cwd: workspacePath });
-        result.hasUncommittedChanges = ((status.stdout || '') as string).trim().length > 0;
+        const status = await execFileAsync('git', ['status', '--porcelain'], {
+          cwd: workspacePath,
+        });
+        result.hasUncommittedChanges =
+          ((status.stdout || '') as string).trim().length > 0;
       } catch (e) {
         result.hasUncommittedChanges = false;
       }
       try {
-        const remote = await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: workspacePath });
+        const remote = await execFileAsync(
+          'git',
+          ['remote', 'get-url', 'origin'],
+          { cwd: workspacePath },
+        );
         result.remoteUrl = (remote.stdout || '').toString().trim() || undefined;
       } catch (e) {
         result.remoteUrl = undefined;
       }
       try {
-        const last = await execFileAsync('git', ['log', '-1', '--pretty=%B'], { cwd: workspacePath });
+        const last = await execFileAsync('git', ['log', '-1', '--pretty=%B'], {
+          cwd: workspacePath,
+        });
         result.lastCommit = (last.stdout || '').toString().trim() || undefined;
       } catch (e) {
         result.lastCommit = undefined;
@@ -191,7 +224,10 @@ export class DiagnosticsService implements IDiagnosticsService {
   /**
    * High-level run that aggregates diagnostics: env, auth, cli, and optional git diagnostics
    */
-  async run(opts: { workspacePath?: string; sessionId?: string }): Promise<any> {
+  async run(opts: {
+    workspacePath?: string;
+    sessionId?: string;
+  }): Promise<any> {
     const { workspacePath } = opts;
     const [env, auth, cli] = await Promise.all([
       this.envDiagnostics(),
