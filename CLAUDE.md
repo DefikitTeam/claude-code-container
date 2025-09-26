@@ -2,8 +2,11 @@
 
 ## Overview
 
-This project implements an automated GitHub issue processing system powered by Claude Code, built on Cloudflare Workers with containerized execution environments. The system integrates GitHub webhooks, secure credential management, and AI-driven code analysis to automatically respond to GitHub issues with intelligent solutions and pull requests.
-
+This project implements an automated GitHub issue processing system powered by
+Claude Code, built on Cloudflare Workers with containerized execution
+environments. The system integrates GitHub webhooks, secure credential
+management, and AI-driven code analysis to automatically respond to GitHub
+issues with intelligent solutions and pull requests.
 
 ## ✅ DO
 
@@ -30,9 +33,15 @@ This project implements an automated GitHub issue processing system powered by C
 10. Create hardcoded schedule conversion logic
 11. Skip frequency-specific validation requirements
 
+## CRITICAL
+
+- NEVER write a fallback case for graceful degradation for any function, code,
+  flow,... unless explicitly specified.
+
 ## Architecture
 
 ### High-Level Architecture
+
 ```
 GitHub Issues → Worker (Router) → Container (Claude Code) → GitHub PR/Comments
                     ↓
@@ -68,20 +77,21 @@ GitHub Issues → Worker (Router) → Container (Claude Code) → GitHub PR/Comm
 ### Installation
 
 1. **Clone and Install Dependencies**
+
    ```bash
    git clone <repository-url>
    cd claudecode-modern-container
    npm install
    ```
 
-2. **Configure Environment Variables**
-   Create `.dev.vars` file (git-ignored):
+2. **Configure Environment Variables** Create `.dev.vars` file (git-ignored):
+
    ```env
    ANTHROPIC_API_KEY=your_anthropic_api_key_here
    ```
 
-3. **Update Wrangler Configuration**
-   The `wrangler.jsonc` is pre-configured with:
+3. **Update Wrangler Configuration** The `wrangler.jsonc` is pre-configured
+   with:
    - Container port 8080
    - 45-second timeout
    - Proper Durable Object bindings
@@ -98,7 +108,8 @@ GitHub Issues → Worker (Router) → Container (Claude Code) → GitHub PR/Comm
      - Metadata: Read
 
 2. **Configure Webhook**
-   - Webhook URL: `https://your-worker.your-subdomain.workers.dev/webhook/github`
+   - Webhook URL:
+     `https://your-worker.your-subdomain.workers.dev/webhook/github`
    - Content type: `application/json`
    - Events: Issues
    - Generate and save webhook secret
@@ -180,18 +191,21 @@ wrangler deploy --env staging
 ## Security Features
 
 ### Encryption
+
 - AES-256-GCM encryption for sensitive credentials
 - GitHub App private keys encrypted at rest
 - Webhook secrets encrypted in Durable Objects
 - Installation tokens cached with expiry validation
 
 ### Authentication
+
 - GitHub webhook signature verification (HMAC-SHA256)
 - GitHub App JWT authentication
 - Installation access token management
 - Secure credential storage
 
 ### Input Validation
+
 - Request body validation
 - Signature verification
 - Bot detection to prevent loops
@@ -200,12 +214,14 @@ wrangler deploy --env staging
 ## Monitoring and Logging
 
 ### Health Checks
+
 - Worker health endpoint
 - Container health with metrics
 - Memory and CPU usage reporting
 - Uptime tracking
 
 ### Logging
+
 - Structured logging throughout the system
 - Error tracking and reporting
 - Processing status updates
@@ -227,12 +243,14 @@ wrangler deploy --env staging
 ## Error Handling
 
 ### Graceful Degradation
+
 - Container failures fallback to comment responses
 - Network issues handled with retries
 - Timeout management for long-running processes
 - Resource cleanup on failures
 
 ### Error Recovery
+
 - Comprehensive error logging
 - Status reporting to GitHub issues
 - Automatic workspace cleanup
@@ -241,17 +259,20 @@ wrangler deploy --env staging
 ## Performance Characteristics
 
 ### Resource Utilization
+
 - Container Memory: 100-500MB per instance
 - Startup Time: ~2-3 seconds (includes git clone)
 - Processing Time: Variable based on repository size and complexity
 - Concurrency: Up to 10 container instances
 
 ### Bottlenecks
+
 1. Git Clone Operations: Network-dependent
 2. Claude Code Processing: AI inference time
 3. Container Startup: Image initialization
 
 ### Scalability
+
 - Horizontal scaling via multiple container instances
 - Load balancing across container pool
 - Durable Objects for consistent state management
@@ -262,6 +283,7 @@ wrangler deploy --env staging
 ### Common Issues
 
 1. **Container Won't Start**
+
    ```bash
    # Check container logs
    wrangler tail
@@ -271,6 +293,7 @@ wrangler deploy --env staging
    ```
 
 2. **GitHub Webhook Failing**
+
    ```bash
    # Test webhook locally
    curl -X POST http://localhost:8787/webhook/github \
@@ -321,10 +344,12 @@ cd container_src && npm run build
 ## Environment Variables
 
 ### Worker Environment
+
 - `ANTHROPIC_API_KEY`: Claude Code API key
 - `ENVIRONMENT`: Deployment environment (development/staging/production)
 
 ### Container Environment
+
 - `ANTHROPIC_API_KEY`: Passed from worker
 - `NODE_ENV`: Set to production in container
 - `CONTAINER_ID`: Unique container identifier
@@ -343,4 +368,5 @@ This project is licensed under the MIT License.
 
 ---
 
-*Generated and maintained by Claude Code - Automated GitHub Issue Processing System*
+_Generated and maintained by Claude Code - Automated GitHub Issue Processing
+System_

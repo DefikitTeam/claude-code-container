@@ -13,12 +13,12 @@ export class CryptoUtils {
     const key = await crypto.subtle.generateKey(
       {
         name: 'AES-GCM',
-        length: 256
+        length: 256,
       },
       true, // extractable
-      ['encrypt', 'decrypt']
+      ['encrypt', 'decrypt'],
     );
-    
+
     // For symmetric algorithms like AES-GCM, generateKey returns CryptoKey, not CryptoKeyPair
     return key as CryptoKey;
   }
@@ -29,35 +29,38 @@ export class CryptoUtils {
   static async encrypt(key: CryptoKey, data: string): Promise<EncryptedData> {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const encodedData = new TextEncoder().encode(data);
-    
+
     const encryptedContent = await crypto.subtle.encrypt(
       {
         name: 'AES-GCM',
-        iv: iv
+        iv: iv,
       },
       key,
-      encodedData
+      encodedData,
     );
-    
-    return { 
-      iv, 
-      encryptedData: new Uint8Array(encryptedContent) 
+
+    return {
+      iv,
+      encryptedData: new Uint8Array(encryptedContent),
     };
   }
 
   /**
    * Decrypt data using AES-256-GCM
    */
-  static async decrypt(key: CryptoKey, encryptedData: EncryptedData): Promise<string> {
+  static async decrypt(
+    key: CryptoKey,
+    encryptedData: EncryptedData,
+  ): Promise<string> {
     const decryptedContent = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
-        iv: encryptedData.iv
+        iv: encryptedData.iv,
       },
       key,
-      encryptedData.encryptedData
+      encryptedData.encryptedData,
     );
-    
+
     return new TextDecoder().decode(decryptedContent);
   }
 
@@ -78,10 +81,10 @@ export class CryptoUtils {
       keyData,
       {
         name: 'AES-GCM',
-        length: 256
+        length: 256,
       },
       true,
-      ['encrypt', 'decrypt']
+      ['encrypt', 'decrypt'],
     );
   }
 
@@ -91,12 +94,12 @@ export class CryptoUtils {
   static async verifyWebhookSignature(
     payload: string,
     signature: string,
-    secret: string
+    secret: string,
   ): Promise<boolean> {
     try {
       // Remove 'sha256=' prefix if present
-      const cleanSignature = signature.startsWith('sha256=') 
-        ? signature.slice(7) 
+      const cleanSignature = signature.startsWith('sha256=')
+        ? signature.slice(7)
         : signature;
 
       // Import the secret as a key
@@ -105,19 +108,19 @@ export class CryptoUtils {
         new TextEncoder().encode(secret),
         { name: 'HMAC', hash: 'SHA-256' },
         false,
-        ['sign']
+        ['sign'],
       );
 
       // Generate the expected signature
       const expectedSignature = await crypto.subtle.sign(
         'HMAC',
         key,
-        new TextEncoder().encode(payload)
+        new TextEncoder().encode(payload),
       );
 
       // Convert to hex string
       const expectedHex = Array.from(new Uint8Array(expectedSignature))
-        .map(b => b.toString(16).padStart(2, '0'))
+        .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
       // Use timing-safe comparison

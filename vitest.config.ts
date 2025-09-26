@@ -6,16 +6,12 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       reporter: ['text', 'html'],
-      exclude: [
-        'node_modules/**',
-        'test/**',
-        '*.config.*'
-      ]
-    }
+      exclude: ['node_modules/**', 'test/**', '*.config.*'],
+    },
   },
   resolve: {
     alias: {
-      '@': '/src'
-    }
-  }
+      '@': '/src',
+    },
+  },
 });

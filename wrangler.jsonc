@@ -5,138 +5,158 @@
   "compatibility_date": "2025-05-23",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "containers": [
     {
       "class_name": "MyContainer",
       "image": "./Dockerfile",
-      "max_instances": 10
-    }
+      "max_instances": 10,
+    },
   ],
   "durable_objects": {
     "bindings": [
       {
         "class_name": "MyContainer",
-        "name": "MY_CONTAINER"
+        "name": "MY_CONTAINER",
       },
       {
         "class_name": "GitHubAppConfigDO",
-        "name": "GITHUB_APP_CONFIG"
+        "name": "GITHUB_APP_CONFIG",
       },
       {
         "class_name": "UserConfigDO",
-        "name": "USER_CONFIG"
-      }
-    ]
+        "name": "USER_CONFIG",
+      },
+      {
+        "class_name": "ACPSessionDO",
+        "name": "ACP_SESSION",
+      },
+    ],
   },
   "migrations": [
     {
       "new_sqlite_classes": ["MyContainer", "GitHubAppConfigDO"],
-      "tag": "v1"
+      "tag": "v1",
     },
     {
       "new_sqlite_classes": ["UserConfigDO"],
-      "tag": "v2"
-    }
+      "tag": "v2",
+    },
+    {
+      "new_sqlite_classes": ["ACPSessionDO"],
+      "tag": "v3",
+    },
   ],
   "build": {
-    "command": "npm run build:all"
+    "command": "npm run build:all",
   },
   "vars": {
     "ENVIRONMENT": "development",
-    "ENABLE_DEEP_REASONING": "false"
+    "ENABLE_DEEP_REASONING": "false",
   },
   "env": {
     "production": {
       "name": "claude-code-containers-production",
       "vars": {
         "ENVIRONMENT": "production",
-        "ENABLE_DEEP_REASONING": "false"
+        "ENABLE_DEEP_REASONING": "false",
       },
       "containers": [
         {
           "class_name": "MyContainer",
           "image": "./Dockerfile",
-          "max_instances": 10
-        }
+          "max_instances": 10,
+        },
       ],
       "durable_objects": {
         "bindings": [
           {
             "class_name": "MyContainer",
-            "name": "MY_CONTAINER"
+            "name": "MY_CONTAINER",
           },
           {
             "class_name": "GitHubAppConfigDO",
-            "name": "GITHUB_APP_CONFIG"
+            "name": "GITHUB_APP_CONFIG",
           },
           {
             "class_name": "UserConfigDO",
-            "name": "USER_CONFIG"
-          }
-        ]
-      }
+            "name": "USER_CONFIG",
+          },
+          {
+            "class_name": "ACPSessionDO",
+            "name": "ACP_SESSION",
+          },
+        ],
+      },
     },
     "development": {
       "name": "claude-code-containers-dev",
       "vars": {
         "ENVIRONMENT": "development",
-        "ENABLE_DEEP_REASONING": "false"
+        "ENABLE_DEEP_REASONING": "false",
       },
       "containers": [
         {
           "class_name": "MyContainer",
           "image": "./Dockerfile",
-          "max_instances": 10
-        }
+          "max_instances": 10,
+        },
       ],
       "durable_objects": {
         "bindings": [
           {
             "class_name": "MyContainer",
-            "name": "MY_CONTAINER"
+            "name": "MY_CONTAINER",
           },
           {
             "class_name": "GitHubAppConfigDO",
-            "name": "GITHUB_APP_CONFIG"
+            "name": "GITHUB_APP_CONFIG",
           },
           {
             "class_name": "UserConfigDO",
-            "name": "USER_CONFIG"
-          }
-        ]
-      }
+            "name": "USER_CONFIG",
+          },
+          {
+            "class_name": "ACPSessionDO",
+            "name": "ACP_SESSION",
+          },
+        ],
+      },
     },
     "staging": {
       "name": "claude-code-containers-staging",
       "vars": {
         "ENVIRONMENT": "staging",
-        "ENABLE_DEEP_REASONING": "false"
+        "ENABLE_DEEP_REASONING": "false",
       },
       "containers": [
         {
           "class_name": "MyContainer",
           "image": "./Dockerfile",
-          "max_instances": 10
-        }
+          "max_instances": 10,
+        },
       ],
       "durable_objects": {
         "bindings": [
           {
             "class_name": "MyContainer",
-            "name": "MY_CONTAINER"
+            "name": "MY_CONTAINER",
           },
           {
             "class_name": "GitHubAppConfigDO",
-            "name": "GITHUB_APP_CONFIG"
+            "name": "GITHUB_APP_CONFIG",
           },
           {
             "class_name": "UserConfigDO",
-            "name": "USER_CONFIG"
-          }
-        ]
-      }
-    }
-  }
+            "name": "USER_CONFIG",
+          },
+          {
+            "class_name": "ACPSessionDO",
+            "name": "ACP_SESSION",
+          },
+        ],
+      },
+    },
+  },
 }

@@ -5,7 +5,7 @@ import type { Env, UserConfig, UserInstallationToken } from '../../src/types';
 
 // Mock the github-utils module
 vi.mock('../../src/github-utils', () => ({
-  generateInstallationToken: vi.fn()
+  generateInstallationToken: vi.fn(),
 }));
 
 describe('TokenManager', () => {
@@ -20,7 +20,7 @@ describe('TokenManager', () => {
 
     // Mock Durable Object
     mockDurableObject = {
-      fetch: vi.fn()
+      fetch: vi.fn(),
     };
 
     // Mock environment
@@ -29,9 +29,9 @@ describe('TokenManager', () => {
       GITHUB_APP_CONFIG: {} as DurableObjectNamespace,
       USER_CONFIG: {
         idFromName: vi.fn(() => 'mock-id'),
-        get: vi.fn(() => mockDurableObject)
+        get: vi.fn(() => mockDurableObject),
       } as any,
-      ANTHROPIC_API_KEY: 'test-key'
+      ANTHROPIC_API_KEY: 'test-key',
     };
 
     // Mock user config
@@ -42,7 +42,7 @@ describe('TokenManager', () => {
       repositoryAccess: ['owner/repo'],
       created: Date.now(),
       updated: Date.now(),
-      isActive: true
+      isActive: true,
     };
 
     tokenManager = new TokenManager(mockEnv);
@@ -54,13 +54,13 @@ describe('TokenManager', () => {
         installationId: '12345',
         token: 'cached-token-123',
         expiresAt: Date.now() + 3600000, // 1 hour from now
-        userId: 'test-user-123'
+        userId: 'test-user-123',
       };
 
       // Mock successful cached token retrieval
       mockDurableObject.fetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(validToken)
+        json: () => Promise.resolve(validToken),
       });
 
       const result = await tokenManager.getInstallationToken(mockUserConfig);
@@ -74,18 +74,18 @@ describe('TokenManager', () => {
         installationId: '12345',
         token: 'expired-token',
         expiresAt: Date.now() - 1000, // Expired 1 second ago
-        userId: 'test-user-123'
+        userId: 'test-user-123',
       };
 
       // Mock expired cached token retrieval
       mockDurableObject.fetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(expiredToken)
+        json: () => Promise.resolve(expiredToken),
       });
 
       // Mock successful token caching
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: true
+        ok: true,
       });
 
       // Mock new token generation
@@ -94,18 +94,21 @@ describe('TokenManager', () => {
       const result = await tokenManager.getInstallationToken(mockUserConfig);
 
       expect(result).toBe('new-token-456');
-      expect(generateInstallationToken).toHaveBeenCalledWith(mockUserConfig);
+      expect(generateInstallationToken).toHaveBeenCalledWith(
+        mockUserConfig,
+        mockEnv,
+      );
     });
 
     it('should generate new token when no cached token exists', async () => {
       // Mock no cached token
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: false
+        ok: false,
       });
 
       // Mock successful token caching
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: true
+        ok: true,
       });
 
       // Mock new token generation
@@ -114,13 +117,16 @@ describe('TokenManager', () => {
       const result = await tokenManager.getInstallationToken(mockUserConfig);
 
       expect(result).toBe('new-token-789');
-      expect(generateInstallationToken).toHaveBeenCalledWith(mockUserConfig);
+      expect(generateInstallationToken).toHaveBeenCalledWith(
+        mockUserConfig,
+        mockEnv,
+      );
     });
 
     it('should return null when token generation fails', async () => {
       // Mock no cached token
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: false
+        ok: false,
       });
 
       // Mock failed token generation
@@ -144,19 +150,19 @@ describe('TokenManager', () => {
       const tokenExpiringIn4Minutes: UserInstallationToken = {
         installationId: '12345',
         token: 'expiring-soon-token',
-        expiresAt: Date.now() + (4 * 60 * 1000), // 4 minutes from now
-        userId: 'test-user-123'
+        expiresAt: Date.now() + 4 * 60 * 1000, // 4 minutes from now
+        userId: 'test-user-123',
       };
 
       // Mock token that expires within buffer period
       mockDurableObject.fetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(tokenExpiringIn4Minutes)
+        json: () => Promise.resolve(tokenExpiringIn4Minutes),
       });
 
       // Mock successful token caching for new token
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: true
+        ok: true,
       });
 
       // Mock new token generation
@@ -172,7 +178,7 @@ describe('TokenManager', () => {
   describe('invalidateToken', () => {
     it('should successfully invalidate cached token', async () => {
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: true
+        ok: true,
       });
 
       await tokenManager.invalidateToken('12345');
@@ -180,8 +186,8 @@ describe('TokenManager', () => {
       expect(mockDurableObject.fetch).toHaveBeenCalledWith(
         expect.objectContaining({
           method: 'DELETE',
-          url: 'http://localhost/installation-token?installationId=12345'
-        })
+          url: 'http://localhost/installation-token?installationId=12345',
+        }),
       );
     });
 
@@ -189,7 +195,9 @@ describe('TokenManager', () => {
       mockDurableObject.fetch.mockRejectedValue(new Error('Network error'));
 
       // Should not throw
-      await expect(tokenManager.invalidateToken('12345')).resolves.not.toThrow();
+      await expect(
+        tokenManager.invalidateToken('12345'),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -197,12 +205,12 @@ describe('TokenManager', () => {
     it('should cache token with proper expiration', async () => {
       // Mock no cached token
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: false
+        ok: false,
       });
 
       // Mock successful token caching
       mockDurableObject.fetch.mockResolvedValueOnce({
-        ok: true
+        ok: true,
       });
 
       // Mock new token generation
@@ -212,20 +220,24 @@ describe('TokenManager', () => {
 
       // Verify caching call
       const cacheCall = mockDurableObject.fetch.mock.calls.find(
-        call => call[0]?.method === 'POST' && call[0]?.url === 'http://localhost/installation-token'
+        (call) =>
+          call[0]?.method === 'POST' &&
+          call[0]?.url === 'http://localhost/installation-token',
       );
 
       expect(cacheCall).toBeDefined();
-      
+
       // Parse the cached token data
       const cachedData = JSON.parse(cacheCall[0].body);
       expect(cachedData).toMatchObject({
         installationId: '12345',
         token: 'cache-test-token',
-        userId: 'test-user-123'
+        userId: 'test-user-123',
       });
       expect(cachedData.expiresAt).toBeGreaterThan(Date.now());
-      expect(cachedData.expiresAt).toBeLessThanOrEqual(Date.now() + (60 * 60 * 1000));
+      expect(cachedData.expiresAt).toBeLessThanOrEqual(
+        Date.now() + 60 * 60 * 1000,
+      );
     });
   });
 });

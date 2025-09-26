@@ -1,5 +1,8 @@
 import { Octokit } from '@octokit/rest';
 export class ContainerGitHubClient {
+    octokit;
+    owner;
+    repo;
     constructor(token, owner, repo) {
         this.octokit = new Octokit({ auth: token, userAgent: 'Claude-Code-Container/1.0.0' });
         this.owner = owner;

@@ -6,7 +6,7 @@ import { FixedGitHubAppConfig } from './types';
 
 /**
  * Fixed GitHub App Configuration
- * 
+ *
  * SETUP INSTRUCTIONS:
  * 1. Replace these values with your actual GitHub App credentials
  * 2. Keep these credentials secure and never expose them to users
@@ -14,15 +14,18 @@ import { FixedGitHubAppConfig } from './types';
  */
 export const FIXED_GITHUB_APP_CONFIG: FixedGitHubAppConfig = {
   // TODO: Replace with your actual GitHub App ID
-  appId: process.env.FIXED_GITHUB_APP_ID || "YOUR_GITHUB_APP_ID_HERE",
-  
+  appId: process.env.FIXED_GITHUB_APP_ID || 'YOUR_GITHUB_APP_ID_HERE',
+
   // TODO: Replace with your actual GitHub App Private Key
-  privateKey: process.env.FIXED_GITHUB_PRIVATE_KEY || `-----BEGIN RSA PRIVATE KEY-----
+  privateKey:
+    process.env.FIXED_GITHUB_PRIVATE_KEY ||
+    `-----BEGIN RSA PRIVATE KEY-----
 YOUR_PRIVATE_KEY_HERE
 -----END RSA PRIVATE KEY-----`,
-  
+
   // TODO: Replace with your actual GitHub App Webhook Secret
-  webhookSecret: process.env.FIXED_GITHUB_WEBHOOK_SECRET || "YOUR_WEBHOOK_SECRET_HERE"
+  webhookSecret:
+    process.env.FIXED_GITHUB_WEBHOOK_SECRET || 'YOUR_WEBHOOK_SECRET_HERE',
 };
 
 /**
@@ -30,23 +33,29 @@ YOUR_PRIVATE_KEY_HERE
  */
 export function validateFixedAppConfig(): boolean {
   const config = FIXED_GITHUB_APP_CONFIG;
-  
-  if (config.appId === "YOUR_GITHUB_APP_ID_HERE" || !config.appId) {
-    console.error("❌ FIXED_GITHUB_APP_ID is not configured");
+
+  if (config.appId === 'YOUR_GITHUB_APP_ID_HERE' || !config.appId) {
+    console.error('❌ FIXED_GITHUB_APP_ID is not configured');
     return false;
   }
-  
-  if (config.privateKey.includes("YOUR_PRIVATE_KEY_HERE") || !config.privateKey) {
-    console.error("❌ FIXED_GITHUB_PRIVATE_KEY is not configured");
+
+  if (
+    config.privateKey.includes('YOUR_PRIVATE_KEY_HERE') ||
+    !config.privateKey
+  ) {
+    console.error('❌ FIXED_GITHUB_PRIVATE_KEY is not configured');
     return false;
   }
-  
-  if (config.webhookSecret === "YOUR_WEBHOOK_SECRET_HERE" || !config.webhookSecret) {
-    console.error("❌ FIXED_GITHUB_WEBHOOK_SECRET is not configured");
+
+  if (
+    config.webhookSecret === 'YOUR_WEBHOOK_SECRET_HERE' ||
+    !config.webhookSecret
+  ) {
+    console.error('❌ FIXED_GITHUB_WEBHOOK_SECRET is not configured');
     return false;
   }
-  
-  console.log("✅ Fixed GitHub App configuration validated");
+
+  console.log('✅ Fixed GitHub App configuration validated');
   return true;
 }
 
@@ -55,9 +64,15 @@ export function validateFixedAppConfig(): boolean {
  * This replaces the old dynamic configuration retrieval
  */
 export function getFixedGitHubAppConfig(): FixedGitHubAppConfig {
+  // In developer / self-hosted setups we may not have the fixed GitHub App
+  // configured. Avoid throwing here so runtime endpoints like /process-prompt
+  // can run in a degraded mode (they will surface clearer errors when they
+  // actually try to call GitHub APIs).
   if (!validateFixedAppConfig()) {
-    throw new Error("Fixed GitHub App configuration is not properly set up");
+    console.warn(
+      '⚠️ FIXED_GITHUB_APP_CONFIG is not fully configured - proceeding without strict validation',
+    );
   }
-  
+
   return FIXED_GITHUB_APP_CONFIG;
 }

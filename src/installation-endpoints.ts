@@ -1,10 +1,10 @@
 // Installation endpoints for GitHub App
-import { Hono } from "hono";
-import { Env, GitHubAppConfig } from "./types";
+import { Hono } from 'hono';
+import { Env, GitHubAppConfig } from './types';
 
 export function addInstallationEndpoints(app: Hono<{ Bindings: Env }>) {
   // Serve installation page
-  app.get("/install", async (c) => {
+  app.get('/install', async (c) => {
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -337,97 +337,106 @@ export function addInstallationEndpoints(app: Hono<{ Bindings: Env }>) {
     </script>
 </body>
 </html>`;
-    
+
     return c.html(html);
   });
   // Get GitHub App installation URL
-  app.get("/install/github-app", async (c) => {
+  app.get('/install/github-app', async (c) => {
     // You need to replace 'your-app-name' with your actual GitHub App slug
-    const appName = "your-app-name"; // TODO: Set this to your actual GitHub App slug
+    const appName = 'your-app-name'; // TODO: Set this to your actual GitHub App slug
     const baseUrl = new URL(c.req.url).origin;
     const callbackUrl = `${baseUrl}/install/callback`;
-    
+
     return c.json({
       installation_url: `https://github.com/apps/${appName}/installations/new`,
       app_name: appName,
       callback_url: callbackUrl,
-      setup_url_note: "Make sure to set this callback_url as your GitHub App's Setup URL",
-      multi_tenant_note: "This is a service provider controlled GitHub App. Users only need the Installation ID.",
+      setup_url_note:
+        "Make sure to set this callback_url as your GitHub App's Setup URL",
+      multi_tenant_note:
+        'This is a service provider controlled GitHub App. Users only need the Installation ID.',
       instructions: {
-        step_1: "Click the installation_url to install the GitHub App",
-        step_2: "Select repositories you want to grant access to", 
-        step_3: "GitHub will redirect back to callback_url with installation_id",
-        step_4: "Copy your installation_id and use it with /register-user endpoint",
-        step_5: "Provide your Anthropic API key when registering",
-        step_6: "Deploy your own Cloudflare Worker with your user credentials"
-      }
+        step_1: 'Click the installation_url to install the GitHub App',
+        step_2: 'Select repositories you want to grant access to',
+        step_3:
+          'GitHub will redirect back to callback_url with installation_id',
+        step_4:
+          'Copy your installation_id and use it with /register-user endpoint',
+        step_5: 'Provide your Anthropic API key when registering',
+        step_6: 'Deploy your own Cloudflare Worker with your user credentials',
+      },
     });
   });
 
   // Handle GitHub installation callback
-  app.get("/install/callback", async (c) => {
+  app.get('/install/callback', async (c) => {
     try {
-      const installation_id = c.req.query("installation_id");
-      const setup_action = c.req.query("setup_action");
-      const code = c.req.query("code");
+      const installation_id = c.req.query('installation_id');
+      const setup_action = c.req.query('setup_action');
+      const code = c.req.query('code');
 
       if (!installation_id) {
-        return c.json({ error: "installation_id is required" }, 400);
+        return c.json({ error: 'installation_id is required' }, 400);
       }
 
       // TODO: Validate installation with GitHub API
       // const installationDetails = await validateInstallation(installation_id);
-      
+
       return c.json({
         success: true,
         installation_id,
-        setup_action: setup_action || "install",
-        message: "GitHub App installation successful!",
+        setup_action: setup_action || 'install',
+        message: 'GitHub App installation successful!',
         next_steps: {
           step_1: `Register as a user: POST ${new URL(c.req.url).origin}/register-user`,
-          step_2: "Deploy your own Cloudflare Worker",
+          step_2: 'Deploy your own Cloudflare Worker',
           step_3: `Configure webhook URL in your Worker: ${new URL(c.req.url).origin}/webhook/github`,
           required_data: {
             installation_id,
-            anthropic_api_key: "Your Anthropic API key"
-          }
+            anthropic_api_key: 'Your Anthropic API key',
+          },
         },
         registration_example: {
-          method: "POST",
+          method: 'POST',
           url: `${new URL(c.req.url).origin}/register-user`,
           body: {
             installationId: installation_id,
-            anthropicApiKey: "your-anthropic-api-key-here",
-            userId: "optional-custom-user-id"
-          }
+            anthropicApiKey: 'your-anthropic-api-key-here',
+            userId: 'optional-custom-user-id',
+          },
         },
-        note: "This GitHub App is managed by the service provider. You only need your Installation ID and Anthropic API key."
+        note: 'This GitHub App is managed by the service provider. You only need your Installation ID and Anthropic API key.',
       });
-
     } catch (error) {
-      console.error("Installation callback error:", error);
-      return c.json({ 
-        error: "Installation callback failed", 
-        details: error instanceof Error ? error.message : "Unknown error"
-      }, 500);
+      console.error('Installation callback error:', error);
+      return c.json(
+        {
+          error: 'Installation callback failed',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        },
+        500,
+      );
     }
   });
 
   // Check installation status
-  app.get("/install/status/:installation_id", async (c) => {
+  app.get('/install/status/:installation_id', async (c) => {
     try {
-      const installation_id = c.req.param("installation_id");
-      
+      const installation_id = c.req.param('installation_id');
+
       // Get configuration from Durable Object
-      const configId = c.env.GITHUB_APP_CONFIG.idFromName("default");
+      const configId = c.env.GITHUB_APP_CONFIG.idFromName('default');
       const configStub = c.env.GITHUB_APP_CONFIG.get(configId);
-      const config = await configStub.fetch(new Request("http://internal/config")).then(r => r.json()) as GitHubAppConfig | null;
+      const config = (await configStub
+        .fetch(new Request('http://internal/config'))
+        .then((r) => r.json())) as GitHubAppConfig | null;
 
       if (!config) {
         return c.json({
           installation_id,
-          status: "not_configured",
-          message: "GitHub App not configured. Use POST /config to set up credentials."
+          status: 'not_configured',
+          message:
+            'GitHub App not configured. Use POST /config to set up credentials.',
         });
       }
 
@@ -436,40 +445,49 @@ export function addInstallationEndpoints(app: Hono<{ Bindings: Env }>) {
 
       return c.json({
         installation_id,
-        status: "configured", // or "active", "suspended", etc.
-        message: "Installation found in configuration",
+        status: 'configured', // or "active", "suspended", etc.
+        message: 'Installation found in configuration',
         config_status: {
-          appId: config.appId ? "✓" : "✗",
-          privateKey: config.privateKey ? "✓" : "✗", 
-          webhookSecret: config.webhookSecret ? "✓" : "✗",
-          installationId: config.installationId === installation_id ? "✓" : "✗"
-        }
+          appId: config.appId ? '✓' : '✗',
+          privateKey: config.privateKey ? '✓' : '✗',
+          webhookSecret: config.webhookSecret ? '✓' : '✗',
+          installationId: config.installationId === installation_id ? '✓' : '✗',
+        },
       });
-
     } catch (error) {
-      console.error("Installation status check error:", error);
-      return c.json({ 
-        error: "Status check failed", 
-        details: error instanceof Error ? error.message : "Unknown error"
-      }, 500);
+      console.error('Installation status check error:', error);
+      return c.json(
+        {
+          error: 'Status check failed',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        },
+        500,
+      );
     }
   });
 }
 
 // Helper function to validate installation (TODO: implement)
-async function validateInstallation(installation_id: string, app_id?: string, private_key?: string) {
+async function validateInstallation(
+  installation_id: string,
+  app_id?: string,
+  private_key?: string,
+) {
   // Implementation would:
   // 1. Create JWT token for GitHub App
   // 2. Call GET /app/installations/{installation_id}
   // 3. Return installation details
-  throw new Error("Not implemented yet");
+  throw new Error('Not implemented yet');
 }
 
-// Helper function to get installation info (TODO: implement) 
-async function getInstallationInfo(installation_id: string, config: GitHubAppConfig) {
+// Helper function to get installation info (TODO: implement)
+async function getInstallationInfo(
+  installation_id: string,
+  config: GitHubAppConfig,
+) {
   // Implementation would:
   // 1. Create JWT from app_id and private_key
   // 2. Call GitHub API to get installation details
   // 3. Return parsed installation information
-  throw new Error("Not implemented yet");
+  throw new Error('Not implemented yet');
 }

@@ -8,7 +8,7 @@ export class ContainerGitHubClient {
   constructor(token: string, owner: string, repo: string) {
     this.octokit = new Octokit({
       auth: token,
-      userAgent: 'Claude-Code-Container/1.0.0'
+      userAgent: 'Claude-Code-Container/1.0.0',
     });
     this.owner = owner;
     this.repo = repo;
@@ -16,7 +16,7 @@ export class ContainerGitHubClient {
     logWithContext('GITHUB_CLIENT', 'GitHub client initialized', {
       owner,
       repo,
-      hasToken: !!token
+      hasToken: !!token,
     });
   }
 
@@ -25,21 +25,23 @@ export class ContainerGitHubClient {
     try {
       logWithContext('GITHUB_CLIENT', 'Creating comment', {
         issueNumber,
-        bodyLength: body.length
+        bodyLength: body.length,
       });
 
       await this.octokit.rest.issues.createComment({
         owner: this.owner,
         repo: this.repo,
         issue_number: issueNumber,
-        body
+        body,
       });
 
-      logWithContext('GITHUB_CLIENT', 'Comment created successfully', { issueNumber });
+      logWithContext('GITHUB_CLIENT', 'Comment created successfully', {
+        issueNumber,
+      });
     } catch (error) {
       logWithContext('GITHUB_CLIENT', 'Failed to create comment', {
         error: (error as Error).message,
-        issueNumber
+        issueNumber,
       });
       throw error;
     }
@@ -50,14 +52,14 @@ export class ContainerGitHubClient {
     title: string,
     body: string,
     head: string,
-    base: string = 'main'
+    base: string = 'main',
   ): Promise<{ number: number; html_url: string }> {
     try {
       logWithContext('GITHUB_CLIENT', 'Creating pull request', {
         title,
         head,
         base,
-        bodyLength: body.length
+        bodyLength: body.length,
       });
 
       const response = await this.octokit.rest.pulls.create({
@@ -66,24 +68,24 @@ export class ContainerGitHubClient {
         title,
         body,
         head,
-        base
+        base,
       });
 
       logWithContext('GITHUB_CLIENT', 'Pull request created successfully', {
         number: response.data.number,
-        url: response.data.html_url
+        url: response.data.html_url,
       });
 
       return {
         number: response.data.number,
-        html_url: response.data.html_url
+        html_url: response.data.html_url,
       };
     } catch (error) {
       logWithContext('GITHUB_CLIENT', 'Failed to create pull request', {
         error: (error as Error).message,
         title,
         head,
-        base
+        base,
       });
       throw error;
     }
@@ -94,15 +96,15 @@ export class ContainerGitHubClient {
     try {
       const response = await this.octokit.rest.repos.get({
         owner: this.owner,
-        repo: this.repo
+        repo: this.repo,
       });
 
       return {
-        default_branch: response.data.default_branch
+        default_branch: response.data.default_branch,
       };
     } catch (error) {
       logWithContext('GITHUB_CLIENT', 'Failed to get repository info', {
-        error: (error as Error).message
+        error: (error as Error).message,
       });
       throw error;
     }
