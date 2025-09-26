@@ -60,8 +60,9 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.34.0'
+          configPath: wrangler.jsonc
           preCommands: |
-            npm install -g wrangler@4.34.0
             npm ci
             cd container_src && npm ci && npm run build && cd ..
           command:
