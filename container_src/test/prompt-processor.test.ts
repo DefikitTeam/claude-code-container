@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PromptProcessor } from '../src/services/prompt/prompt-processor';
 import type { ACPSession } from '../src/types/acp-session';
 import { ClassifiedErrorCode, defaultErrorClassifier } from '../src/core/errors/error-classifier';
+import type { GitHubAutomationResult } from '../src/services/github/github-automation.js';
 
 function makeSession(overrides: Partial<ACPSession> = {}): ACPSession {
   return {
@@ -24,9 +25,13 @@ describe('PromptProcessor', () => {
   let claudeClient: any;
   let gitService: any;
   let diagnosticsService: any;
+  let githubAutomationService: any;
   let processor: PromptProcessor;
+  let originalGitHubToken: string | undefined;
 
   beforeEach(() => {
+    originalGitHubToken = process.env.GITHUB_TOKEN;
+    process.env.GITHUB_TOKEN = 'token-test';
     sessionStore = {
       load: vi.fn(async (id: string) => makeSession({ sessionId: id })),
       save: vi.fn(async () => {}),
@@ -47,6 +52,9 @@ describe('PromptProcessor', () => {
     };
     gitService = { listChangedFiles: vi.fn(async () => []) };
     diagnosticsService = { run: vi.fn(async () => ({ ok: true })) };
+    githubAutomationService = {
+      execute: vi.fn(async () => defaultAutomationSkip()),
+    };
 
     processor = new PromptProcessor({
       sessionStore,
@@ -54,7 +62,12 @@ describe('PromptProcessor', () => {
       claudeClient,
       gitService,
       diagnosticsService,
+      githubAutomationService,
     });
+  });
+
+  afterEach(() => {
+    process.env.GITHUB_TOKEN = originalGitHubToken;
   });
 
   it('appends history only once when historyAlreadyAppended is false', async () => {
@@ -64,6 +77,7 @@ describe('PromptProcessor', () => {
     });
     expect(res.stopReason).toBe('completed');
     expect(sessionStore.save).not.toHaveBeenCalled(); // persistHistory false
+    expect(githubAutomationService.execute).not.toHaveBeenCalled();
   });
 
   it('does not append history when historyAlreadyAppended is true', async () => {
@@ -109,4 +123,53 @@ describe('PromptProcessor', () => {
     });
     expect(['completed', 'cancelled']).toContain(res.stopReason);
   });
+
+  it('invokes automation service and attaches result when configured', async () => {
+    const automationResult: GitHubAutomationResult = {
+      status: 'success',
+      branch: 'claude-code/issue-42-20250101-000000',
+      diagnostics: { durationMs: 1200, attempts: 1, logs: [] },
+      issue: { id: 1, number: 42, url: 'https://github.com/org/repo/issues/42', title: 'Add automation badge' },
+      pullRequest: { number: 88, url: 'https://github.com/org/repo/pull/88', branch: 'claude-code/issue-42-20250101-000000' },
+      commit: { sha: 'deadbeef', message: 'Fix issue #42: Add automation badge' },
+    };
+    githubAutomationService.execute.mockResolvedValueOnce(automationResult);
+    workspaceService.prepare.mockResolvedValueOnce({
+      sessionId: 'sess-1',
+      path: process.cwd(),
+      isEphemeral: true,
+      createdAt: Date.now(),
+      gitInfo: {
+        currentBranch: 'main',
+        hasUncommittedChanges: false,
+        remoteUrl: 'https://github.com/org/repo.git',
+        lastCommit: 'Initial commit',
+      },
+    });
+    sessionStore.load.mockResolvedValue(makeSession({
+      sessionOptions: { persistHistory: false, enableGitOps: true, contextFiles: [] },
+    }));
+
+    const res = await processor.processPrompt({
+      sessionId: 'sess-1',
+      content: [{ type: 'text', text: 'Automation-enabled prompt' }],
+      agentContext: { repository: 'org/repo', automation: { issueTitle: 'Add automation badge' } },
+    });
+
+    expect(githubAutomationService.execute).toHaveBeenCalledTimes(1);
+    const contextArg = githubAutomationService.execute.mock.calls[0][0];
+    expect(contextArg.repository.owner).toBe('org');
+    expect(contextArg.repository.name).toBe('repo');
+    expect(res.githubAutomation).toEqual(automationResult);
+    expect((res as any).meta.githubAutomationVersion).toBe('1.0.0'); // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(res.githubOperations?.branchCreated).toBe(automationResult.branch);
+  });
 });
+
+function defaultAutomationSkip(): GitHubAutomationResult {
+  return {
+    status: 'skipped',
+    skippedReason: 'test-skip',
+    diagnostics: { durationMs: 0, attempts: 1, logs: [] },
+  };
+}

@@ -80,6 +80,7 @@ export function promptProcessor(): PromptProcessor {
       claudeClient: claudeClient(),
       gitService: gitService(),
       diagnosticsService: diagnosticsService(),
+      githubAutomationService: githubAutomationService(),
     });
   }
   return _promptProcessor;

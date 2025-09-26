@@ -3,6 +3,8 @@
  * Based on Agent Client Protocol v0.3.1 specification
  */
 
+import type { GitHubAutomationResult } from '../services/github/github-automation.js';
+
 // ===== Core JSON-RPC 2.0 Types =====
 
 export interface JSONRPCRequest {
@@ -184,6 +186,7 @@ export interface SessionPromptResponse extends JSONRPCResponse {
       filesModified?: string[];
     };
     summary?: string;
+    githubAutomation?: GitHubAutomationResult;
     [key: string]: unknown;
   };
 }
