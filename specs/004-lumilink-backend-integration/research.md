@@ -63,3 +63,13 @@
 - **Alternatives Considered**:
   - Big-bang cutover (higher outage risk).
   - Permanent dual-protocol without migration (delays benefits, complicates support).
+
+## Transport Options & Reusable Client
+
+- **Observation**: This repo provides a reusable ACP client package: `@defikitteam/claude-acp-client` (bin: `claude-acp-client`). It supports:
+  - ACP stdio mode (native): lowest latency, best streaming; requires managed process lifecycle.
+  - HTTP server mode: starts a local HTTP server the Worker can call; simpler connectivity, slightly higher latency.
+  - HTTP bridge mode: HTTP client bridging to a remote worker; niche/fallback topology.
+
+- **Decision**: Prefer ACP stdio as primary; support HTTP server as a fallback for environments where stdio isn’t viable. Host platforms (e.g., lumilink-be) implement a thin bridge/service and the session routing only—no protocol reimplementation.
+
