@@ -33,6 +33,82 @@
 ## Summary
 LumiLink-BE must switch container communications to the ACP protocol while preserving GitHub automation outputs and providing richer operational visibility. Success means ACP becomes the default session transport, HTTP remains a guarded fallback with automated rollback when ACP success dips below 99% for an hour, users receive real-time toast + transcript notices whenever automation is skipped, and operations teams gain telemetry on capacity, error categories, and automation effectiveness.
 
+## Repo alignment: lumilink-be (main)
+
+This plan is now concretely mapped to the current lumilink-be repository on main.
+
+- Runtime and router
+   - OpenAPIHono router at `src/index.ts` with route registrations via `app.route(...)` and Swagger UI at `/docs`.
+   - Global CORS + `agentsMiddleware()`.
+   - Scheduled handlers, Cloudflare Queues integration (generic queue + DLQ), and SigNoz tracing instrumentation.
+- Durable Objects and bindings
+   - Existing DOs: `MyChat`, `ToolCapabilityV2DO`, `NotificationWebSocketDO`, `PendingFilesDO`.
+   - D1 database bound as `DB`, Vectorize, R2, KV, Queues producers/consumers.
+- Services layer
+   - Rich service set under `src/services/*` (queue, notifications, MCP, knowledge, tracing, user notifications, etc.).
+- Prisma/D1
+   - `prisma/schema.prisma` with extensive models (User, Projects, ChatSession, UserNotification, MemoryRecord, etc.) and Makefile/Wrangler-driven migration flow.
+- Configuration
+   - `wrangler.toml` defines bindings, queues, crons, migrations (DO storage migration tags), and AI proxy routing.
+
+Implication: ACP integration should be implemented with minimal disruption by adding one route module, one service, one durable object for live session state, and a small Prisma extension for audit trails.
+
+## Implementation touchpoints in lumilink-be
+
+Create or modify the following files in lumilink-be (fresh branch from main):
+
+1. Router and routes
+    - Add new route module: `src/route/acp.ts`
+       - Endpoints:
+          - `POST /acp/session/new`
+          - `POST /acp/session/prompt`
+          - `POST /acp/session/cancel`
+          - `GET  /acp/health`
+       - Responsibilities: validate input, delegate to `AcpBridgeService`, attach OpenAPI docs via zod-openapi.
+    - Register in `src/index.ts`:
+       - `import acp from "./route/acp";`
+       - `app.route("/acp", acp);`
+
+2. Service layer
+    - Add `src/services/acp-bridge.service.ts`
+       - Bridge lumilink-be Worker to Claude Code container ACP runtime.
+       - Contract: methods `createSession()`, `sendPrompt()`, `cancelSession()`, returning `ACPSessionResult` envelope (see contracts).
+       - Enforce skip rules, capacity checks, diagnostics, and GitHub automation embedding into `githubAutomation`.
+
+3. Durable Object (live session state)
+    - Add `src/durable-objects/acp-connection-do.ts` (class `AcpConnectionDO`).
+       - Tracks connection state, rolling success window, last heartbeat, and rollback triggers per workspace/session.
+       - Emits structured logs: `[ACP]`, `[ROLLBACK]`, `[CAPACITY]`.
+    - Update `wrangler.toml`:
+       - Add binding: `[[durable_objects.bindings]] name = "ACP_CONNECTION" class_name = "AcpConnectionDO"`
+       - Add new migration tag (e.g., `v8`) with `new_sqlite_classes = ["AcpConnectionDO"]`.
+
+4. Prisma/D1 (persistent audit)
+    - Extend `prisma/schema.prisma` with minimal tables:
+       - `ProtocolMigrationLog` (audit ACP↔HTTP migrations)
+       - `AutomationRun` (GitHubAutomationSummary-like record for session runs)
+       - `CapacityAlert` (optional, or derive from logs)
+    - Follow README/Makefile flow to generate and apply SQL migrations (remember to remove any `_cf_METADATA` drop statements in generated SQL).
+
+5. Notifications
+    - Reuse existing services:
+       - `src/services/user-notification.service.ts` for persistent inbox (`UserNotification` table)
+       - `src/services/websocket-notification.service.ts` + `NotificationWebSocketDO` for real-time toasts
+    - ACP integration uses these to emit skip/rollback/recovery toasts and transcript notes (see `contracts/notifications.md`).
+
+6. Queues and telemetry
+    - Prefer synchronous path for ACP session RPC; use `QueueService` only for background tasks (e.g., heavy indexing) if needed.
+    - Keep structured logs within 32KB limits; head-sampled tracing via `TracingService` remains enabled.
+
+7. Tests (match repo layout)
+    - Unit tests: `tests/unit/acp-bridge.service.test.ts`
+    - Integration tests: `tests/integration/acp-route.test.ts` covering happy path, skip, rollback trigger, capacity alerts.
+    - Consolidated scenarios: `tests/consolidated/` optional end-to-end including WebSocket toast check.
+
+Assumptions (low-risk):
+- New code follows current linting, zod-openapi style, vitest harness.
+- GitHub credentials provided via existing secret/config pattern; no new secret storage.
+
 ## Scope & Exclusions
 - In scope (Backend only): Cloudflare Worker routes and ACP bridge, Durable Objects, container services (handlers, GitHub automation, workspace, diagnostics), schemas/contracts, and backend tests/integration harnesses.
 - Out of scope (Frontend implementation): UI component work to render toasts or transcript entries. This plan only defines the notification payload contracts the frontend consumes. Any UI changes will be planned and tracked separately under a frontend feature.
@@ -72,28 +148,29 @@ specs/004-lumilink-backend-integration/
 ### Source Code (repository root)
 ```
 src/
-├── index.ts                # Worker router and ACP bridge entry
-├── acp-bridge.ts           # Worker ↔ container JSON-RPC bridge
-├── durable-objects.ts      # DO definitions including ACP session store
-├── token-manager.ts        # Installation token refresh logic
-├── types.ts                # Shared request/response contracts
-└── ...                     # Supporting auth/config utilities
+├── index.ts                         # OpenAPIHono router; register /acp route
+├── route/
+│   ├── acp.ts                       # NEW: ACP endpoints (new/prompt/cancel/health)
+│   └── ...                          # existing routes
+├── services/
+│   ├── acp-bridge.service.ts        # NEW: Bridge to Claude Code container
+│   └── ...                          # existing services reused (notifications, queue, tracing)
+└── durable-objects/
+   ├── acp-connection-do.ts         # NEW: live ACP session state + rolling metrics
+   └── ...                          # existing DOs
 
-container_src/
-├── src/
-│   ├── handlers/           # session-new, session-prompt, cancel handlers
-│   ├── services/
-│   │   ├── github/         # automation helpers (to be extended)
-│   │   ├── workspace/      # repo cloning + cleanup
-│   │   └── claude/         # ACP/Claude orchestration
-│   ├── core/               # protocol types, diagnostics, prompts
-│   └── tools.ts
-├── test/                   # Vitest suites for cancellation, prompts, automation
-└── package.json
+prisma/
+└── schema.prisma                    # Extend with ProtocolMigrationLog, AutomationRun
 
-test/
-├── acp-bridge.test.ts
-└── agent-communication/    # End-to-end Worker↔container harness
+wrangler.toml                        # Add DO binding + migration tag (v8)
+
+tests/
+├── unit/
+│   └── acp-bridge.service.test.ts
+├── integration/
+│   └── acp-route.test.ts
+└── consolidated/
+   └── acp-e2e.test.ts (optional)
 ```
 
 **Structure Decision**: Dual-runtime monorepo retaining existing `src/` (worker) and `container_src/` (container) hierarchies; Phase 1 outputs will extend services within these directories and add contracts/tests alongside existing suites.
@@ -132,8 +209,8 @@ test/
    - Add `notifications.md` describing UI messaging and telemetry pipelines for toasts/transcript entries
 
 3. **Design failing contract tests**:
-   - Worker side: Extend `test/agent-communication` harness to assert ACP result schema additions and rollback triggers (tests fail pending implementation)
-   - Container side: Add Vitest cases to `container_src/test/github-automation.service.test.ts` verifying skip notification payloads and rollback decisions (fail initially)
+   - Worker side (lumilink-be): Add `tests/integration/acp-route.test.ts` asserting ACP result schema and rollback triggers (fail pending implementation).
+   - Service side (lumilink-be): Add `tests/unit/acp-bridge.service.test.ts` verifying skip payloads and rollback decisions (fail initially).
 
 4. **Extract integration scenarios** → `quickstart.md`:
    - Map user stories to manual validation flows (ACP default session start, HTTP fallback, toast notification path, audit log review)
@@ -160,7 +237,7 @@ test/
 - Sequencing: schema/data model changes → worker bridge updates → container services (GitHub automation, workspace handling) → monitoring/alerting hooks → UX messaging
 - Mark [P] for standalone efforts (documentation updates, analytics dashboards) while keeping protocol and automation work serialized
 
-**Estimated Output**: 22-28 ordered tasks in `tasks.md`, grouped by schema, runtime behaviour, UX/observability, and validation suites
+**Estimated Output**: 22-28 ordered tasks in `tasks.md`, grouped by lumilink-be changes (routes/services/DO), Prisma migrations, wrangler updates, observability, and tests aligned to `tests/*` structure.
 
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 

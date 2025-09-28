@@ -33,7 +33,12 @@
   2. Transcript note marks `eventType = rollback` with `status = resolved`.
 
 ## Integration Points
-- Worker `acp-bridge.ts`: attaches toast/transcript payload to session result envelope.
-- Container `session-prompt-handler.ts`: populates skip reason metadata and forwards to worker.
+- lumilink-be route `src/route/acp.ts`: attaches toast/transcript payload to session result envelope.
+- Service `src/services/acp-bridge.service.ts`: populates skip/rollback metadata.
+- Real-time: `src/services/websocket-notification.service.ts` + `NotificationWebSocketDO` broadcast toast payloads.
+- Persistence: `src/services/user-notification.service.ts` persists a matching `UserNotification` record.
 - LumiLink UI: renders toast immediately; adds transcript entry via existing session log feed API.
 - Analytics pipeline: capture toast events via structured log ingestion for KPI reporting on skip frequency.
+
+Severity mapping to existing enums:
+- `warning` | `error` | `info` correspond to `type` in `UserNotification` and are compatible with current UI rendering.

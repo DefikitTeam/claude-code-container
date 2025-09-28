@@ -10,27 +10,24 @@ Validate the ACP-first workflow, rollback safeguards, and GitHub automation cont
 - GitHub App credentials (App ID, private key, webhook secret, installation ID)
 - Test repository where automation can create branches/PRs safely
 
-## 1. Install & Build
+## 1. Install & Build (lumilink-be)
 ```bash
-npm install
-npm run build
-cd container_src
-npm install
-npm run build
+# install
+pnpm install
+
+# typecheck + build worker (uses wrangler tooling)
+pnpm run typecheck
+pnpm run build
 ```
 
 ## 2. Configure Secrets
 1. Start Worker in local dev mode (optional `--test --persist` for DO storage).
 2. POST GitHub App creds to `/config` and register a test user via `/register-user` as outlined in existing quickstart (reuse scripts from prior automation flow).
 
-## 3. Launch Dev Runtimes
+## 3. Launch Dev Runtime
 ```bash
-# Terminal A – Worker
-yarn wrangler dev --local
-
-# Terminal B – Container
-cd container_src
-npm run dev
+# Worker (local)
+pnpm dev  # runs: wrangler dev --local --experimental-vectorize-bind-to-prod
 ```
 
 ## 4. Happy Path: ACP Default Session
@@ -50,7 +47,7 @@ npm run dev
    - `notifications.md` contract satisfied (toast text ≤140 chars, sanitized).
 
 ## 6. Auto Rollback Scenario
-1. Use test hook to artificially drop success rate (e.g., flag `forceFailure` in container service or run script to simulate 20 failed prompts in an hour).
+1. Use test hook to artificially drop success rate (e.g., a debug flag on `AcpConnectionDO` or service to simulate <99% success over 1h).
 2. Monitor ACP metrics to confirm success rate <99%.
 3. Expected outcomes:
    - Worker emits `[ROLLBACK]` log and schedules protocol change.
@@ -71,8 +68,7 @@ npm run dev
 
 ## 9. Cleanup
 ```bash
-# Remove temporary branches and issues
-cd <repo>
+# Remove temporary branches and issues (in test repo)
 git push origin --delete <feature-branch>
 # Use GitHub CLI or web UI to close issues/PRs created during testing
 ```

@@ -60,6 +60,18 @@ As a LumiLink operations lead coordinating AI-assisted code changes, I need Lumi
 - **GitHub Automation Summary**: Stores the structured issue/branch/PR details, diagnostics, and skip reasons generated from each ACP-run automation cycle for audit and analytics purposes.
 - **Capacity Alert**: Represents threshold breaches (e.g., concurrent connection limits, retry storms) and the notifications sent to operations teams.
 
+## Implementation notes (lumilink-be main)
+
+This specification applies directly to the current lumilink-be codebase:
+
+- New ACP endpoints will be added under `src/route/acp.ts` and registered in `src/index.ts` via `app.route("/acp", acp)`.
+- Live ACP session state will be maintained via a new Durable Object `AcpConnectionDO` under `src/durable-objects/acp-connection-do.ts` with a corresponding binding in `wrangler.toml` and a new migration tag.
+- The service `src/services/acp-bridge.service.ts` will orchestrate ACP requests, apply skip/rollback rules, and embed GitHub automation results into the ACP session envelope.
+- Persistent audit trails (protocol migrations and automation runs) will be recorded through minimal additions to `prisma/schema.prisma`, following the repository’s D1 migration practices.
+- User notifications (toasts + transcript entries) will reuse existing notification services and websockets.
+
+Execution approach: start from a fresh branch off lumilink-be/main to minimize drift and align with current bindings and routes.
+
 ## Review & Acceptance Checklist
 *GATE: Automated checks run during main() execution*
 

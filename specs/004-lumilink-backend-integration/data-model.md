@@ -93,6 +93,19 @@ These entities extend the existing worker and container systems to support ACP-f
 ### MetricsEnvelope
 - Standard payload emitted for analytics pipelines containing `timestamp`, `installationId`, `workspaceId`, `metricType`, `value`, `thresholdBreached`, aligning ACP metrics with existing dashboards.
 
+## Repository mapping (lumilink-be)
+
+- Durable Object class: `AcpConnectionDO` in `src/durable-objects/acp-connection-do.ts` (new).
+- D1/Prisma tables (extend `prisma/schema.prisma`):
+  - `ProtocolMigrationLog` with fields described above (map to Prisma model with indexed `workspaceId`, `status`, `startedAt`, `completedAt`).
+  - `AutomationRun` capturing `sessionId`, `status`, `issueNumber`, `pullRequestNumber`, `commitSha`, `skipReason`, `durationMs`, `errorCode`, `logs`.
+  - Optionally `CapacityAlert` if persistent records are required; otherwise derive from logs.
+- Notifications reuse existing `UserNotification` table; transcript notes map to existing chat/session logging where applicable or are emitted via websocket and persisted in `UserNotification`.
+
+Constraints for Prisma migrations in this repo:
+- Follow README guidance to avoid dropping `_cf_METADATA` in generated SQL.
+- Use Makefile or wrangler D1 migration steps with local preview where possible; keep SQL idempotent.
+
 ## Relationships Overview
 
 - `ACPConnectionRecord` ↔ `ProtocolMigrationLog`: 1-to-many via `workspaceId`.
