@@ -218,6 +218,10 @@ export async function generateInstallationToken(
  */
 export async function getInstallationRepositories(
   userConfig: UserConfig,
+  options: {
+    perPage?: number;
+    page?: number;
+  } = {},
 ): Promise<any[]> {
   try {
     const installationToken = await generateInstallationToken(userConfig);
@@ -226,7 +230,17 @@ export async function getInstallationRepositories(
       return [];
     }
 
-    const apiUrl = `https://api.github.com/installation/repositories`;
+    const params = new URLSearchParams();
+    if (options.perPage !== undefined) {
+      const constrained = Math.max(1, Math.min(100, Math.floor(options.perPage)));
+      params.set('per_page', constrained.toString());
+    }
+    if (options.page !== undefined) {
+      const page = Math.max(1, Math.floor(options.page));
+      params.set('page', page.toString());
+    }
+
+    const apiUrl = `https://api.github.com/installation/repositories${params.toString() ? `?${params.toString()}` : ''}`;
 
     const response = await fetch(apiUrl, {
       headers: {
@@ -247,6 +261,63 @@ export async function getInstallationRepositories(
     return data.repositories || [];
   } catch (error) {
     console.error('Failed to get installation repositories:', error);
+    return [];
+  }
+}
+
+/**
+ * Get branches for a repository
+ */
+export async function getRepositoryBranches(
+  userConfig: UserConfig,
+  owner: string,
+  repo: string,
+  options: {
+    perPage?: number;
+    page?: number;
+    protectedOnly?: boolean;
+  } = {},
+): Promise<any[]> {
+  try {
+    const installationToken = await generateInstallationToken(userConfig);
+    if (!installationToken) {
+      console.error('Failed to generate installation token');
+      return [];
+    }
+
+    const params = new URLSearchParams();
+    if (options.perPage !== undefined) {
+      const constrained = Math.max(1, Math.min(100, Math.floor(options.perPage)));
+      params.set('per_page', constrained.toString());
+    }
+    if (options.page !== undefined) {
+      const page = Math.max(1, Math.floor(options.page));
+      params.set('page', page.toString());
+    }
+    if (typeof options.protectedOnly === 'boolean') {
+      params.set('protected', options.protectedOnly ? 'true' : 'false');
+    }
+
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/branches${params.toString() ? `?${params.toString()}` : ''}`;
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${installationToken}`,
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'claude-code-containers/1.0.0',
+      },
+    });
+
+    if (!response.ok) {
+      console.error(
+        `Failed to get repository branches: ${response.status} ${response.statusText}`,
+      );
+      return [];
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get repository branches:', error);
     return [];
   }
 }

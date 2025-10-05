@@ -310,6 +310,9 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/process-prompt \
 | `/health`                | GET      | Health check                              |
 | `/webhook/github`        | POST     | GitHub webhook endpoint                   |
 | `/process-prompt`        | POST     | Process prompt directly                   |
+| `/register-user`         | POST     | Register or update a user configuration (JSON or form-encoded) |
+| `/github/repositories`   | GET      | List installation repositories (requires `installationId` or `userId` query) |
+| `/github/repositories/:owner/:repo/branches` | GET | List branches for a repository (requires `installationId` or `userId` query) |
 | `/config`                | GET/POST | GitHub App configuration                  |
 | `/container/health`      | GET      | Container health check                    |
 | **🚀 Deployment API**    |          | **One-Click Deploy Features**             |
@@ -343,6 +346,11 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/process-prompt \
   "error": "Repository user/nonexistent not found or not accessible"
 }
 ```
+
+> ℹ️ **Repository endpoints**: supply either `installationId` or `userId` as a
+> query parameter. If both are provided, `userId` takes precedence. Optional
+> pagination parameters `perPage` (1-100) and `page` (default 1) are
+> supported. Branch listings also accept `protectedOnly=true` to filter results.
 
 ### 🚀 Deployment API Usage
 

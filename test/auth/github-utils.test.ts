@@ -4,6 +4,7 @@ import {
   generateInstallationToken,
   validateWebhookSignature,
   getInstallationRepositories,
+  getRepositoryBranches,
 } from '../../src/github-utils';
 import { getFixedGitHubAppConfig } from '../../src/app-config';
 import type { UserConfig } from '../../src/types';
@@ -371,6 +372,165 @@ MIIEowIBAAKCAQEA4qiXKGHRMTgCfWWGRRNOOW0hJrKYqKhM9yR1YJXqKJwVyGFV
       const repos = await getInstallationRepositories(mockUserConfig);
 
       expect(repos).toEqual([]);
+    });
+
+    it('should include pagination parameters when provided', async () => {
+      vi.spyOn(crypto.subtle, 'importKey').mockResolvedValue({} as CryptoKey);
+      vi.spyOn(crypto.subtle, 'sign').mockResolvedValue(
+        new Uint8Array([1, 2, 3]).buffer,
+      );
+
+      (global.fetch as Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              token: 'installation_token',
+              expires_at: '2025-09-06T10:00:00Z',
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ repositories: [] }),
+        });
+
+      await getInstallationRepositories(mockUserConfig, {
+        perPage: 50,
+        page: 2,
+      });
+
+      expect((global.fetch as Mock)).toHaveBeenNthCalledWith(
+        2,
+        'https://api.github.com/installation/repositories?per_page=50&page=2',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer installation_token',
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('getRepositoryBranches', () => {
+    it('should fetch repository branches', async () => {
+      const mockBranches = [
+        {
+          name: 'main',
+          commit: { sha: 'abc123', url: 'https://api.github.com/repos/owner/repo/commits/abc123' },
+          protected: true,
+        },
+      ];
+
+      vi.spyOn(crypto.subtle, 'importKey').mockResolvedValue({} as CryptoKey);
+      vi.spyOn(crypto.subtle, 'sign').mockResolvedValue(
+        new Uint8Array([1, 2, 3]).buffer,
+      );
+
+      (global.fetch as Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              token: 'installation_token',
+              expires_at: '2025-09-06T10:00:00Z',
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockBranches),
+        });
+
+      const branches = await getRepositoryBranches(
+        mockUserConfig,
+        'owner',
+        'repo',
+        {
+          perPage: 25,
+          page: 3,
+          protectedOnly: true,
+        },
+      );
+
+      expect(branches).toEqual(mockBranches);
+      expect((global.fetch as Mock)).toHaveBeenNthCalledWith(
+        2,
+        'https://api.github.com/repos/owner/repo/branches?per_page=25&page=3&protected=true',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer installation_token',
+          }),
+        }),
+      );
+    });
+
+    it('should return empty array when token generation fails', async () => {
+      vi.spyOn(crypto.subtle, 'importKey').mockRejectedValue(
+        new Error('Token generation failed'),
+      );
+
+      const branches = await getRepositoryBranches(
+        mockUserConfig,
+        'owner',
+        'repo',
+      );
+
+      expect(branches).toEqual([]);
+    });
+
+    it('should return empty array when branches API fails', async () => {
+      vi.spyOn(crypto.subtle, 'importKey').mockResolvedValue({} as CryptoKey);
+      vi.spyOn(crypto.subtle, 'sign').mockResolvedValue(
+        new Uint8Array([1, 2, 3]).buffer,
+      );
+
+      (global.fetch as Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              token: 'installation_token',
+              expires_at: '2025-09-06T10:00:00Z',
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+        });
+
+      const branches = await getRepositoryBranches(
+        mockUserConfig,
+        'owner',
+        'repo',
+      );
+
+      expect(branches).toEqual([]);
+    });
+
+    it('should handle network errors gracefully', async () => {
+      vi.spyOn(crypto.subtle, 'importKey').mockResolvedValue({} as CryptoKey);
+      vi.spyOn(crypto.subtle, 'sign').mockResolvedValue(
+        new Uint8Array([1, 2, 3]).buffer,
+      );
+
+      (global.fetch as Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              token: 'installation_token',
+              expires_at: '2025-09-06T10:00:00Z',
+            }),
+        })
+        .mockRejectedValueOnce(new Error('Network error'));
+
+      const branches = await getRepositoryBranches(
+        mockUserConfig,
+        'owner',
+        'repo',
+      );
+
+      expect(branches).toEqual([]);
     });
   });
 });

@@ -26,6 +26,7 @@ import {
   createLegacyGitHubAppConfig,
   getInstallationRepositories,
   getRepositoryInfo,
+  getRepositoryBranches,
   createGitHubIssue,
 } from './github-utils';
 import { getTokenManager } from './token-manager';
@@ -264,6 +265,201 @@ app.post('/process-prompt', async (c) => {
         error: 'Prompt processing failed',
         message: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString(),
+      },
+      500,
+    );
+  }
+});
+
+// List repositories accessible to a user's installation
+app.get('/github/repositories', async (c) => {
+  try {
+    const userId = c.req.query('userId') || c.req.query('user_id');
+    const installationId =
+      c.req.query('installationId') || c.req.query('installation_id');
+
+    if (!userId && !installationId) {
+      return c.json(
+        {
+          success: false,
+          error:
+            'Missing userId or installationId. Provide one of these query parameters to identify the installation.',
+        },
+        400,
+      );
+    }
+
+    const userConfig = await resolveUserConfig(c.env, {
+      userId: userId ?? undefined,
+      installationId: installationId ?? undefined,
+    });
+
+    if (!userConfig) {
+      return c.json(
+        {
+          success: false,
+          error: 'User configuration not found for provided identifiers.',
+        },
+        404,
+      );
+    }
+
+    const perPageParam = c.req.query('per_page');
+    const pageParam = c.req.query('page');
+    const parsedPerPage = perPageParam
+      ? Number.parseInt(perPageParam, 10)
+      : undefined;
+    const parsedPage = pageParam ? Number.parseInt(pageParam, 10) : undefined;
+    const perPage =
+      parsedPerPage !== undefined && !Number.isNaN(parsedPerPage)
+        ? parsedPerPage
+        : undefined;
+    const page =
+      parsedPage !== undefined && !Number.isNaN(parsedPage)
+        ? parsedPage
+        : undefined;
+
+    const repositories = await getInstallationRepositories(userConfig, {
+      perPage,
+      page,
+    });
+
+    const sanitized = repositories.map((repo: any) => ({
+      id: repo.id,
+      name: repo.name,
+      full_name: repo.full_name,
+      private: repo.private,
+      description: repo.description,
+      html_url: repo.html_url,
+      default_branch: repo.default_branch,
+      owner: repo.owner?.login,
+      permissions: repo.permissions,
+    }));
+
+    return c.json({
+      success: true,
+      count: sanitized.length,
+      repositories: sanitized,
+      pagination: {
+        per_page: perPage,
+        page,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to list repositories:', error);
+    return c.json(
+      {
+        success: false,
+        error: 'Failed to list repositories',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500,
+    );
+  }
+});
+
+// List branches for a repository accessible to user's installation
+app.get('/github/repositories/:owner/:repo/branches', async (c) => {
+  try {
+    const owner = c.req.param('owner');
+    const repo = c.req.param('repo');
+
+    if (!owner || !repo) {
+      return c.json(
+        {
+          success: false,
+          error: 'Repository owner and name are required path parameters.',
+        },
+        400,
+      );
+    }
+
+    const userId = c.req.query('userId') || c.req.query('user_id');
+    const installationId =
+      c.req.query('installationId') || c.req.query('installation_id');
+
+    if (!userId && !installationId) {
+      return c.json(
+        {
+          success: false,
+          error:
+            'Missing userId or installationId. Provide one of these query parameters to identify the installation.',
+        },
+        400,
+      );
+    }
+
+    const userConfig = await resolveUserConfig(c.env, {
+      userId: userId ?? undefined,
+      installationId: installationId ?? undefined,
+    });
+
+    if (!userConfig) {
+      return c.json(
+        {
+          success: false,
+          error: 'User configuration not found for provided identifiers.',
+        },
+        404,
+      );
+    }
+
+    const perPageParam = c.req.query('per_page');
+    const pageParam = c.req.query('page');
+    const protectedParam = c.req.query('protected');
+
+    const parsedPerPage = perPageParam
+      ? Number.parseInt(perPageParam, 10)
+      : undefined;
+    const parsedPage = pageParam ? Number.parseInt(pageParam, 10) : undefined;
+    const perPage =
+      parsedPerPage !== undefined && !Number.isNaN(parsedPerPage)
+        ? parsedPerPage
+        : undefined;
+    const page =
+      parsedPage !== undefined && !Number.isNaN(parsedPage)
+        ? parsedPage
+        : undefined;
+    let protectedOnly: boolean | undefined;
+    if (protectedParam === 'true') {
+      protectedOnly = true;
+    } else if (protectedParam === 'false') {
+      protectedOnly = false;
+    }
+
+    const branches = await getRepositoryBranches(userConfig, owner, repo, {
+      perPage,
+      page,
+      protectedOnly,
+    });
+
+    const sanitized = branches.map((branch: any) => ({
+      name: branch.name,
+      commit: {
+        sha: branch.commit?.sha,
+        url: branch.commit?.url,
+      },
+      protected: branch.protected,
+    }));
+
+    return c.json({
+      success: true,
+      count: sanitized.length,
+      branches: sanitized,
+      repository: `${owner}/${repo}`,
+      pagination: {
+        per_page: perPage,
+        page,
+        protected: protectedOnly,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to list repository branches:', error);
+    return c.json(
+      {
+        success: false,
+        error: 'Failed to list repository branches',
+        message: error instanceof Error ? error.message : 'Unknown error',
       },
       500,
     );
@@ -1003,6 +1199,42 @@ function getGitHubConfigDO(env: Env) {
 function getUserConfigDO(env: Env) {
   const id = env.USER_CONFIG.idFromName('user-config');
   return env.USER_CONFIG.get(id);
+}
+
+async function resolveUserConfig(
+  env: Env,
+  identifiers: { userId?: string; installationId?: string },
+): Promise<UserConfig | null> {
+  const { userId, installationId } = identifiers;
+  if (!userId && !installationId) {
+    return null;
+  }
+
+  const userConfigDO = getUserConfigDO(env);
+
+  if (userId) {
+    const response = await userConfigDO.fetch(
+      new Request(
+        `http://localhost/user?userId=${encodeURIComponent(userId)}`,
+      ),
+    );
+    if (response.ok) {
+      return (await response.json()) as UserConfig;
+    }
+  }
+
+  if (installationId) {
+    const response = await userConfigDO.fetch(
+      new Request(
+        `http://localhost/user-by-installation?installationId=${encodeURIComponent(installationId)}`,
+      ),
+    );
+    if (response.ok) {
+      return (await response.json()) as UserConfig;
+    }
+  }
+
+  return null;
 }
 
 // Generate issue title from prompt
