@@ -16,6 +16,9 @@ export interface Env {
   FIXED_GITHUB_APP_ID?: string;
   FIXED_GITHUB_PRIVATE_KEY?: string;
   FIXED_GITHUB_WEBHOOK_SECRET?: string;
+
+  // CORS configuration (comma-separated origins, e.g. "http://localhost:3000,https://app.example.com")
+  ALLOWED_ORIGINS?: string;
 }
 
 export interface GitHubAppConfig {
