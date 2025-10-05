@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import {
   Env,
   GitHubIssuePayload,
@@ -37,6 +38,32 @@ export { GitHubAppConfigDO, MyContainer, UserConfigDO, ACPSessionDO };
 const app = new Hono<{
   Bindings: Env;
 }>();
+
+// Global CORS for all routes (configurable via ALLOWED_ORIGINS)
+app.use('*',
+  cors({
+    origin: (origin, c) => {
+      const allowed = c.env.ALLOWED_ORIGINS;
+      if (!allowed || allowed.trim() === '' || allowed.trim() === '*') {
+        // Allow all in dev by default if not configured
+        return '*';
+      }
+      const list = allowed
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      // No Origin header (e.g., curl) – allow first configured origin to pass browser checks
+      if (!origin) return list[0] ?? '*';
+      // Exact match allow-list
+      return list.includes(origin) ? origin : '';
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    exposeHeaders: ['Content-Length'],
+    credentials: false,
+    maxAge: 600,
+  }),
+);
 
 // Home route with system information
 app.get('/', (c) => {

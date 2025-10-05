@@ -343,7 +343,7 @@ export function addInstallationEndpoints(app: Hono<{ Bindings: Env }>) {
   // Get GitHub App installation URL
   app.get('/install/github-app', async (c) => {
     // You need to replace 'your-app-name' with your actual GitHub App slug
-    const appName = 'your-app-name'; // TODO: Set this to your actual GitHub App slug
+    const appName = 'claudemodern-github-app'; // TODO: Set this to your actual GitHub App slug
     const baseUrl = new URL(c.req.url).origin;
     const callbackUrl = `${baseUrl}/install/callback`;
 

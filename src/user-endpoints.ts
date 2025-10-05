@@ -14,7 +14,61 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
     try {
       console.log('=== USER REGISTRATION REQUEST ===');
 
-      const registrationRequest: UserRegistrationRequest = await c.req.json();
+      // Parse body supporting both JSON and form-encoded payloads
+      const contentType = (c.req.header('content-type') || '').toLowerCase();
+      const isJson = contentType.includes('application/json');
+      const isFormUrlEncoded = contentType.includes(
+        'application/x-www-form-urlencoded',
+      );
+      const isMultipart = contentType.includes('multipart/form-data');
+
+      const normalizeValue = (value: unknown): string => {
+        if (Array.isArray(value)) {
+          return normalizeValue(value[0]);
+        }
+        if (typeof File !== 'undefined' && value instanceof File) {
+          return value.name ?? '';
+        }
+        if (value === null || value === undefined) {
+          return '';
+        }
+        return String(value);
+      };
+
+      let registrationRequest: UserRegistrationRequest;
+      try {
+        if (isFormUrlEncoded || isMultipart) {
+          const formBody = await c.req.parseBody();
+          registrationRequest = {
+            installationId: normalizeValue(formBody['installationId']).trim(),
+            anthropicApiKey: normalizeValue(formBody['anthropicApiKey']).trim(),
+            userId: (() => {
+              const raw = normalizeValue(formBody['userId']).trim();
+              return raw.length > 0 ? raw : undefined;
+            })(),
+          };
+        } else {
+          // Default to JSON. Cloudflare sets charset in header, so check includes above handles variants.
+          registrationRequest = (await c.req.json()) as UserRegistrationRequest;
+          registrationRequest.installationId = (registrationRequest.installationId || '').trim();
+          registrationRequest.anthropicApiKey = (registrationRequest.anthropicApiKey || '').trim();
+          if (registrationRequest.userId) {
+            registrationRequest.userId = registrationRequest.userId.trim();
+          }
+        }
+      } catch (parseErr) {
+        console.error('Body parse error:', parseErr);
+        return c.json(
+          {
+            success: false,
+            error: 'Invalid request body',
+            message:
+              'Ensure the body is valid JSON or form data with installationId, anthropicApiKey, and optional userId fields.',
+            receivedContentType: contentType || 'unknown',
+          },
+          400,
+        );
+      }
 
       console.log('Registration request:', {
         installationId: registrationRequest.installationId,
@@ -153,7 +207,7 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
             success: false,
             error: error?.error || 'User not found',
           },
-          { status: response.status },
+          response.status as any,
         );
       }
 
