@@ -22,11 +22,11 @@
 - [X] T012 Adjust worker GitHub endpoints in `src/index.ts` (and related helpers if needed) to require `userId` disambiguation or return the 409 conflict guidance payload.
 
 ## Phase 3.4: Integration & Validation
-- [ ] T013 Ensure any supporting helper modules (e.g., `src/github-utils.ts` or config resolution utilities) correctly pass `userId`/`installationId` combinations and handle conflict errors.
-- [ ] T014 [P] Update documentation (`README.md` and any relevant docs under `docs/`) to describe multi-registration setup, conflict behavior, and new request parameters.
+- [X] T013 Ensure any supporting helper modules (e.g., `src/github-utils.ts` or config resolution utilities) correctly pass `userId`/`installationId` combinations and handle conflict errors.
+- [X] T014 [P] Update documentation (`README.md` and any relevant docs under `docs/`) to describe multi-registration setup, conflict behavior, and new request parameters.
 
 ## Phase 3.5: Polish & Verification
-- [ ] T015 [P] Refresh operational quickstart instructions in `specs/005-support-multiple-user/quickstart.md` (and any deployment runbooks) with verified command outputs after implementation.
+- [X] T015 [P] Refresh operational quickstart instructions in `specs/005-support-multiple-user/quickstart.md` (and any deployment runbooks) with verified command outputs after implementation.
 - [X] T016 Run full test suite (`npm test`) and document results, ensuring new tests pass and no regressions remain.
 
 ## Dependencies
