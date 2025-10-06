@@ -1,6 +1,14 @@
 // User management endpoints for multi-tenant deployment
 import { Hono } from 'hono';
-import { Env, UserConfig, UserRegistrationRequest } from './types';
+import {
+  Env,
+  UserConfig,
+  UserRegistrationRequest,
+  UserRegistrationResponse,
+  RegistrationSummary,
+  UserDeletionResponse,
+  InstallationDirectory,
+} from './types';
 import { getFixedGitHubAppConfig } from './app-config';
 import { createJWT } from './github-utils';
 import { validateAnthropicApiKey } from './api-key-validator';
@@ -46,6 +54,10 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
               const raw = normalizeValue(formBody['userId']).trim();
               return raw.length > 0 ? raw : undefined;
             })(),
+            projectLabel: (() => {
+              const raw = normalizeValue(formBody['projectLabel']).trim();
+              return raw.length > 0 ? raw : undefined;
+            })(),
           };
         } else {
           // Default to JSON. Cloudflare sets charset in header, so check includes above handles variants.
@@ -54,6 +66,9 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
           registrationRequest.anthropicApiKey = (registrationRequest.anthropicApiKey || '').trim();
           if (registrationRequest.userId) {
             registrationRequest.userId = registrationRequest.userId.trim();
+          }
+          if (registrationRequest.projectLabel) {
+            registrationRequest.projectLabel = registrationRequest.projectLabel.trim();
           }
         }
       } catch (parseErr) {
@@ -136,34 +151,41 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = (await response.json()) as any;
+        const error = (await response.json()) as Record<string, unknown> | null;
         return c.json(
           {
             success: false,
-            error: error?.error || 'Registration failed',
+            error: (error?.error as string) || 'Registration failed',
+            registrations: (error?.registrations as RegistrationSummary[]) || undefined,
             details: error,
           },
           response.status as any,
         );
       }
 
-      const result = (await response.json()) as any;
+      const result = (await response.json()) as UserRegistrationResponse;
       console.log(`✅ User registered successfully: ${result.userId}`);
 
-      return c.json({
-        success: true,
-        userId: result.userId,
-        installationId: result.installationId,
-        message:
-          'User registered successfully. You can now deploy your Worker with these credentials.',
-        nextSteps: {
-          step1:
-            'Deploy your Cloudflare Worker with the provided userId and installationId',
-          step2: 'Configure your wrangler.jsonc with the USER_CONFIG binding',
-          step3: 'Set environment variables for ANTHROPIC_API_KEY',
-          step4: 'Test your integration with a GitHub issue',
+      return c.json(
+        {
+          success: true,
+          userId: result.userId,
+          installationId: result.installationId,
+          projectLabel: result.projectLabel ?? null,
+          existingRegistrations: result.existingRegistrations,
+          message:
+            result.message ??
+            'User registered successfully. You can now deploy your Worker with these credentials.',
+          nextSteps: {
+            step1:
+              'Deploy your Cloudflare Worker with the provided userId and installationId',
+            step2: 'Configure your wrangler.jsonc with the USER_CONFIG binding',
+            step3: 'Set environment variables for ANTHROPIC_API_KEY',
+            step4: 'Test your integration with a GitHub issue',
+          },
         },
-      });
+        201,
+      );
     } catch (error) {
       console.error('User registration error:', error);
       return c.json(
@@ -224,7 +246,9 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
           created: userConfig.created,
           updated: userConfig.updated,
           isActive: userConfig.isActive,
+          projectLabel: userConfig.projectLabel ?? null,
         },
+        existingRegistrations: userConfig.existingRegistrations ?? [],
       });
     } catch (error) {
       console.error('Get user config error:', error);
@@ -319,19 +343,25 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = (await response.json()) as any;
+        const error = (await response.json()) as Record<string, unknown> | null;
         return c.json(
           {
             success: false,
-            error: error?.error || 'Delete failed',
+            error: (error?.error as string) || 'Delete failed',
+            remainingRegistrations: (error?.remainingRegistrations as RegistrationSummary[]) || undefined,
           },
           response.status as any,
         );
       }
 
+      const result = (await response.json()) as UserDeletionResponse;
+
       return c.json({
         success: true,
-        message: 'User configuration deleted successfully',
+        message: result.message ?? 'User configuration deleted successfully',
+        removedUserId: result.removedUserId,
+        installationId: result.installationId,
+        remainingRegistrations: result.remainingRegistrations,
       });
     } catch (error) {
       console.error('Delete user config error:', error);
@@ -407,20 +437,72 @@ export function addUserEndpoints(app: Hono<{ Bindings: Env }>) {
       );
 
       if (!response.ok) {
-        const error = (await response.json()) as any;
+        const error = (await response.json()) as Record<string, unknown> | null;
         return c.json(
           {
             success: false,
-            error: error?.error || 'User not found',
+            error: (error?.error as string) || 'User not found',
           },
           response.status as any,
         );
       }
 
-      const userConfig: UserConfig = (await response.json()) as any;
+      const directory = (await response.json()) as InstallationDirectory;
+      const registrations = directory.registrations ?? [];
+
+      if (registrations.length === 0) {
+        return c.json(
+          {
+            success: false,
+            error: 'User not found for installation ID',
+          },
+          404 as any,
+        );
+      }
+
+      if (registrations.length > 1) {
+        return c.json(
+          {
+            success: false,
+            error:
+              'Multiple registrations found for installation. Provide userId to disambiguate.',
+            registrations,
+          },
+          409 as any,
+        );
+      }
+
+      const targetUserId = registrations[0]?.userId;
+      if (!targetUserId) {
+        return c.json(
+          {
+            success: false,
+            error: 'User not found for installation ID',
+          },
+          404 as any,
+        );
+      }
+
+      const userResponse = await userConfigDO.fetch(
+        new Request(`http://localhost/user?userId=${targetUserId}`),
+      );
+
+      if (!userResponse.ok) {
+        const error = (await userResponse.json()) as Record<string, unknown> | null;
+        return c.json(
+          {
+            success: false,
+            error: (error?.error as string) || 'User not found',
+          },
+          userResponse.status as any,
+        );
+      }
+
+      const userConfig: UserConfig = (await userResponse.json()) as any;
       return c.json({
         success: true,
         user: userConfig,
+        registrations,
       });
     } catch (error) {
       console.error('Get user by installation error:', error);

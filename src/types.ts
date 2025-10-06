@@ -31,6 +31,20 @@ export interface GitHubAppConfig {
 }
 
 // Multi-tenant user configuration
+export interface RegistrationSummary {
+  userId: string;
+  projectLabel?: string | null;
+  created?: number;
+  updated?: number;
+  isActive?: boolean;
+}
+
+export interface InstallationDirectory {
+  installationId: string;
+  registrations: RegistrationSummary[];
+  lastMigratedAt?: number;
+}
+
 export interface UserConfig {
   userId: string;
   installationId: string;
@@ -39,6 +53,8 @@ export interface UserConfig {
   created: number;
   updated: number;
   isActive: boolean;
+  projectLabel?: string | null;
+  existingRegistrations?: RegistrationSummary[];
 }
 
 // Fixed GitHub App configuration (service provider controlled)
@@ -164,6 +180,7 @@ export interface StoredUserConfig {
   created: number;
   updated: number;
   isActive: boolean;
+  projectLabel?: string | null;
 }
 
 // User registration request
@@ -171,6 +188,24 @@ export interface UserRegistrationRequest {
   installationId: string;
   anthropicApiKey: string;
   userId?: string; // Optional, can be generated if not provided
+  projectLabel?: string;
+}
+
+export interface UserRegistrationResponse {
+  success: boolean;
+  userId: string;
+  installationId: string;
+  existingRegistrations: RegistrationSummary[];
+  projectLabel?: string | null;
+  message?: string;
+}
+
+export interface UserDeletionResponse {
+  success: boolean;
+  removedUserId: string;
+  installationId: string;
+  remainingRegistrations: RegistrationSummary[];
+  message?: string;
 }
 
 // --- ACP (Agent Client Protocol) types ---

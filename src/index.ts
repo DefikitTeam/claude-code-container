@@ -8,6 +8,8 @@ import {
   PromptRequest,
   PromptProcessingResult,
   UserConfig,
+  InstallationDirectory,
+  RegistrationSummary,
 } from './types';
 import {
   GitHubAppConfigDO,
@@ -218,29 +220,24 @@ app.post('/process-prompt', async (c) => {
       );
     }
 
-    // Get user configuration - either by userId or installationId
-    let userConfig: UserConfig | null = null;
-    const userConfigDO = getUserConfigDO(c.env);
+    const resolved = await resolveUserConfig(c.env, {
+      userId: requestBody.userId ?? undefined,
+      installationId: requestBody.installationId ?? undefined,
+    });
 
-    if (requestBody.userId) {
-      const response = await userConfigDO.fetch(
-        new Request(`http://localhost/user?userId=${requestBody.userId}`),
+    if (resolved.kind === 'conflict') {
+      return c.json(
+        {
+          success: false,
+          error:
+            'Multiple registrations found for installation. Provide userId to disambiguate.',
+          registrations: resolved.registrations,
+        },
+        409,
       );
-      if (response.ok) {
-        userConfig = await response.json();
-      }
-    } else if (requestBody.installationId) {
-      const response = await userConfigDO.fetch(
-        new Request(
-          `http://localhost/user-by-installation?installationId=${requestBody.installationId}`,
-        ),
-      );
-      if (response.ok) {
-        userConfig = await response.json();
-      }
     }
 
-    if (!userConfig) {
+    if (resolved.kind !== 'found') {
       return c.json(
         {
           success: false,
@@ -250,6 +247,8 @@ app.post('/process-prompt', async (c) => {
         404,
       );
     }
+
+    const userConfig = resolved.user;
 
     console.log(`Processing prompt for user: ${userConfig.userId}`);
 
@@ -289,12 +288,23 @@ app.get('/github/repositories', async (c) => {
       );
     }
 
-    const userConfig = await resolveUserConfig(c.env, {
+    if (!installationId) {
+      return c.json(
+        {
+          success: false,
+          error:
+            'installationId is required to resolve repositories for multi-registration installations.',
+        },
+        400,
+      );
+    }
+
+    const resolved = await resolveUserConfig(c.env, {
       userId: userId ?? undefined,
-      installationId: installationId ?? undefined,
+      installationId,
     });
 
-    if (!userConfig) {
+    if (resolved.kind === 'missing') {
       return c.json(
         {
           success: false,
@@ -303,6 +313,19 @@ app.get('/github/repositories', async (c) => {
         404,
       );
     }
+
+    if (resolved.kind === 'conflict') {
+      return c.json(
+        {
+          success: false,
+          error: 'Multiple registrations found for installation. Provide userId to disambiguate.',
+          registrations: resolved.registrations,
+        },
+        409,
+      );
+    }
+
+    const userConfig = resolved.user;
 
     const perPageParam = c.req.query('per_page');
     const pageParam = c.req.query('page');
@@ -319,7 +342,7 @@ app.get('/github/repositories', async (c) => {
         ? parsedPage
         : undefined;
 
-    const repositories = await getInstallationRepositories(userConfig, {
+  const repositories = await getInstallationRepositories(userConfig, {
       perPage,
       page,
     });
@@ -389,12 +412,23 @@ app.get('/github/repositories/:owner/:repo/branches', async (c) => {
       );
     }
 
-    const userConfig = await resolveUserConfig(c.env, {
+    if (!installationId) {
+      return c.json(
+        {
+          success: false,
+          error:
+            'installationId is required to resolve repository branches for multi-registration installations.',
+        },
+        400,
+      );
+    }
+
+    const resolved = await resolveUserConfig(c.env, {
       userId: userId ?? undefined,
-      installationId: installationId ?? undefined,
+      installationId,
     });
 
-    if (!userConfig) {
+    if (resolved.kind === 'missing') {
       return c.json(
         {
           success: false,
@@ -403,6 +437,19 @@ app.get('/github/repositories/:owner/:repo/branches', async (c) => {
         404,
       );
     }
+
+    if (resolved.kind === 'conflict') {
+      return c.json(
+        {
+          success: false,
+          error: 'Multiple registrations found for installation. Provide userId to disambiguate.',
+          registrations: resolved.registrations,
+        },
+        409,
+      );
+    }
+
+    const userConfig = resolved.user;
 
     const perPageParam = c.req.query('per_page');
     const pageParam = c.req.query('page');
@@ -427,7 +474,7 @@ app.get('/github/repositories/:owner/:repo/branches', async (c) => {
       protectedOnly = false;
     }
 
-    const branches = await getRepositoryBranches(userConfig, owner, repo, {
+  const branches = await getRepositoryBranches(userConfig, owner, repo, {
       perPage,
       page,
       protectedOnly,
@@ -1201,13 +1248,18 @@ function getUserConfigDO(env: Env) {
   return env.USER_CONFIG.get(id);
 }
 
+type ResolvedUserConfigResult =
+  | { kind: 'found'; user: UserConfig }
+  | { kind: 'conflict'; registrations: RegistrationSummary[] }
+  | { kind: 'missing' };
+
 async function resolveUserConfig(
   env: Env,
   identifiers: { userId?: string; installationId?: string },
-): Promise<UserConfig | null> {
+): Promise<ResolvedUserConfigResult> {
   const { userId, installationId } = identifiers;
   if (!userId && !installationId) {
-    return null;
+    return { kind: 'missing' };
   }
 
   const userConfigDO = getUserConfigDO(env);
@@ -1219,22 +1271,63 @@ async function resolveUserConfig(
       ),
     );
     if (response.ok) {
-      return (await response.json()) as UserConfig;
+      return { kind: 'found', user: (await response.json()) as UserConfig };
+    }
+    if (response.status === 404) {
+      return { kind: 'missing' };
     }
   }
 
-  if (installationId) {
-    const response = await userConfigDO.fetch(
-      new Request(
-        `http://localhost/user-by-installation?installationId=${encodeURIComponent(installationId)}`,
-      ),
+  if (!installationId) {
+    return { kind: 'missing' };
+  }
+
+  const directoryResponse = await userConfigDO.fetch(
+    new Request(
+      `http://localhost/user-by-installation?installationId=${encodeURIComponent(installationId)}`,
+    ),
+  );
+
+  if (directoryResponse.status === 404) {
+    return { kind: 'missing' };
+  }
+
+  if (!directoryResponse.ok) {
+    console.warn(
+      'Failed to resolve installation directory',
+      installationId,
+      directoryResponse.status,
     );
-    if (response.ok) {
-      return (await response.json()) as UserConfig;
-    }
+    return { kind: 'missing' };
   }
 
-  return null;
+  const directory = (await directoryResponse.json()) as InstallationDirectory;
+  const registrations = directory.registrations ?? [];
+
+  if (registrations.length === 0) {
+    return { kind: 'missing' };
+  }
+
+  if (registrations.length > 1) {
+    return { kind: 'conflict', registrations };
+  }
+
+  const resolvedUserId = registrations[0]?.userId;
+  if (!resolvedUserId) {
+    return { kind: 'missing' };
+  }
+
+  const userResponse = await userConfigDO.fetch(
+    new Request(
+      `http://localhost/user?userId=${encodeURIComponent(resolvedUserId)}`,
+    ),
+  );
+
+  if (userResponse.ok) {
+    return { kind: 'found', user: (await userResponse.json()) as UserConfig };
+  }
+
+  return { kind: 'missing' };
 }
 
 // Generate issue title from prompt

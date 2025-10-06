@@ -1,7 +1,23 @@
 // Durable Object for managing multi-tenant user configurations
 import { DurableObject } from 'cloudflare:workers';
 import { CryptoUtils } from './crypto';
-import { UserConfig, StoredUserConfig, UserInstallationToken } from './types';
+import {
+  UserConfig,
+  StoredUserConfig,
+  UserInstallationToken,
+  RegistrationSummary,
+  InstallationDirectory,
+  UserRegistrationResponse,
+  UserDeletionResponse,
+  UserRegistrationRequest,
+} from './types';
+
+type InstallationDirectoryState = {
+  userIds: string[];
+  lastMigratedAt?: number;
+};
+
+const MAX_PROJECT_LABEL_LENGTH = 64;
 
 export class UserConfigDO extends DurableObject {
   private encryptionKey: CryptoKey | null = null;
@@ -74,11 +90,7 @@ export class UserConfigDO extends DurableObject {
    * Register a new user with their Installation ID and Anthropic API key
    */
   private async registerUser(request: Request): Promise<Response> {
-    const data = (await request.json()) as {
-      installationId: string;
-      anthropicApiKey: string;
-      userId?: string;
-    };
+    const data = (await request.json()) as UserRegistrationRequest;
 
     if (!data.installationId || !data.anthropicApiKey) {
       return new Response(
@@ -94,15 +106,22 @@ export class UserConfigDO extends DurableObject {
       data.userId ||
       `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Check if installation ID is already registered
-    const existingUser = await this.findUserByInstallationId(
+    // Normalize optional project label
+    let projectLabel = data.projectLabel?.trim();
+    if (projectLabel && projectLabel.length > MAX_PROJECT_LABEL_LENGTH) {
+      projectLabel = projectLabel.slice(0, MAX_PROJECT_LABEL_LENGTH);
+    }
+
+    const directory = await this.getOrCreateInstallationDirectory(
       data.installationId,
     );
-    if (existingUser) {
+
+    // Disallow duplicate user IDs
+    if (directory.userIds.includes(userId)) {
       return new Response(
         JSON.stringify({
-          error: 'Installation ID already registered',
-          existingUserId: existingUser.userId,
+          error: 'UserId already exists for this installation',
+          registrations: await this.mapDirectoryToSummaries(directory),
         }),
         { status: 409, headers: { 'Content-Type': 'application/json' } },
       );
@@ -123,23 +142,32 @@ export class UserConfigDO extends DurableObject {
       created: Date.now(),
       updated: Date.now(),
       isActive: true,
+      projectLabel: projectLabel ?? null,
     };
 
     // Store the user configuration
     await this.ctx.storage.put(`user:${userId}`, userConfig);
-    await this.ctx.storage.put(`installation:${data.installationId}`, userId);
+
+    directory.userIds.push(userId);
+    await this.putInstallationDirectory(data.installationId, directory);
+
+    const responsePayload: UserRegistrationResponse = {
+      success: true,
+      userId,
+      installationId: data.installationId,
+      existingRegistrations: await this.mapDirectoryToSummaries(directory, {
+        excludeUserId: userId,
+      }),
+      projectLabel: projectLabel ?? null,
+      message: 'User registered successfully',
+    };
 
     console.log(
       `✅ Registered new user: ${userId} with installation: ${data.installationId}`,
     );
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        userId,
-        installationId: data.installationId,
-        message: 'User registered successfully',
-      }),
+      JSON.stringify(responsePayload),
       { status: 201, headers: { 'Content-Type': 'application/json' } },
     );
   }
@@ -175,6 +203,16 @@ export class UserConfigDO extends DurableObject {
       storedConfig.encryptedAnthropicApiKey,
     );
 
+    const directory = await this.getInstallationDirectory(
+      storedConfig.installationId,
+    );
+
+    const existingRegistrations = directory
+      ? await this.mapDirectoryToSummaries(directory, {
+          excludeUserId: storedConfig.userId,
+        })
+      : [];
+
     const userConfig: UserConfig = {
       userId: storedConfig.userId,
       installationId: storedConfig.installationId,
@@ -183,6 +221,8 @@ export class UserConfigDO extends DurableObject {
       created: storedConfig.created,
       updated: storedConfig.updated,
       isActive: storedConfig.isActive,
+      projectLabel: storedConfig.projectLabel ?? null,
+      existingRegistrations,
     };
 
     return new Response(JSON.stringify(userConfig), {
@@ -204,15 +244,22 @@ export class UserConfigDO extends DurableObject {
       );
     }
 
-    const userConfig = await this.findUserByInstallationId(installationId);
-    if (!userConfig) {
+    const directory = await this.getInstallationDirectory(installationId);
+    if (!directory || directory.userIds.length === 0) {
       return new Response(
         JSON.stringify({ error: 'User not found for installation ID' }),
         { status: 404, headers: { 'Content-Type': 'application/json' } },
       );
     }
 
-    return new Response(JSON.stringify(userConfig), {
+    const registrations = await this.mapDirectoryToSummaries(directory);
+    const responsePayload: InstallationDirectory = {
+      installationId,
+      registrations,
+      lastMigratedAt: directory.lastMigratedAt,
+    };
+
+    return new Response(JSON.stringify(responsePayload), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -226,6 +273,7 @@ export class UserConfigDO extends DurableObject {
       anthropicApiKey?: string;
       repositoryAccess?: string[];
       isActive?: boolean;
+      projectLabel?: string | null;
     };
 
     if (!data.userId) {
@@ -250,6 +298,15 @@ export class UserConfigDO extends DurableObject {
       ...storedConfig,
       updated: Date.now(),
     };
+
+    if (data.projectLabel !== undefined) {
+      const trimmed = data.projectLabel?.trim();
+      if (trimmed && trimmed.length > MAX_PROJECT_LABEL_LENGTH) {
+        updatedConfig.projectLabel = trimmed.slice(0, MAX_PROJECT_LABEL_LENGTH);
+      } else {
+        updatedConfig.projectLabel = trimmed ?? null;
+      }
+    }
 
     if (data.anthropicApiKey) {
       const key = await this.getEncryptionKey();
@@ -302,23 +359,42 @@ export class UserConfigDO extends DurableObject {
       });
     }
 
-    // Remove user and installation mapping
+    // Remove user configuration
     await this.ctx.storage.delete(`user:${userId}`);
-    await this.ctx.storage.delete(
-      `installation:${storedConfig.installationId}`,
+
+    const directory = await this.getInstallationDirectory(
+      storedConfig.installationId,
     );
+
+    let remaining: RegistrationSummary[] = [];
+    if (directory) {
+      directory.userIds = directory.userIds.filter((id) => id !== userId);
+      if (directory.userIds.length === 0) {
+        await this.deleteInstallationDirectory(storedConfig.installationId);
+      } else {
+        await this.putInstallationDirectory(
+          storedConfig.installationId,
+          directory,
+        );
+        remaining = await this.mapDirectoryToSummaries(directory);
+      }
+    }
 
     // Remove any cached installation tokens
     const tokenKey = `token:${storedConfig.installationId}`;
     await this.ctx.storage.delete(tokenKey);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'User deleted successfully',
-      }),
-      { headers: { 'Content-Type': 'application/json' } },
-    );
+    const responsePayload: UserDeletionResponse = {
+      success: true,
+      removedUserId: userId,
+      installationId: storedConfig.installationId,
+      remainingRegistrations: remaining,
+      message: 'User deleted successfully',
+    };
+
+    return new Response(JSON.stringify(responsePayload), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   /**
@@ -410,6 +486,7 @@ export class UserConfigDO extends DurableObject {
             created: config.created,
             updated: config.updated,
             isActive: config.isActive,
+            projectLabel: config.projectLabel ?? null,
           });
         } catch (error) {
           console.error(
@@ -428,40 +505,82 @@ export class UserConfigDO extends DurableObject {
   /**
    * Helper method to find user by installation ID
    */
-  private async findUserByInstallationId(
+  private async getInstallationDirectory(
     installationId: string,
-  ): Promise<UserConfig | null> {
-    const userId = await this.ctx.storage.get<string>(
-      `installation:${installationId}`,
-    );
-    if (!userId) return null;
+  ): Promise<InstallationDirectoryState | null> {
+    const raw = await this.ctx.storage.get<
+      string | InstallationDirectoryState
+    >(`installation:${installationId}`);
 
-    const storedConfig = await this.ctx.storage.get<StoredUserConfig>(
-      `user:${userId}`,
-    );
-    if (!storedConfig) return null;
+    if (!raw) {
+      return null;
+    }
 
-    try {
-      const key = await this.getEncryptionKey();
-      const anthropicApiKey = await CryptoUtils.decrypt(
-        key,
-        storedConfig.encryptedAnthropicApiKey,
+    if (typeof raw === 'string') {
+      const migrated: InstallationDirectoryState = {  
+        userIds: [raw],
+        lastMigratedAt: Date.now(),
+      };
+      await this.ctx.storage.put(
+        `installation:${installationId}`,
+        migrated,
       );
-      return {
+      return migrated;
+    }
+
+    return { ...raw, userIds: [...raw.userIds] };
+  }
+
+  private async getOrCreateInstallationDirectory(
+    installationId: string,
+  ): Promise<InstallationDirectoryState> {
+    const existing = await this.getInstallationDirectory(installationId);
+    if (existing) {
+      return existing;
+    }
+
+    const directory: InstallationDirectoryState = { userIds: [] };
+    await this.ctx.storage.put(`installation:${installationId}`, directory);
+    return directory;
+  }
+
+  private async putInstallationDirectory(
+    installationId: string,
+    directory: InstallationDirectoryState,
+  ): Promise<void> {
+    await this.ctx.storage.put(`installation:${installationId}`, directory);
+  }
+
+  private async deleteInstallationDirectory(
+    installationId: string,
+  ): Promise<void> {
+    await this.ctx.storage.delete(`installation:${installationId}`);
+  }
+
+  private async mapDirectoryToSummaries(
+    directory: InstallationDirectoryState,
+    options: { excludeUserId?: string } = {},
+  ): Promise<RegistrationSummary[]> {
+    const { excludeUserId } = options;
+    const results: RegistrationSummary[] = [];
+
+    for (const userId of directory.userIds) {
+      if (excludeUserId && userId === excludeUserId) continue;
+
+      const storedConfig = await this.ctx.storage.get<StoredUserConfig>(
+        `user:${userId}`,
+      );
+      if (!storedConfig) continue;
+
+      results.push({
         userId: storedConfig.userId,
-        installationId: storedConfig.installationId,
-        anthropicApiKey,
-        repositoryAccess: storedConfig.repositoryAccess,
+        projectLabel: storedConfig.projectLabel ?? null,
         created: storedConfig.created,
         updated: storedConfig.updated,
         isActive: storedConfig.isActive,
-      };
-    } catch (error) {
-      console.error(
-        `Failed to decrypt API key for user ${storedConfig.userId}:`,
-        error,
-      );
-      return null;
+      });
     }
+
+    return results;
   }
 }
