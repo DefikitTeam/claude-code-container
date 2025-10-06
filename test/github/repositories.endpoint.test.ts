@@ -133,4 +133,76 @@ describe('GET /github/repositories multi-registration safety checks', () => {
       full_name: 'org/repo-one',
     });
   });
+
+  it('returns 400 when installationId is missing', async () => {
+    const response = await app.request(
+      'http://localhost/github/repositories?userId=user-a',
+      undefined,
+      env,
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toContain('installationId is required');
+  });
+
+  it('returns 500 when Durable Object lookup rejects', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('Directory fetch failed'));
+
+    const response = await app.request(
+      'http://localhost/github/repositories?installationId=123',
+      undefined,
+      env,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Failed to list repositories');
+    expect(body.message).toBe('Directory fetch failed');
+  });
+
+  it('returns 500 when GitHub repository lookup fails downstream', async () => {
+    const storedConfig: UserConfig = {
+      userId: 'user-a',
+      installationId: '123',
+      anthropicApiKey: 'sk-anthropic-example-1234567890',
+      repositoryAccess: [],
+      created: Date.now(),
+      updated: Date.now(),
+      isActive: true,
+    };
+
+    fetchMock.mockImplementation(async (request: Request) => {
+      const url = new URL(request.url);
+      if (url.pathname === '/user') {
+        return new Response(JSON.stringify(storedConfig), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('not used', { status: 404 });
+    });
+
+    mockedGetInstallationRepositories.mockRejectedValueOnce(
+      new Error('GitHub outage'),
+    );
+
+    const response = await app.request(
+      'http://localhost/github/repositories?installationId=123&userId=user-a',
+      undefined,
+      env,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockedGetInstallationRepositories).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Failed to list repositories');
+    expect(body.message).toBe('GitHub outage');
+  });
 });

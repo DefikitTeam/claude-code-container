@@ -95,4 +95,57 @@ describe('User configuration endpoints reflect multi-registration directory', ()
       { userId: 'user-a', projectLabel: 'Alpha' },
     ]);
   });
+
+  it('returns 404 when user configuration is missing', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ error: 'Not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const response = await app.request(
+      'http://localhost/user-config/missing-user',
+      undefined,
+      env,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Not found');
+  });
+
+  it('returns 500 when retrieving user configuration throws', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('Storage offline'));
+
+    const response = await app.request(
+      'http://localhost/user-config/user-x',
+      undefined,
+      env,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Failed to retrieve user configuration');
+  });
+
+  it('returns 500 when deleting user configuration throws', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('Storage offline'));
+
+    const response = await app.request(
+      'http://localhost/user-config/user-x',
+      { method: 'DELETE' },
+      env,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Failed to delete user configuration');
+  });
 });

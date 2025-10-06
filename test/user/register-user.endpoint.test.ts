@@ -105,4 +105,64 @@ describe('POST /register-user multi-registration support', () => {
     expect(body).toHaveProperty('registrations');
     expect(body.registrations).toHaveLength(2);
   });
+
+  it('returns 400 when required fields are missing', async () => {
+    const response = await app.request(
+      'http://localhost/register-user',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anthropicApiKey: 'sk-anthropic-1234567890-example' }),
+      },
+      env,
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toContain('installationId');
+  });
+
+  it('returns 400 when JSON body cannot be parsed', async () => {
+    const response = await app.request(
+      'http://localhost/register-user',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid-json}',
+      },
+      env,
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Invalid request body');
+  });
+
+  it('returns 500 when Durable Object fetch rejects unexpectedly', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('DO offline'));
+
+    const response = await app.request(
+      'http://localhost/register-user',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          installationId: '123',
+          anthropicApiKey: 'sk-anthropic-1234567890-example',
+        }),
+      },
+      env,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('Registration failed');
+    expect(body.message).toBe('DO offline');
+  });
 });
