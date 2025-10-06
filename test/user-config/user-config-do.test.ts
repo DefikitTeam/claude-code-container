@@ -117,6 +117,24 @@ const deleteUser = (userId: string) =>
     }),
   );
 
+const storeInstallationToken = (payload: Record<string, unknown>) =>
+  durable.fetch(
+    new Request('https://example.com/installation-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  );
+
+const storeRegistryToken = (payload: Record<string, unknown>) =>
+  durable.fetch(
+    new Request('https://example.com/registry-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  );
+
 beforeEach(async () => {
   storage = new InMemoryStorage();
   state = { storage };
@@ -213,5 +231,46 @@ describe('UserConfigDO multi-registration support', () => {
     const directory = await directoryResponse.json();
     expect(directory.registrations).toHaveLength(1);
     expect(directory.registrations[0]).toMatchObject({ userId: 'user-two' });
+  });
+
+  it('cleans up cached tokens (including legacy keys) when deleting a user', async () => {
+    await register({
+      installationId: 'tokens-install',
+      anthropicApiKey: 'sk-token',
+      userId: 'token-user',
+    });
+
+    const expiry = Date.now() + 30_000;
+
+    await storeInstallationToken({
+      installationId: 'tokens-install',
+      userId: 'token-user',
+      token: 'cached-token',
+      expiresAt: expiry,
+    });
+
+    await storeRegistryToken({
+      installationId: 'tokens-install',
+      userId: 'token-user',
+      token: 'registry-token',
+      expires_at: new Date(expiry).toISOString(),
+      registry_url: 'registry.cloudflare.com',
+    });
+
+    // Legacy key should be cleared as part of deletion path
+    await storage.put('token:tokens-install', {
+      installationId: 'tokens-install',
+      token: 'legacy-token',
+      expiresAt: expiry,
+    });
+
+    const deleteResponse = await deleteUser('token-user');
+    expect(deleteResponse.status).toBe(200);
+
+    expect(await storage.get('token:tokens-install:token-user')).toBeUndefined();
+    expect(
+      await storage.get('registry-token:tokens-install:token-user'),
+    ).toBeUndefined();
+    expect(await storage.get('token:tokens-install')).toBeUndefined();
   });
 });

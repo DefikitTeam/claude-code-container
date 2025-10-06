@@ -342,7 +342,7 @@ app.get('/github/repositories', async (c) => {
         ? parsedPage
         : undefined;
 
-  const repositories = await getInstallationRepositories(userConfig, {
+    const repositories = await getInstallationRepositories(userConfig, {
       perPage,
       page,
     });
@@ -474,7 +474,7 @@ app.get('/github/repositories/:owner/:repo/branches', async (c) => {
       protectedOnly = false;
     }
 
-  const branches = await getRepositoryBranches(userConfig, owner, repo, {
+    const branches = await getRepositoryBranches(userConfig, owner, repo, {
       perPage,
       page,
       protectedOnly,

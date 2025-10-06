@@ -18,6 +18,20 @@ type InstallationDirectoryState = {
 };
 
 const MAX_PROJECT_LABEL_LENGTH = 64;
+const installationTokenKey = (installationId: string, userId: string) =>
+  `token:${installationId}:${userId}`;
+const legacyInstallationTokenKey = (installationId: string) =>
+  `token:${installationId}`;
+const registryTokenKey = (installationId: string, userId: string) =>
+  `registry-token:${installationId}:${userId}`;
+
+type RegistryTokenData = {
+  installationId: string;
+  userId: string;
+  token: string;
+  expires_at: string;
+  registry_url?: string;
+};
 
 export class UserConfigDO extends DurableObject {
   private encryptionKey: CryptoKey | null = null;
@@ -69,6 +83,14 @@ export class UserConfigDO extends DurableObject {
           return this.storeInstallationToken(request);
         case 'GET /installation-token':
           return this.getInstallationToken(request);
+        case 'DELETE /installation-token':
+          return this.deleteInstallationToken(request);
+        case 'POST /registry-token':
+          return this.storeRegistryToken(request);
+        case 'GET /registry-token':
+          return this.getRegistryToken(request);
+        case 'DELETE /registry-token':
+          return this.deleteRegistryToken(request);
         case 'GET /users':
           return this.listUsers();
         default:
@@ -381,8 +403,18 @@ export class UserConfigDO extends DurableObject {
     }
 
     // Remove any cached installation tokens
-    const tokenKey = `token:${storedConfig.installationId}`;
-    await this.ctx.storage.delete(tokenKey);
+    await this.ctx.storage.delete(
+      installationTokenKey(
+        storedConfig.installationId,
+        storedConfig.userId,
+      ),
+    );
+    await this.ctx.storage.delete(
+      registryTokenKey(storedConfig.installationId, storedConfig.userId),
+    );
+    await this.ctx.storage.delete(
+      legacyInstallationTokenKey(storedConfig.installationId),
+    );
 
     const responsePayload: UserDeletionResponse = {
       success: true,
@@ -402,20 +434,41 @@ export class UserConfigDO extends DurableObject {
    */
   private async storeInstallationToken(request: Request): Promise<Response> {
     const data = (await request.json()) as {
-      installationId: string;
-      token: string;
-      expiresAt: number;
-      userId: string;
+      installationId?: string;
+      token?: string;
+      expiresAt?: number | string;
+      userId?: string;
     };
+
+    const installationId = data.installationId?.trim();
+    const userId = data.userId?.trim();
+    const token = data.token;
+    const expiresAtNumber = Number(data.expiresAt);
+
+    if (!installationId || !userId || !token || !Number.isFinite(expiresAtNumber)) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'installationId, userId, token, and numeric expiresAt are required',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
 
     const tokenData: UserInstallationToken = {
-      installationId: data.installationId,
-      token: data.token,
-      expiresAt: data.expiresAt,
-      userId: data.userId,
+      installationId,
+      token,
+      expiresAt: expiresAtNumber,
+      userId,
     };
 
-    await this.ctx.storage.put(`token:${data.installationId}`, tokenData);
+    await this.ctx.storage.put(
+      installationTokenKey(installationId, userId),
+      tokenData,
+    );
+
+    // Remove legacy cache entries
+    await this.ctx.storage.delete(legacyInstallationTokenKey(installationId));
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { 'Content-Type': 'application/json' },
@@ -428,18 +481,46 @@ export class UserConfigDO extends DurableObject {
   private async getInstallationToken(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const installationId = url.searchParams.get('installationId');
+    const userId = url.searchParams.get('userId');
 
-    if (!installationId) {
+    if (!installationId || !userId) {
       return new Response(
-        JSON.stringify({ error: 'installationId parameter is required' }),
+        JSON.stringify({
+          error: 'installationId and userId parameters are required',
+        }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
     }
 
-    const tokenData = await this.ctx.storage.get<UserInstallationToken>(
-      `token:${installationId}`,
+    let tokenData = await this.ctx.storage.get<UserInstallationToken>(
+      installationTokenKey(installationId, userId),
     );
+
     if (!tokenData) {
+      const legacyToken = await this.ctx.storage.get<UserInstallationToken>(
+        legacyInstallationTokenKey(installationId),
+      );
+      if (legacyToken) {
+        const migratedToken: UserInstallationToken = {
+          installationId,
+          token: legacyToken.token,
+          expiresAt: legacyToken.expiresAt,
+          userId: legacyToken.userId ?? userId,
+        };
+
+        await this.ctx.storage.put(
+          installationTokenKey(installationId, migratedToken.userId),
+          migratedToken,
+        );
+        await this.ctx.storage.delete(legacyInstallationTokenKey(installationId));
+
+        if (migratedToken.userId === userId) {
+          tokenData = migratedToken;
+        }
+      }
+    }
+
+    if (!tokenData || tokenData.userId !== userId) {
       return new Response(JSON.stringify({ error: 'Token not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -450,7 +531,9 @@ export class UserConfigDO extends DurableObject {
     const now = Date.now();
     const bufferTime = 5 * 60 * 1000; // 5 minutes
     if (tokenData.expiresAt - now < bufferTime) {
-      await this.ctx.storage.delete(`token:${installationId}`);
+      await this.ctx.storage.delete(
+        installationTokenKey(installationId, userId),
+      );
       return new Response(JSON.stringify({ error: 'Token expired' }), {
         status: 410,
         headers: { 'Content-Type': 'application/json' },
@@ -458,6 +541,126 @@ export class UserConfigDO extends DurableObject {
     }
 
     return new Response(JSON.stringify(tokenData), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  private async deleteInstallationToken(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const installationId = url.searchParams.get('installationId');
+    const userId = url.searchParams.get('userId');
+
+    if (!installationId || !userId) {
+      return new Response(
+        JSON.stringify({
+          error: 'installationId and userId parameters are required',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    await this.ctx.storage.delete(installationTokenKey(installationId, userId));
+    // Also clear legacy cache for safety
+    await this.ctx.storage.delete(legacyInstallationTokenKey(installationId));
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  private async storeRegistryToken(request: Request): Promise<Response> {
+    const data = (await request.json()) as Partial<RegistryTokenData>;
+
+    const installationId = data.installationId?.trim();
+    const userId = data.userId?.trim();
+    const token = data.token;
+    const expiresAt = data.expires_at;
+
+    if (!installationId || !userId || !token || !expiresAt) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'installationId, userId, token, and expires_at are required for registry token storage',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const payload: RegistryTokenData = {
+      installationId,
+      userId,
+      token,
+      expires_at: expiresAt,
+      registry_url: data.registry_url,
+    };
+
+    await this.ctx.storage.put(
+      registryTokenKey(installationId, userId),
+      payload,
+    );
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  private async getRegistryToken(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const installationId = url.searchParams.get('installationId');
+    const userId = url.searchParams.get('userId');
+
+    if (!installationId || !userId) {
+      return new Response(
+        JSON.stringify({
+          error: 'installationId and userId parameters are required',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const data = await this.ctx.storage.get<RegistryTokenData>(
+      registryTokenKey(installationId, userId),
+    );
+
+    if (!data) {
+      return new Response(JSON.stringify({ error: 'Registry token not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const expiresAt = new Date(data.expires_at).getTime();
+    const bufferTime = 5 * 60 * 1000;
+    if (expiresAt - Date.now() < bufferTime) {
+      await this.ctx.storage.delete(registryTokenKey(installationId, userId));
+      return new Response(JSON.stringify({ error: 'Registry token expired' }), {
+        status: 410,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  private async deleteRegistryToken(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const installationId = url.searchParams.get('installationId');
+    const userId = url.searchParams.get('userId');
+
+    if (!installationId || !userId) {
+      return new Response(
+        JSON.stringify({
+          error: 'installationId and userId parameters are required',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    await this.ctx.storage.delete(registryTokenKey(installationId, userId));
+
+    return new Response(JSON.stringify({ success: true }), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -517,7 +720,7 @@ export class UserConfigDO extends DurableObject {
     }
 
     if (typeof raw === 'string') {
-      const migrated: InstallationDirectoryState = {  
+      const migrated: InstallationDirectoryState = {
         userIds: [raw],
         lastMigratedAt: Date.now(),
       };

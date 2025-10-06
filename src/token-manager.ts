@@ -62,6 +62,7 @@ export class TokenManager {
         // Try to get cached token first
         const cachedToken = await this.getCachedToken(
           userConfig.installationId,
+          userConfig.userId,
         );
         if (cachedToken && !this.isTokenExpired(cachedToken.expiresAt)) {
           console.log(`✅ Using cached token for user ${userConfig.userId}`);
@@ -134,6 +135,7 @@ export class TokenManager {
         // Check if we have a cached registry token
         const cachedRegistryToken = await this.getCachedRegistryToken(
           userConfig.installationId,
+          userConfig.userId,
         );
         if (
           cachedRegistryToken &&
@@ -206,12 +208,13 @@ export class TokenManager {
    */
   private async getCachedToken(
     installationId: string,
+    userId: string,
   ): Promise<UserInstallationToken | null> {
     try {
       const userConfigDO = this.getUserConfigDO();
       const response = await userConfigDO.fetch(
         new Request(
-          `http://localhost/installation-token?installationId=${installationId}`,
+          `http://localhost/installation-token?installationId=${installationId}&userId=${encodeURIComponent(userId)}`,
         ),
       );
 
@@ -272,12 +275,15 @@ export class TokenManager {
   /**
    * Invalidate cached token for a user
    */
-  async invalidateToken(installationId: string): Promise<void> {
+  async invalidateToken(
+    installationId: string,
+    userId: string,
+  ): Promise<void> {
     try {
       const userConfigDO = this.getUserConfigDO();
       await userConfigDO.fetch(
         new Request(
-          `http://localhost/installation-token?installationId=${installationId}`,
+          `http://localhost/installation-token?installationId=${installationId}&userId=${encodeURIComponent(userId)}`,
           {
             method: 'DELETE',
           },
@@ -294,12 +300,13 @@ export class TokenManager {
    */
   private async getCachedRegistryToken(
     installationId: string,
+    userId: string,
   ): Promise<ContainerRegistryAuth | null> {
     try {
       const userConfigDO = this.getUserConfigDO();
       const response = await userConfigDO.fetch(
         new Request(
-          `http://localhost/registry-token?installationId=${installationId}`,
+          `http://localhost/registry-token?installationId=${installationId}&userId=${encodeURIComponent(userId)}`,
         ),
       );
 
@@ -414,8 +421,14 @@ export class TokenManager {
       console.log(`🔄 Refreshing tokens for user ${userConfig.userId}`);
 
       // Invalidate cached tokens
-      await this.invalidateToken(userConfig.installationId);
-      await this.invalidateRegistryToken(userConfig.installationId);
+      await this.invalidateToken(
+        userConfig.installationId,
+        userConfig.userId,
+      );
+      await this.invalidateRegistryToken(
+        userConfig.installationId,
+        userConfig.userId,
+      );
 
       // Generate fresh tokens
       const newInstallationToken = await this.getInstallationToken(userConfig);
@@ -450,12 +463,15 @@ export class TokenManager {
   /**
    * Invalidate cached registry token for a user
    */
-  async invalidateRegistryToken(installationId: string): Promise<void> {
+  async invalidateRegistryToken(
+    installationId: string,
+    userId: string,
+  ): Promise<void> {
     try {
       const userConfigDO = this.getUserConfigDO();
       await userConfigDO.fetch(
         new Request(
-          `http://localhost/registry-token?installationId=${installationId}`,
+          `http://localhost/registry-token?installationId=${installationId}&userId=${encodeURIComponent(userId)}`,
           {
             method: 'DELETE',
           },
