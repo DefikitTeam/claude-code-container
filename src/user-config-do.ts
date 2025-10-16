@@ -110,6 +110,10 @@ export class UserConfigDO extends DurableObject {
 
   /**
    * Register a new user with their Installation ID and Anthropic API key
+   * 
+   * Supports multiple users per installation (each with their own projectLabel).
+   * Always generates a new userId to ensure uniqueness within the installation.
+   * The userId provided in the request (if any) is ignored - worker manages userId generation.
    */
   private async registerUser(request: Request): Promise<Response> {
     const data = (await request.json()) as UserRegistrationRequest;
@@ -123,10 +127,9 @@ export class UserConfigDO extends DurableObject {
       );
     }
 
-    // Generate userId if not provided
-    const userId =
-      data.userId ||
-      `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Always generate a new userId - ignore any userId from request
+    // This ensures each registration gets a unique ID within the installation
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Normalize optional project label
     let projectLabel = data.projectLabel?.trim();
@@ -138,16 +141,8 @@ export class UserConfigDO extends DurableObject {
       data.installationId,
     );
 
-    // Disallow duplicate user IDs
-    if (directory.userIds.includes(userId)) {
-      return new Response(
-        JSON.stringify({
-          error: 'UserId already exists for this installation',
-          registrations: await this.mapDirectoryToSummaries(directory),
-        }),
-        { status: 409, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
+    // NOTE: No duplicate userId check needed since userId is always generated fresh
+    // Multiple users per installation are supported, each differentiated by projectLabel
 
     // Encrypt the Anthropic API key
     const key = await this.getEncryptionKey();
@@ -731,7 +726,16 @@ export class UserConfigDO extends DurableObject {
       return migrated;
     }
 
-    return { ...raw, userIds: [...raw.userIds] };
+    // Defensive check: ensure userIds is an array
+    const userIds = Array.isArray((raw as any).userIds) 
+      ? (raw as any).userIds 
+      : [];
+    
+    return { 
+      ...raw, 
+      userIds: [...userIds],
+      lastMigratedAt: (raw as any).lastMigratedAt,
+    };
   }
 
   private async getOrCreateInstallationDirectory(
@@ -739,6 +743,14 @@ export class UserConfigDO extends DurableObject {
   ): Promise<InstallationDirectoryState> {
     const existing = await this.getInstallationDirectory(installationId);
     if (existing) {
+      // Validate the existing directory structure
+      if (!Array.isArray(existing.userIds)) {
+        console.warn(
+          `[WARN] InstallationDirectory for ${installationId} has invalid userIds type`,
+          { received: typeof existing.userIds, value: existing.userIds }
+        );
+        existing.userIds = [];
+      }
       return existing;
     }
 
