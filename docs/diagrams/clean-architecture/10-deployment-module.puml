@@ -1,0 +1,214 @@
+@startuml Deployment Module Design
+!include ../_style-common.puml
+
+title Deployment Module - Worker Deployment & Management
+
+actor "Client" as Client
+participant "DeploymentRoutes" as Routes #f39c12
+participant "AuthMiddleware" as Auth #f39c12
+participant "ValidationMiddleware" as Validation #f39c12
+participant "DeploymentController" as Controller #f39c12
+participant "DeployWorkerUseCase" as DeployUC #3498db
+participant "GetStatusUseCase" as StatusUC #3498db
+participant "RollbackUseCase" as RollbackUC #3498db
+participant "IDeploymentService" as IDeploy #3498db
+participant "IUserRepository" as IUserRepo #3498db
+participant "DeploymentEntity" as DeployEntity #3498db
+participant "UserConfigDO" as UserDO #2ecc71
+participant "DeploymentServiceImpl" as DeploySvc #2ecc71
+participant "CloudflareAPIAdapter" as CFAdapter #2ecc71
+participant "WranglerWrapper" as Wrangler #2ecc71
+
+== Deploy Worker Flow ==
+
+Client -> Routes: POST /deployment/deploy\n{"userId": "...", "workerName": "...", "script": "...", "secrets": {...}}
+activate Routes
+
+Routes -> Auth: validate(context)
+activate Auth
+Auth --> Routes: ✓ Valid
+deactivate Auth
+
+Routes -> Validation: validateBody(DeployWorkerDto)
+activate Validation
+Validation -> Validation: Validate required fields
+Validation -> Validation: Validate worker name format
+Validation -> Validation: Validate script content
+Validation --> Routes: ✓ Valid
+deactivate Validation
+
+Routes -> Controller: deploy(context)
+activate Controller
+
+Controller -> DeployUC: execute(dto)
+activate DeployUC
+
+DeployUC -> IUserRepo: findById(userId)
+activate IUserRepo
+IUserRepo -> UserDO: findById(userId)
+activate UserDO
+UserDO --> IUserRepo: UserEntity
+deactivate UserDO
+IUserRepo --> DeployUC: UserEntity
+deactivate IUserRepo
+
+DeployUC -> DeployUC: Validate deployment config\n(worker name, script syntax, etc.)
+
+DeployUC -> DeployUC: Prepare secrets\n(merge with GitHub App config)
+
+DeployUC -> DeployEntity: new DeploymentEntity()
+activate DeployEntity
+DeployEntity -> DeployEntity: Set status = PENDING
+DeployEntity -> DeployEntity: Generate deploymentId
+DeployEntity --> DeployUC: DeploymentEntity
+deactivate DeployEntity
+
+DeployUC -> IDeploy: deploy(config)
+activate IDeploy
+IDeploy -> DeploySvc: deploy(config)
+activate DeploySvc
+
+DeploySvc -> CFAdapter: deployWorker(workerConfig)
+activate CFAdapter
+
+CFAdapter -> CFAdapter: Authenticate with Cloudflare API
+CFAdapter -> CFAdapter: Upload worker script\nPUT /accounts/{id}/workers/scripts/{name}
+
+CFAdapter -> CFAdapter: Configure routes\nPUT /zones/{zone}/workers/routes
+
+CFAdapter -> CFAdapter: Update Durable Object bindings\nPUT /accounts/{id}/workers/scripts/{name}/bindings
+
+CFAdapter --> DeploySvc: WorkerId
+deactivate CFAdapter
+
+DeploySvc -> Wrangler: updateSecrets(workerId, secrets)
+activate Wrangler
+Wrangler -> Wrangler: Use Wrangler CLI\nwrangler secret put <key>
+Wrangler --> DeploySvc: ✓ Secrets updated
+deactivate Wrangler
+
+DeploySvc -> DeploySvc: Verify deployment\nGET /workers/{id}/health
+
+DeploySvc --> IDeploy: DeploymentResult\n{success: true, workerId: "...", url: "..."}
+deactivate DeploySvc
+IDeploy --> DeployUC: DeploymentResult
+deactivate IDeploy
+
+DeployUC -> DeployEntity: markAsCompleted(result)
+activate DeployEntity
+DeployEntity -> DeployEntity: Set status = COMPLETED
+DeployEntity -> DeployEntity: Set completedAt
+DeployEntity --> DeployUC: void
+deactivate DeployEntity
+
+DeployUC --> Controller: DeploymentResult
+deactivate DeployUC
+
+Controller --> Routes: Response 201\n{"success": true, "data": {"deploymentId": "...", "url": "..."}}
+deactivate Controller
+
+Routes --> Client: HTTP 201 Created
+deactivate Routes
+
+== Get Deployment Status Flow ==
+
+Client -> Routes: GET /deployment/{id}/status
+activate Routes
+
+Routes -> Controller: status(context)
+activate Controller
+
+Controller -> StatusUC: execute(deploymentId)
+activate StatusUC
+
+StatusUC -> IDeploy: getStatus(deploymentId)
+activate IDeploy
+IDeploy -> DeploySvc: getStatus(deploymentId)
+activate DeploySvc
+
+DeploySvc -> CFAdapter: getWorkerStatus(workerId)
+activate CFAdapter
+CFAdapter -> CFAdapter: Call Cloudflare API\nGET /workers/{id}
+CFAdapter -> CFAdapter: Check health endpoint
+CFAdapter --> DeploySvc: WorkerStatus\n{status: "active", uptime: 3600, ...}
+deactivate CFAdapter
+
+DeploySvc --> IDeploy: DeploymentStatus
+deactivate DeploySvc
+IDeploy --> StatusUC: DeploymentStatus
+deactivate IDeploy
+
+StatusUC --> Controller: DeploymentStatus
+deactivate StatusUC
+
+Controller --> Routes: Response 200\n{"success": true, "data": {...}}
+deactivate Controller
+
+Routes --> Client: HTTP 200 OK
+deactivate Routes
+
+== Rollback Deployment Flow ==
+
+Client -> Routes: POST /deployment/{id}/rollback
+activate Routes
+
+Routes -> Controller: rollback(context)
+activate Controller
+
+Controller -> RollbackUC: execute(deploymentId)
+activate RollbackUC
+
+RollbackUC -> IDeploy: rollback(deploymentId)
+activate IDeploy
+IDeploy -> DeploySvc: rollback(deploymentId)
+activate DeploySvc
+
+DeploySvc -> DeploySvc: Get previous version from history
+
+DeploySvc -> CFAdapter: deployWorker(previousConfig)
+activate CFAdapter
+CFAdapter -> CFAdapter: Upload previous script version
+CFAdapter --> DeploySvc: WorkerId
+deactivate CFAdapter
+
+DeploySvc -> DeploySvc: Verify rollback successful
+
+DeploySvc --> IDeploy: RollbackResult
+deactivate DeploySvc
+IDeploy --> RollbackUC: RollbackResult
+deactivate IDeploy
+
+RollbackUC --> Controller: RollbackResult
+deactivate RollbackUC
+
+Controller --> Routes: Response 200\n{"success": true, "message": "Rollback successful"}
+deactivate Controller
+
+Routes --> Client: HTTP 200 OK
+deactivate Routes
+
+note over Client, Wrangler
+  **Deployment Module Summary**
+  
+  **Files Structure:**
+  • deployment.routes.ts (~70 LOC)
+  • deployment.controller.ts (~140 LOC)
+  • Use Cases (~350 LOC):
+    - deploy-worker.use-case.ts (140 LOC)
+    - get-status.use-case.ts (60 LOC)
+    - rollback.use-case.ts (80 LOC)
+    - validate-config.use-case.ts (70 LOC)
+  • DTOs (~100 LOC)
+  • deployment.service.impl.ts (~340 LOC)
+  • Adapters (~300 LOC)
+  • deployment-repository.impl.ts (~150 LOC)
+  **Total: ~1,510 LOC**
+  
+  **Key Features:**
+  ✓ Worker script deployment
+  ✓ Secret management
+  ✓ Deployment verification
+  ✓ Rollback capability
+end note
+
+@enduml
