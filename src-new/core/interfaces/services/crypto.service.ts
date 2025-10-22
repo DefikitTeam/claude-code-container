@@ -1,5 +1,24 @@
-// TODO: Define ICryptoService interface (15 LOC)
+/**
+ * Crypto Service Interface
+ * Defines contract for encryption/decryption operations
+ */
+
 export interface ICryptoService {
-  encrypt(data: string): Promise<string>;
-  decrypt(encrypted: string): Promise<string>;
+  /**
+   * Encrypt data with AES-256-GCM
+   */
+  encrypt(data: string): Promise<{
+    encryptedData: Uint8Array;
+    iv: Uint8Array;
+  }>;
+
+  /**
+   * Decrypt data with AES-256-GCM
+   */
+  decrypt(encryptedData: Uint8Array, iv: Uint8Array): Promise<string>;
+
+  /**
+   * Generate a hash
+   */
+  hash(data: string): Promise<string>;
 }
