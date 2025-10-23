@@ -45,11 +45,13 @@ import { RollbackUseCase } from './core/use-cases/deployment/rollback.use-case';
 import { ValidateConfigUseCase } from './core/use-cases/deployment/validate-config.use-case';
 
 // Infrastructure - Real Phase 3 Implementations
-import { UserConfigDO } from './infrastructure/durable-objects/user-config.do';
 import { GitHubServiceImpl } from './infrastructure/services/github.service.impl';
 import { CryptoServiceImpl } from './infrastructure/services/crypto.service.impl';
 import { TokenServiceImpl } from './infrastructure/services/token.service.impl';
 import { DeploymentServiceImpl } from './infrastructure/services/deployment.service.impl';
+import { ContainerServiceImpl } from './infrastructure/services/container.service.impl';
+import { DeploymentRepositoryImpl } from './infrastructure/repositories/deployment-repository.impl';
+import { UserRepositoryDurableObjectAdapter } from './infrastructure/adapters/user-repository.do-adapter';
 
 export interface Env {
   // Cloudflare bindings
@@ -66,178 +68,110 @@ export interface Env {
 }
 
 /**
- * Setup Dependency Injection
- * Creates all use cases, services, and controllers using REAL Phase 3 implementations
+ * Controller bundle cached after DI initialization
  */
-function setupDI(env: Env) {
-  // ============================================
-  // Phase 3 Infrastructure - Real Services
-  // ============================================
-  
-  // 1. Crypto Service
+interface Controllers {
+  userController: UserController;
+  githubController: GitHubController;
+  containerController: ContainerController;
+  deploymentController: DeploymentController;
+  installationController: InstallationController;
+}
+
+let cachedControllers: Controllers | null = null;
+let cachedApp: Hono<{ Bindings: Env }> | null = null;
+
+/**
+ * Setup Dependency Injection
+ * Creates all use cases, services, and controllers using REAL implementations
+ */
+async function setupDI(env: Env): Promise<Controllers> {
+  if (cachedControllers) {
+    return cachedControllers;
+  }
+
   const cryptoService = new CryptoServiceImpl();
-  // Initialize with encryption key from environment
-  cryptoService.initialize(env.ENCRYPTION_KEY);
-  
-  // 2. Token Service (no constructor params needed - uses internal generator)
-  const tokenService = new TokenServiceImpl();
-  
-  // 3. GitHub Service (depends on Token Service + App credentials)
+  await cryptoService.initialize(env.ENCRYPTION_KEY);
+
+  const tokenService = new TokenServiceImpl(async (installationId: string) => {
+    const randomSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+    return `token-${installationId}-${randomSuffix}`;
+  });
+
   const githubService = new GitHubServiceImpl(
     tokenService,
     env.GITHUB_APP_ID,
-    env.GITHUB_APP_PRIVATE_KEY
+    env.GITHUB_APP_PRIVATE_KEY,
   );
-  
-  // 4. Deployment Service
+
   const deploymentService = new DeploymentServiceImpl();
-  
-  // 5. User Repository - Use Durable Object as repository
-  // Note: In real runtime, this should be accessed via DO stub
-  // For now, we'll create a wrapper that uses the DO namespace
-  const userRepository = {
-    findById: async (userId: string) => {
-      const id = env.USER_CONFIG_DO.idFromName(userId);
-      const stub = env.USER_CONFIG_DO.get(id);
-      return await (stub as any).findById(userId);
-    },
-    findByInstallationId: async (installationId: string) => {
-      // Use installation ID as namespace for DO lookup
-      const id = env.USER_CONFIG_DO.idFromName(`installation:${installationId}`);
-      const stub = env.USER_CONFIG_DO.get(id);
-      return await (stub as any).findByInstallationId(installationId);
-    },
-    save: async (user: any) => {
-      const id = env.USER_CONFIG_DO.idFromName(user.userId);
-      const stub = env.USER_CONFIG_DO.get(id);
-      return await (stub as any).save(user);
-    },
-    delete: async (userId: string) => {
-      const id = env.USER_CONFIG_DO.idFromName(userId);
-      const stub = env.USER_CONFIG_DO.get(id);
-      await (stub as any).delete(userId);
-    },
-  };
-  
-  // 6. Container Service - Wraps Container DO
-  const containerService = {
-    spawn: async (params: any) => {
-      const id = env.CONTAINER_DO.idFromName(params.containerId || `container-${Date.now()}`);
-      const stub = env.CONTAINER_DO.get(id);
-      return await (stub as any).spawn(params);
-    },
-    execute: async (containerId: string, command: any) => {
-      const id = env.CONTAINER_DO.idFromName(containerId);
-      const stub = env.CONTAINER_DO.get(id);
-      return await (stub as any).execute(command);
-    },
-    terminate: async (containerId: string) => {
-      const id = env.CONTAINER_DO.idFromName(containerId);
-      const stub = env.CONTAINER_DO.get(id);
-      return await (stub as any).terminate();
-    },
-    getLogs: async (containerId: string) => {
-      const id = env.CONTAINER_DO.idFromName(containerId);
-      const stub = env.CONTAINER_DO.get(id);
-      return await (stub as any).getLogs();
-    },
-  };
-  
-  // 7. Deployment Repository - Wraps DO (if needed) or use in-memory
-  // For now, use a simple in-memory implementation
-  const deploymentRepository = {
-    findById: async (id: string) => null,
-    save: async (deployment: any) => deployment,
-    delete: async (id: string) => {},
+  const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG_DO);
+  const containerService = new ContainerServiceImpl(env.CONTAINER_DO);
+  const deploymentRepository = new DeploymentRepositoryImpl();
+
+  const registerUserUseCase = new RegisterUserUseCase(userRepository, githubService, cryptoService);
+  const getUserUseCase = new GetUserUseCase(userRepository);
+  const updateUserUseCase = new UpdateUserUseCase(userRepository, cryptoService);
+  const deleteUserUseCase = new DeleteUserUseCase(userRepository);
+
+  const processWebhookUseCase = new ProcessWebhookUseCase(githubService);
+  const fetchRepositoriesUseCase = new FetchRepositoriesUseCase(githubService);
+  const fetchBranchesUseCase = new FetchBranchesUseCase(githubService);
+  const createPullRequestUseCase = new CreatePullRequestUseCase(githubService);
+
+  const spawnContainerUseCase = new SpawnContainerUseCase(containerService);
+  const processPromptUseCase = new ProcessPromptUseCase(containerService);
+  const getLogsUseCase = new GetLogsUseCase(containerService);
+  const terminateContainerUseCase = new TerminateContainerUseCase(containerService);
+
+  const deployWorkerUseCase = new DeployWorkerUseCase(deploymentRepository, deploymentService);
+  const getStatusUseCase = new GetStatusUseCase(deploymentRepository);
+  const rollbackUseCase = new RollbackUseCase(deploymentRepository, deploymentService);
+  const validateConfigUseCase = new ValidateConfigUseCase(deploymentService);
+
+  cachedControllers = {
+    userController: new UserController(
+      registerUserUseCase,
+      getUserUseCase,
+      updateUserUseCase,
+      deleteUserUseCase,
+    ),
+    githubController: new GitHubController(
+      processWebhookUseCase,
+      fetchRepositoriesUseCase,
+      fetchBranchesUseCase,
+      createPullRequestUseCase,
+    ),
+    containerController: new ContainerController(
+      spawnContainerUseCase,
+      processPromptUseCase,
+      getLogsUseCase,
+      terminateContainerUseCase,
+    ),
+    deploymentController: new DeploymentController(
+      deployWorkerUseCase,
+      getStatusUseCase,
+      rollbackUseCase,
+      validateConfigUseCase,
+    ),
+    installationController: new InstallationController(),
   };
 
-  // ============================================
-  // Use Cases - Inject Real Services
-  // ============================================
-  
-  // User Use Cases
-  const registerUserUseCase = new RegisterUserUseCase(
-    userRepository as any,
-    githubService as any,
-    cryptoService as any,
-  );
-  const getUserUseCase = new GetUserUseCase(userRepository as any);
-  const updateUserUseCase = new UpdateUserUseCase(
-    userRepository as any,
-    cryptoService as any,
-  );
-  const deleteUserUseCase = new DeleteUserUseCase(userRepository as any);
-
-  // GitHub Use Cases
-  const processWebhookUseCase = new ProcessWebhookUseCase(githubService as any);
-  const fetchRepositoriesUseCase = new FetchRepositoriesUseCase(githubService as any);
-  const fetchBranchesUseCase = new FetchBranchesUseCase(githubService as any);
-  const createPullRequestUseCase = new CreatePullRequestUseCase(githubService as any);
-
-  // Container Use Cases
-  const spawnContainerUseCase = new SpawnContainerUseCase(
-    containerService as any,
-  );
-  const processPromptUseCase = new ProcessPromptUseCase(containerService as any);
-  const getLogsUseCase = new GetLogsUseCase(containerService as any);
-  const terminateContainerUseCase = new TerminateContainerUseCase(containerService as any);
-
-  // Deployment Use Cases
-  const deployWorkerUseCase = new DeployWorkerUseCase(
-    deploymentRepository as any,
-    deploymentService as any,
-  );
-  const getStatusUseCase = new GetStatusUseCase(deploymentRepository as any);
-  const rollbackUseCase = new RollbackUseCase(
-    deploymentRepository as any,
-    deploymentService as any,
-  );
-  const validateConfigUseCase = new ValidateConfigUseCase(deploymentService as any);
-
-  // Controllers
-  const userController = new UserController(
-    registerUserUseCase,
-    getUserUseCase,
-    updateUserUseCase,
-    deleteUserUseCase,
-  );
-
-  const githubController = new GitHubController(
-    processWebhookUseCase,
-    fetchRepositoriesUseCase,
-    fetchBranchesUseCase,
-    createPullRequestUseCase,
-  );
-
-  const containerController = new ContainerController(
-    spawnContainerUseCase,
-    processPromptUseCase,
-    getLogsUseCase,
-    terminateContainerUseCase,
-  );
-
-  const deploymentController = new DeploymentController(
-    deployWorkerUseCase,
-    getStatusUseCase,
-    rollbackUseCase,
-    validateConfigUseCase,
-  );
-
-  const installationController = new InstallationController();
-
-  return {
-    userController,
-    githubController,
-    containerController,
-    deploymentController,
-    installationController,
-  };
+  return cachedControllers;
 }
 
 /**
  * Create Hono App with all routes and middleware
  */
-function createApp(env: Env) {
+async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
+  if (cachedApp) {
+    return cachedApp;
+  }
+
+  const controllers = await setupDI(env);
+
   const app = new Hono<{ Bindings: Env }>();
 
   // Global middleware
@@ -250,40 +184,31 @@ function createApp(env: Env) {
     credentials: true,
   }));
 
-  // Error handling
-  registerErrorMiddleware(app as any);
+  registerErrorMiddleware(app as unknown as Hono);
 
-  // Setup DI - create all controllers once
-  const controllers = setupDI(env);
-
-  // Health routes (no DI needed)
   app.route('/health', createHealthRoutes());
-
-  // Mount API routes with controllers
   app.route('/api/users', createUserRoutes(controllers.userController));
   app.route('/api/github', createGitHubRoutes(controllers.githubController));
   app.route('/api/containers', createContainerRoutes(controllers.containerController));
   app.route('/api/deployments', createDeploymentRoutes(controllers.deploymentController));
   app.route('/api/installations', createInstallationRoutes(controllers.installationController));
 
-  // 404 handler
-  app.notFound((c) => {
-    return c.json({
-      success: false,
-      error: {
-        code: 'NOT_FOUND',
-        message: 'Route not found',
-      },
-      timestamp: Date.now(),
-    }, 404);
-  });
+  app.notFound((c) => c.json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: 'Route not found',
+    },
+    timestamp: Date.now(),
+  }, 404));
 
+  cachedApp = app;
   return app;
 }
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const app = createApp(env);
-    return await app.fetch(request, env, ctx);
+    const app = await ensureApp(env);
+    return app.fetch(request, env, ctx);
   },
 };

@@ -19,6 +19,12 @@ interface ContainerInstance {
   metadata?: Record<string, any>;
 }
 
+interface ExecuteResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
 export class ContainerDO extends DurableObject {
   private readonly CONTAINER_PREFIX = 'container:';
   private readonly LOGS_PREFIX = 'logs:';
@@ -175,12 +181,18 @@ export class ContainerDO extends DurableObject {
   /**
    * Terminate container
    */
-  async terminateContainer(containerId: string, sessionId: string): Promise<void> {
+  async terminateContainer(containerId: string, sessionId?: string): Promise<void> {
     try {
+      const container = await this.getContainer(containerId);
+      const effectiveSessionId = sessionId ?? container?.sessionId;
+
       await this.updateStatus(containerId, 'stopped');
       const key = `${this.CONTAINER_PREFIX}${containerId}`;
       await this.ctx.storage.delete(key);
-      await this.indexContainerForSession(sessionId, containerId, false);
+
+      if (effectiveSessionId) {
+        await this.indexContainerForSession(effectiveSessionId, containerId, false);
+      }
     } catch (error) {
       throw new Error(`Failed to terminate container: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -213,9 +225,33 @@ export class ContainerDO extends DurableObject {
 
     if (request.method === 'POST' && url.pathname === '/container') {
       try {
-  const container = await request.json<Omit<ContainerInstance, 'createdAt' | 'updatedAt' | 'logs'>>();
-  const spawned = await this.spawnContainer(container);
+        const container = await request.json<Omit<ContainerInstance, 'createdAt' | 'updatedAt' | 'logs'>>();
+        const spawned = await this.spawnContainer(container);
         return new Response(JSON.stringify(spawned), { status: 201 });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
+          status: 400,
+        });
+      }
+    }
+
+    if (request.method === 'POST' && url.pathname === '/command') {
+      try {
+        const { containerId, command } = await request.json<{ containerId: string; command: string }>();
+        const container = await this.getContainer(containerId);
+        if (!container) {
+          return new Response(JSON.stringify({ error: 'Container not found' }), { status: 404 });
+        }
+
+        await this.addLog(containerId, `Command executed: ${command}`);
+
+        const result: ExecuteResult = {
+          exitCode: 0,
+          stdout: `Command executed (simulated): ${command}`,
+          stderr: '',
+        };
+
+        return new Response(JSON.stringify(result), { status: 200 });
       } catch (error) {
         return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
           status: 400,
@@ -245,6 +281,23 @@ export class ContainerDO extends DurableObject {
           status: ContainerInstance['status'];
         }>();
         await this.updateStatus(containerId, status);
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
+          status: 400,
+        });
+      }
+    }
+
+    if (request.method === 'DELETE' && url.pathname === '/container') {
+      try {
+        const containerId = url.searchParams.get('containerId');
+        if (!containerId) {
+          return new Response(JSON.stringify({ error: 'containerId required' }), { status: 400 });
+        }
+
+        const sessionId = url.searchParams.get('sessionId') ?? undefined;
+        await this.terminateContainer(containerId, sessionId);
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (error) {
         return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
