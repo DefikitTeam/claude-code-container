@@ -53,6 +53,14 @@ import { ContainerServiceImpl } from './infrastructure/services/container.servic
 import { DeploymentRepositoryImpl } from './infrastructure/repositories/deployment-repository.impl';
 import { UserRepositoryDurableObjectAdapter } from './infrastructure/adapters/user-repository.do-adapter';
 
+// Durable Objects
+import {
+  ContainerDO,
+  GitHubAppConfigDO,
+  UserConfigDO,
+  AcpSessionDO,
+} from './infrastructure/durable-objects';
+
 export interface Env {
   // Cloudflare bindings
   USER_CONFIG_DO: DurableObjectNamespace;
@@ -211,4 +219,12 @@ export default {
     const app = await ensureApp(env);
     return app.fetch(request, env, ctx);
   },
+};
+
+// Export Durable Objects for Wrangler binding discovery
+export {
+  ContainerDO as MyContainer,
+  GitHubAppConfigDO,
+  UserConfigDO,
+  AcpSessionDO as ACPSessionDO,
 };
