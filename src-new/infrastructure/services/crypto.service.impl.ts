@@ -19,9 +19,19 @@ export class CryptoServiceImpl implements ICryptoService {
    * Initialize the service with an encryption key
    * Must be called before encrypt/decrypt operations
    */
-  async initialize(keyMaterial: string): Promise<void> {
+  async initialize(keyMaterial: string | undefined | null): Promise<void> {
+    if (!keyMaterial || typeof keyMaterial !== 'string') {
+      throw new ValidationError('ENCRYPTION_KEY is not configured. Provide a 64-character hex string.');
+    }
+
+    const normalizedKey = keyMaterial.trim();
+
+    if (normalizedKey.length !== 64 || !/^[0-9a-fA-F]+$/.test(normalizedKey)) {
+      throw new ValidationError('ENCRYPTION_KEY must be a 32-byte key represented as a 64-character hex string.');
+    }
+
     try {
-      const keyBuffer = this.hexToBuffer(keyMaterial);
+      const keyBuffer = this.hexToBuffer(normalizedKey);
       this.key = await crypto.subtle.importKey(
         'raw',
         keyBuffer as BufferSource,
@@ -195,7 +205,11 @@ export class CryptoServiceImpl implements ICryptoService {
   private hexToBuffer(hex: string): Uint8Array {
     const bytes = new Uint8Array(hex.length / 2);
     for (let i = 0; i < hex.length; i += 2) {
-      bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+      const byte = parseInt(hex.substring(i, i + 2), 16);
+      if (Number.isNaN(byte)) {
+        throw new ValidationError('ENCRYPTION_KEY contains non-hexadecimal characters.');
+      }
+      bytes[i / 2] = byte;
     }
     return bytes;
   }
