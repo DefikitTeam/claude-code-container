@@ -61,14 +61,18 @@ export class GitHubServiceImpl implements IGitHubService {
         throw new ValidationError('installationId must be a non-empty string');
       }
 
+      // Get installation token - if this succeeds, the installation is valid
       const { token } = await this.tokenService.getInstallationToken(installationId);
-      const response = await this.githubRequest('GET', '/app/installations/{installationId}', token, {
-        installationId,
-      });
+      
+      // Verify the token works by calling an installation-level endpoint
+      // Note: /app/installations/{id} requires JWT auth, not installation token
+      // So we use /installation/repositories which works with installation tokens
+      const response = await this.githubRequest('GET', '/installation/repositories', token);
 
-      return response.ok && response.status === 200;
+      console.log(`[GitHub] Installation ${installationId} validation: ${response.status} ${response.statusText}`);
+      return response.ok && (response.status === 200 || response.status === 304);
     } catch (error) {
-      console.error(`Installation validation failed for ${installationId}:`, error);
+      console.error(`[GitHub] Installation validation failed for ${installationId}:`, error);
       return false;
     }
   }

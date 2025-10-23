@@ -53,6 +53,9 @@ import { ContainerServiceImpl } from './infrastructure/services/container.servic
 import { DeploymentRepositoryImpl } from './infrastructure/repositories/deployment-repository.impl';
 import { UserRepositoryDurableObjectAdapter } from './infrastructure/adapters/user-repository.do-adapter';
 
+// Utilities
+import { generateGitHubInstallationToken } from './shared/utils/github-token.util';
+
 // Durable Objects
 import {
   ContainerDO,
@@ -62,11 +65,11 @@ import {
 } from './infrastructure/durable-objects';
 
 export interface Env {
-  // Cloudflare bindings
-  USER_CONFIG_DO: DurableObjectNamespace;
-  GITHUB_APP_CONFIG_DO: DurableObjectNamespace;
-  CONTAINER_DO: DurableObjectNamespace;
-  ACP_SESSION_DO: DurableObjectNamespace;
+  // Cloudflare bindings (must match wrangler.jsonc binding names)
+  USER_CONFIG: DurableObjectNamespace;
+  GITHUB_APP_CONFIG: DurableObjectNamespace;
+  MY_CONTAINER: DurableObjectNamespace;
+  ACP_SESSION: DurableObjectNamespace;
   
   // Environment variables
   ENCRYPTION_KEY: string;
@@ -101,11 +104,13 @@ async function setupDI(env: Env): Promise<Controllers> {
   const cryptoService = new CryptoServiceImpl();
   await cryptoService.initialize(env.ENCRYPTION_KEY);
 
+  // Real GitHub token generator using JWT + Installation Token flow
   const tokenService = new TokenServiceImpl(async (installationId: string) => {
-    const randomSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2);
-    return `token-${installationId}-${randomSuffix}`;
+    return await generateGitHubInstallationToken(
+      installationId,
+      env.GITHUB_APP_ID,
+      env.GITHUB_APP_PRIVATE_KEY,
+    );
   });
 
   const githubService = new GitHubServiceImpl(
@@ -115,8 +120,8 @@ async function setupDI(env: Env): Promise<Controllers> {
   );
 
   const deploymentService = new DeploymentServiceImpl();
-  const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG_DO);
-  const containerService = new ContainerServiceImpl(env.CONTAINER_DO);
+  const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG);
+  const containerService = new ContainerServiceImpl(env.MY_CONTAINER);
   const deploymentRepository = new DeploymentRepositoryImpl();
 
   const registerUserUseCase = new RegisterUserUseCase(userRepository, githubService, cryptoService);
