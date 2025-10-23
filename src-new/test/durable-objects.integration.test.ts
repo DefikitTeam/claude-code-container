@@ -23,7 +23,7 @@ describe('Durable Objects Integration Tests', () => {
       const expiresAt = Date.now() + 3600 * 1000;
       const ttl = Math.floor((expiresAt - Date.now()) / 1000);
 
-      expect(ttl).toBeGreaterThan(3599);
+  expect(ttl).toBeGreaterThanOrEqual(3599);
       expect(tokenKey).toBe('token:inst-456:user-123');
     });
 

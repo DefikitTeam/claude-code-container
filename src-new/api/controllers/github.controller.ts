@@ -7,6 +7,7 @@ import { parseWebhookPayloadDTO } from '../dto/webhook-payload.dto';
 import { parseCreatePRDTO } from '../dto/create-pr.dto';
 import { successResponse } from '../responses/success.response';
 import { errorResponse } from '../responses/error.response';
+import { ValidationError } from '../../shared/errors/validation.error';
 
 export class GitHubController {
   constructor(
@@ -38,9 +39,9 @@ export class GitHubController {
     try {
       const installationId = c.req.header('x-installation-id')!;
 
-      const repositories = await this.fetchRepositoriesUseCase.execute({ installationId });
+  const result = await this.fetchRepositoriesUseCase.execute({ installationId });
 
-      return successResponse(c, { repositories }, 200);
+  return successResponse(c, result, 200);
     } catch (err: any) {
       return errorResponse(c, err);
     }
@@ -52,13 +53,13 @@ export class GitHubController {
       const repository = c.req.param('repository');
 
       if (!repository) {
-        return errorResponse(c, new Error('Repository parameter required'));
+        throw new ValidationError('Repository parameter required');
       }
 
       // Parse owner/repo format
       const [owner, repo] = repository.split('/');
       if (!owner || !repo) {
-        return errorResponse(c, new Error('Repository must be in owner/repo format'));
+        throw new ValidationError('Repository must be in owner/repo format');
       }
 
       const result = await this.fetchBranchesUseCase.execute({
