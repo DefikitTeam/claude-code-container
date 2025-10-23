@@ -25,6 +25,7 @@ export interface ApiResponse<T> {
     details?: Record<string, unknown>;
   };
   timestamp: number;
+  requestId?: string;
 }
 
 /**

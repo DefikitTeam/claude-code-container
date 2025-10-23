@@ -4,3 +4,4 @@
  */
 
 export { DeploymentRepositoryImpl } from './deployment-repository.impl';
+export { InMemoryUserRepository } from './in-memory-user.repository';

@@ -1,14 +1,17 @@
-// TODO: Implement user routes (60 LOC)
 import { Hono } from 'hono';
+import type { UserController } from '../controllers/user.controller';
+import { requireInstallationHeaders } from '../middleware/auth.middleware';
+import { requireJsonBody } from '../middleware/validation.middleware';
 
-export function createUserRoutes(/* dependencies */): Hono {
-  const app = new Hono();
-  
-  // TODO: Define routes
-  // POST   /user/register
-  // GET    /user/:userId
-  // PUT    /user/:userId
-  // DELETE /user/:userId
-  
-  return app;
+export function createUserRoutes(controller: UserController): Hono {
+  const router = new Hono();
+
+  router.use('*', requireInstallationHeaders());
+
+  router.post('/register', requireJsonBody(), (c) => controller.register(c));
+  router.get('/:userId', (c) => controller.getUser(c));
+  router.put('/:userId', requireJsonBody(), (c) => controller.updateUser(c));
+  router.delete('/:userId', (c) => controller.deleteUser(c));
+
+  return router;
 }
