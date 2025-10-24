@@ -1,0 +1,115 @@
+@startuml Dependency Flow & Inversion
+!include ../_style-common.puml
+
+title Dependency Inversion Principle in Clean Architecture
+
+package "API Layer" <<Rectangle>> #f39c12 {
+  class UserController {
+    -registerUserUseCase: IRegisterUser
+    +register(dto): Promise<User>
+  }
+}
+
+package "Core Layer" <<Rectangle>> #3498db {
+  
+  interface IRegisterUser {
+    +execute(dto): Promise<UserEntity>
+  }
+  
+  class RegisterUserUseCase {
+    -userRepo: IUserRepository
+    -githubService: IGitHubService
+    -cryptoService: ICryptoService
+    +execute(dto): Promise<UserEntity>
+  }
+  
+  interface IUserRepository {
+    +save(user): Promise<void>
+    +findById(id): Promise<UserEntity>
+    +findByInstallationId(id): Promise<UserEntity>
+    +delete(id): Promise<void>
+  }
+  
+  interface IGitHubService {
+    +validateInstallation(id): Promise<boolean>
+    +getRepositories(id): Promise<Repo[]>
+  }
+  
+  interface ICryptoService {
+    +encrypt(data): Promise<string>
+    +decrypt(data): Promise<string>
+  }
+  
+  class UserEntity {
+    +id: string
+    +userId: string
+    +installationId: string
+    +createdAt: Date
+  }
+  
+  RegisterUserUseCase ..|> IRegisterUser
+  RegisterUserUseCase ..> IUserRepository : depends on
+  RegisterUserUseCase ..> IGitHubService : depends on
+  RegisterUserUseCase ..> ICryptoService : depends on
+  RegisterUserUseCase ..> UserEntity : creates
+}
+
+package "Infrastructure Layer" <<Rectangle>> #2ecc71 {
+  
+  class UserConfigDO {
+    +save(user): Promise<void>
+    +findById(id): Promise<UserEntity>
+    +findByInstallationId(id): Promise<UserEntity>
+    +delete(id): Promise<void>
+  }
+  
+  class GitHubServiceImpl {
+    -tokenManager: TokenManager
+    +validateInstallation(id): Promise<boolean>
+    +getRepositories(id): Promise<Repo[]>
+  }
+  
+  class CryptoServiceImpl {
+    -encryptionKey: CryptoKey
+    +encrypt(data): Promise<string>
+    +decrypt(data): Promise<string>
+  }
+  
+  UserConfigDO ..|> IUserRepository : implements
+  GitHubServiceImpl ..|> IGitHubService : implements
+  CryptoServiceImpl ..|> ICryptoService : implements
+}
+
+UserController ..> IRegisterUser : depends on
+
+note right of IRegisterUser
+  **Dependency Inversion:**
+  
+  Controller depends on INTERFACE,
+  not concrete implementation.
+  
+  Use Case depends on INTERFACES,
+  not concrete infrastructure.
+  
+  Infrastructure IMPLEMENTS interfaces
+  defined in Core layer.
+end note
+
+note bottom of UserConfigDO
+  **Benefits:**
+  - Easy to swap implementations
+  - Easy to test (mock interfaces)
+  - Core layer has no dependencies
+  - Infrastructure can change freely
+end note
+
+note as N1
+  **Dependency Flow:**
+  
+  API → Core (interfaces) ← Infrastructure (implementations)
+  
+  All dependencies point INWARD to Core.
+  Core knows nothing about outer layers.
+end note
+
+@enduml

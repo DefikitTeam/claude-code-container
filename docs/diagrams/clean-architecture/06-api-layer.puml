@@ -1,0 +1,267 @@
+@startuml API Layer Design
+!include ../_style-common.puml
+
+title API Layer - Controllers, Routes, Middleware, DTOs
+
+package "api/" <<Folder>> #f39c12 {
+  
+  package "controllers/" <<Folder>> {
+    class UserController {
+      -registerUserUseCase: RegisterUserUseCase
+      -updateUserUseCase: UpdateUserUseCase
+      -deleteUserUseCase: DeleteUserUseCase
+      -getUserUseCase: GetUserUseCase
+      --
+      +register(c: Context): Promise<Response>
+      +update(c: Context): Promise<Response>
+      +delete(c: Context): Promise<Response>
+      +get(c: Context): Promise<Response>
+      +list(c: Context): Promise<Response>
+      --
+      -handleError(error: Error): Response
+    }
+    note right: ~150 LOC
+    
+    class GitHubController {
+      -processWebhookUseCase: ProcessWebhookUseCase
+      -fetchRepositoriesUseCase: FetchRepositoriesUseCase
+      -fetchBranchesUseCase: FetchBranchesUseCase
+      -createPRUseCase: CreatePullRequestUseCase
+      --
+      +webhook(c: Context): Promise<Response>
+      +repositories(c: Context): Promise<Response>
+      +branches(c: Context): Promise<Response>
+      +createPR(c: Context): Promise<Response>
+    }
+    note right: ~130 LOC
+    
+    class ContainerController {
+      -spawnContainerUseCase: SpawnContainerUseCase
+      -processPromptUseCase: ProcessPromptUseCase
+      -getLogsUseCase: GetLogsUseCase
+      -terminateUseCase: TerminateContainerUseCase
+      --
+      +spawn(c: Context): Promise<Response>
+      +processPrompt(c: Context): Promise<Response>
+      +getLogs(c: Context): Promise<Response>
+      +terminate(c: Context): Promise<Response>
+    }
+    note right: ~120 LOC
+    
+    class DeploymentController {
+      -deployWorkerUseCase: DeployWorkerUseCase
+      -getStatusUseCase: GetDeploymentStatusUseCase
+      -rollbackUseCase: RollbackUseCase
+      --
+      +deploy(c: Context): Promise<Response>
+      +status(c: Context): Promise<Response>
+      +rollback(c: Context): Promise<Response>
+      +validateConfig(c: Context): Promise<Response>
+    }
+    note right: ~140 LOC
+    
+    class InstallationController {
+      -getInstallUrlUseCase: GetInstallUrlUseCase
+      -handleCallbackUseCase: HandleCallbackUseCase
+      --
+      +getInstallUrl(c: Context): Promise<Response>
+      +callback(c: Context): Promise<Response>
+      +renderInstallPage(c: Context): Promise<Response>
+    }
+    note right: ~60 LOC
+  }
+  
+  package "routes/" <<Folder>> {
+    class UserRoutes {
+      --
+      +static register(app: Hono): void
+    }
+    note right: ~60 LOC\nDefines:\n- POST /user/register\n- GET /user/:id\n- PUT /user/:id\n- DELETE /user/:id\n- GET /users
+    
+    class GitHubRoutes {
+      --
+      +static register(app: Hono): void
+    }
+    note right: ~50 LOC\nDefines:\n- POST /webhook/github\n- GET /github/repositories\n- GET /github/branches\n- POST /github/pull-request
+    
+    class ContainerRoutes {
+      --
+      +static register(app: Hono): void
+    }
+    note right: ~50 LOC\nDefines:\n- POST /container/spawn\n- POST /container/process\n- GET /container/:id/logs\n- DELETE /container/:id
+    
+    class DeploymentRoutes {
+      --
+      +static register(app: Hono): void
+    }
+    note right: ~70 LOC\nDefines:\n- POST /deployment/deploy\n- GET /deployment/:id/status\n- POST /deployment/:id/rollback\n- POST /deployment/validate
+    
+    class InstallationRoutes {
+      --
+      +static register(app: Hono): void
+    }
+    note right: ~40 LOC\nDefines:\n- GET /install\n- GET /install/github-app\n- GET /install/callback
+    
+    class HealthRoutes {
+      --
+      +static register(app: Hono): void
+    }
+    note right: ~30 LOC\nDefines:\n- GET /health\n- GET /container/health
+  }
+  
+  package "middleware/" <<Folder>> {
+    class AuthMiddleware {
+      -apiKeyValidator: ApiKeyValidator
+      --
+      +validate(c: Context, next: Next): Promise<void>
+      +validateWebhook(c: Context, next: Next): Promise<void>
+      +quickAuth(c: Context, next: Next): Promise<void>
+      --
+      -extractToken(c: Context): string | null
+      -verifySignature(payload: string, signature: string): boolean
+    }
+    note right: ~120 LOC
+    
+    class ValidationMiddleware {
+      --
+      +validateBody<T>(schema: Schema<T>): Middleware
+      +validateParams<T>(schema: Schema<T>): Middleware
+      +validateQuery<T>(schema: Schema<T>): Middleware
+      --
+      -formatValidationErrors(errors: ValidationError[]): string
+    }
+    note right: ~100 LOC
+    
+    class ErrorMiddleware {
+      --
+      +handle(error: Error, c: Context): Response
+      --
+      -mapErrorToStatus(error: Error): number
+      -formatErrorResponse(error: Error): ErrorResponse
+      -logError(error: Error, context: RequestContext): void
+    }
+    note right: ~90 LOC
+    
+    class CorsMiddleware {
+      -allowedOrigins: string[]
+      --
+      +handle(c: Context, next: Next): Promise<void>
+      --
+      -isOriginAllowed(origin: string): boolean
+      -addCorsHeaders(response: Response): void
+    }
+    note right: ~70 LOC
+    
+    class RateLimitMiddleware {
+      -limits: Map<string, RateLimitConfig>
+      --
+      +limit(config: RateLimitConfig): Middleware
+      --
+      -getIdentifier(c: Context): string
+      -isRateLimited(identifier: string): Promise<boolean>
+      -incrementCounter(identifier: string): Promise<void>
+    }
+    note right: ~90 LOC
+  }
+  
+  package "dto/" <<Folder>> {
+    class RegisterUserDto {
+      +userId: string
+      +installationId: string
+      +anthropicApiKey: string
+      +metadata?: Record<string, any>
+      --
+      +validate(): ValidationResult
+    }
+    note right: ~40 LOC
+    
+    class UpdateUserDto {
+      +anthropicApiKey?: string
+      +metadata?: Record<string, any>
+      --
+      +validate(): ValidationResult
+    }
+    note right: ~30 LOC
+    
+    class SpawnContainerDto {
+      +userId: string
+      +repositoryUrl: string
+      +branch: string
+      +containerImage?: string
+      +environmentVars?: Record<string, string>
+      --
+      +validate(): ValidationResult
+    }
+    note right: ~40 LOC
+    
+    class ProcessPromptDto {
+      +userId: string
+      +prompt: string
+      +repositoryUrl: string
+      +branch?: string
+      +createIssue?: boolean
+      --
+      +validate(): ValidationResult
+    }
+    note right: ~40 LOC
+    
+    class DeployWorkerDto {
+      +userId: string
+      +workerName: string
+      +script: string
+      +secrets: Record<string, string>
+      +durableObjects?: DOConfig[]
+      --
+      +validate(): ValidationResult
+    }
+    note right: ~50 LOC
+  }
+  
+  package "responses/" <<Folder>> {
+    class SuccessResponse<T> {
+      +success: true
+      +data: T
+      +message?: string
+      +timestamp: string
+    }
+    note right: ~20 LOC
+    
+    class ErrorResponse {
+      +success: false
+      +error: string
+      +message: string
+      +statusCode: number
+      +timestamp: string
+      +details?: any
+    }
+    note right: ~25 LOC
+    
+    class PaginatedResponse<T> {
+      +success: true
+      +data: T[]
+      +pagination: Pagination
+      +timestamp: string
+    }
+    note right: ~25 LOC
+  }
+}
+
+note bottom
+  **API Layer Summary:**
+  - Total: ~1,500 LOC
+  - Controllers: ~600 LOC (5 classes)
+  - Routes: ~300 LOC (6 classes)
+  - Middleware: ~470 LOC (5 classes)
+  - DTOs: ~200 LOC (5 classes)
+  - Responses: ~70 LOC (3 classes)
+  
+  **Characteristics:**
+  - HTTP request/response handling
+  - Input validation
+  - Authentication & authorization
+  - Error handling
+  - Response formatting
+  - No business logic
+end note
+
+@enduml

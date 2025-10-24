@@ -48,3 +48,9 @@ next-env.d.ts
 /container_src/.acp-sessions
 
 .dev.vars
+
+docs
+
+.vscode
+
+*.tgz

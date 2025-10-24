@@ -1,0 +1,138 @@
+@startuml GitHub Module Design
+!include ../_style-common.puml
+
+title GitHub Module - Webhook Processing & Repository Operations
+
+actor "GitHub" as GitHub
+participant "GitHubRoutes" as Routes #f39c12
+participant "WebhookAuthMiddleware" as Auth #f39c12
+participant "GitHubController" as Controller #f39c12
+participant "ProcessWebhookUseCase" as WebhookUC #3498db
+participant "FetchRepositoriesUseCase" as RepoUC #3498db
+participant "IUserRepository" as IUserRepo #3498db
+participant "IGitHubService" as IGitHub #3498db
+participant "IContainerService" as IContainer #3498db
+participant "UserConfigDO" as UserDO #2ecc71
+participant "GitHubServiceImpl" as GitHubSvc #2ecc71
+participant "ContainerDO" as ContainerDO #2ecc71
+
+== Webhook Processing Flow ==
+
+GitHub -> Routes: POST /webhook/github\n{"action": "opened", "issue": {...}}
+activate Routes
+
+Routes -> Auth: validateWebhook(context)
+activate Auth
+Auth -> Auth: Extract X-Hub-Signature-256
+Auth -> Auth: Verify HMAC signature
+Auth --> Routes: ✓ Signature valid
+deactivate Auth
+
+Routes -> Controller: webhook(context)
+activate Controller
+
+Controller -> Controller: Parse webhook payload
+Controller -> WebhookUC: execute(payload)
+activate WebhookUC
+
+WebhookUC -> WebhookUC: Route by event type\n(issues, pull_request, etc.)
+
+alt Issue Opened Event
+  WebhookUC -> IUserRepo: findByInstallationId(installationId)
+  activate IUserRepo
+  IUserRepo -> UserDO: findByInstallationId(installationId)
+  activate UserDO
+  UserDO --> IUserRepo: UserEntity
+  deactivate UserDO
+  IUserRepo --> WebhookUC: UserEntity
+  deactivate IUserRepo
+  
+  WebhookUC -> IContainer: spawn(containerConfig)
+  activate IContainer
+  IContainer -> ContainerDO: spawn(config)
+  activate ContainerDO
+  ContainerDO -> ContainerDO: Create container instance
+  ContainerDO -> ContainerDO: Prepare environment
+  ContainerDO -> ContainerDO: Execute processing script
+  ContainerDO --> IContainer: containerId
+  deactivate ContainerDO
+  IContainer --> WebhookUC: containerId
+  deactivate IContainer
+end
+
+WebhookUC --> Controller: ProcessingResult
+deactivate WebhookUC
+
+Controller --> Routes: Response 200\n{"success": true, "message": "Webhook processed"}
+deactivate Controller
+
+Routes --> GitHub: HTTP 200 OK
+deactivate Routes
+
+== Fetch Repositories Flow ==
+
+actor "Frontend" as Frontend
+Frontend -> Routes: GET /github/repositories?userId=123
+activate Routes
+
+Routes -> Controller: repositories(context)
+activate Controller
+
+Controller -> RepoUC: execute(userId)
+activate RepoUC
+
+RepoUC -> IUserRepo: findById(userId)
+activate IUserRepo
+IUserRepo -> UserDO: findById(userId)
+activate UserDO
+UserDO --> IUserRepo: UserEntity
+deactivate UserDO
+IUserRepo --> RepoUC: UserEntity
+deactivate IUserRepo
+
+RepoUC -> IGitHub: getRepositories(installationId)
+activate IGitHub
+IGitHub -> GitHubSvc: getRepositories(installationId)
+activate GitHubSvc
+GitHubSvc -> GitHubSvc: Get installation token
+GitHubSvc -> GitHubSvc: Call GitHub API\nGET /installation/repositories
+GitHubSvc --> IGitHub: Repository[]
+deactivate GitHubSvc
+IGitHub --> RepoUC: Repository[]
+deactivate IGitHub
+
+RepoUC --> Controller: Repository[]
+deactivate RepoUC
+
+Controller --> Routes: Response 200\n{"success": true, "data": [...]}
+deactivate Controller
+
+Routes --> Frontend: HTTP 200 OK
+deactivate Routes
+
+note over GitHub, ContainerDO
+  **GitHub Module Summary**
+  
+  **Files Structure:**
+  • github.routes.ts (~50 LOC)
+  • github.controller.ts (~130 LOC)
+  • Use Cases (~410 LOC):
+    - process-webhook.use-case.ts (150 LOC)
+    - fetch-repositories.use-case.ts (90 LOC)
+    - fetch-branches.use-case.ts (70 LOC)
+    - create-pull-request.use-case.ts (100 LOC)
+  • installation.entity.ts (~70 LOC)
+  • DTOs (~130 LOC total)
+  • github.service.impl.ts (~280 LOC)
+  • github-utils.ts (~200 LOC)
+  **Total: ~1,270 LOC**
+  
+  **Key Features:**
+  ✓ Webhook signature verification
+  ✓ Event routing & processing
+  ✓ Repository/branch fetching
+  ✓ Pull request creation
+  ✓ Installation token management
+end note
+
+@enduml
