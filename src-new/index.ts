@@ -12,6 +12,7 @@ import { createGitHubRoutes } from './api/routes/github.routes';
 import { createContainerRoutes } from './api/routes/container.routes';
 import { createDeploymentRoutes } from './api/routes/deployment.routes';
 import { createInstallationRoutes } from './api/routes/installation.routes';
+import { createACPRoutes } from './api/routes/acp.routes';
 
 // Controllers
 import { UserController } from './api/controllers/user.controller';
@@ -19,6 +20,7 @@ import { GitHubController } from './api/controllers/github.controller';
 import { ContainerController } from './api/controllers/container.controller';
 import { DeploymentController } from './api/controllers/deployment.controller';
 import { InstallationController } from './api/controllers/installation.controller';
+import { ACPController } from './api/controllers/acp.controller';
 
 // Use Cases - User
 import { RegisterUserUseCase } from './core/use-cases/user/register-user.use-case';
@@ -50,6 +52,8 @@ import { CryptoServiceImpl } from './infrastructure/services/crypto.service.impl
 import { TokenServiceImpl } from './infrastructure/services/token.service.impl';
 import { DeploymentServiceImpl } from './infrastructure/services/deployment.service.impl';
 import { ContainerServiceImpl } from './infrastructure/services/container.service.impl';
+import { ACPBridgeService } from './infrastructure/services/acp-bridge.service';
+import { ContainerRegistryAuthService } from './infrastructure/services/container-registry-auth.service';
 import { DeploymentRepositoryImpl } from './infrastructure/repositories/deployment-repository.impl';
 import { UserRepositoryDurableObjectAdapter } from './infrastructure/adapters/user-repository.do-adapter';
 
@@ -87,6 +91,7 @@ interface Controllers {
   containerController: ContainerController;
   deploymentController: DeploymentController;
   installationController: InstallationController;
+  acpController: ACPController;
 }
 
 let cachedControllers: Controllers | null = null;
@@ -123,6 +128,10 @@ async function setupDI(env: Env): Promise<Controllers> {
   const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG);
   const containerService = new ContainerServiceImpl(env.MY_CONTAINER);
   const deploymentRepository = new DeploymentRepositoryImpl();
+  
+  // Initialize ACP Bridge and Container Registry Auth services
+  const acpBridgeService = new ACPBridgeService();
+  const containerRegistryAuthService = new ContainerRegistryAuthService(env, tokenService);
 
   const registerUserUseCase = new RegisterUserUseCase(userRepository, githubService, cryptoService);
   const getUserUseCase = new GetUserUseCase(userRepository);
@@ -170,6 +179,7 @@ async function setupDI(env: Env): Promise<Controllers> {
       validateConfigUseCase,
     ),
     installationController: new InstallationController(),
+    acpController: new ACPController(acpBridgeService),
   };
 
   return cachedControllers;
@@ -205,6 +215,7 @@ async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
   app.route('/api/containers', createContainerRoutes(controllers.containerController));
   app.route('/api/deployments', createDeploymentRoutes(controllers.deploymentController));
   app.route('/api/installations', createInstallationRoutes(controllers.installationController));
+  app.route('/acp', createACPRoutes(controllers.acpController));
 
   app.notFound((c) => c.json({
     success: false,

@@ -1,32 +1,30 @@
 /**
  * Container Service Implementation
- * Provides Durable Object backed container lifecycle operations
+ * Provides Durable Object backed container lifecycle operations using real Cloudflare Containers
  *
  * Implements: IContainerService
+ * 
+ * This service communicates with ContainerDO which extends Container<any>
+ * from @cloudflare/containers. The container runs an HTTP server (container_src)
+ * that handles requests at /health, /process, and /acp endpoints.
  */
 
 import { IContainerService } from '../../core/interfaces/services/container.service';
 import { ValidationError } from '../../shared/errors/validation.error';
 
-interface SpawnResponse {
-  containerId: string;
-  status?: string;
-}
-
-interface ExecuteResponse {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
 /**
- * Durable Object backed container service
+ * Durable Object backed container service using real Cloudflare Workers Containers
  */
 export class ContainerServiceImpl implements IContainerService {
   constructor(private readonly namespace: DurableObjectNamespace) {}
 
   /**
-   * Spawn a new container instance using the container Durable Object
+   * Spawn a new container with the given configuration
+   * 
+   * For real Cloudflare Containers:
+   * 1. Get the ContainerDO stub with a unique ID
+   * 2. Make a request to the container to wake it up and initialize
+   * 3. The container HTTP server will handle the request at /health or /acp/initialize
    */
   async spawn(params: {
     configId: string;
@@ -39,108 +37,141 @@ export class ContainerServiceImpl implements IContainerService {
     this.validateSpawnParams(params);
 
     const containerId = this.generateContainerId(params.configId);
-    const sessionId = this.createSessionId(params.installationId, params.userId);
-    const expiresAt = Date.now() + params.resourceLimits.timeoutSeconds * 1000;
 
-    const body = {
-      containerId,
-      sessionId,
-      userId: params.userId,
-      installationId: params.installationId,
-      status: 'starting' as const,
-      expiresAt,
-      metadata: {
-        configId: params.configId,
-        containerImage: params.containerImage,
-        environmentVariables: params.environmentVariables,
-        resourceLimits: params.resourceLimits,
-      },
-    };
+    // For real containers, we just need to check if they're alive
+    // The container HTTP server expects GET /health to wake up and validate
+    try {
+      const response = await this.doRequest('GET', '/health', undefined, containerId);
+      
+      if (!response.ok) {
+        throw new Error(`Container health check failed: ${response.statusText}`);
+      }
 
-  const response = await this.doRequest('POST', '/container', body, containerId);
-    if (!response.ok) {
-      throw new Error(`Failed to spawn container: ${response.statusText}`);
+      // Container is alive and healthy
+      return { containerId };
+    } catch (error) {
+      throw new Error(
+        `Failed to spawn container: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
-
-    const result = (await response.json()) as SpawnResponse;
-    return { containerId: result.containerId ?? containerId };
   }
 
   /**
    * Execute a command/prompt in a container
+   * 
+   * This uses the /process endpoint for generic processing
+   * or /acp for ACP protocol interactions
    */
-  async execute(containerId: string, command: string): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  async execute(containerId: string, command: string): Promise<{ 
+    exitCode: number; 
+    stdout: string; 
+    stderr: string;
+  }> {
     if (!containerId || !command) {
       throw new ValidationError('containerId and command are required');
     }
 
-    const response = await this.doRequest('POST', '/command', { containerId, command }, containerId);
+    const body = {
+      type: 'execute',
+      command,
+    };
+
+    const response = await this.doRequest('POST', '/process', body, containerId);
     if (!response.ok) {
       throw new Error(`Failed to execute command: ${response.statusText}`);
     }
 
-    const result = (await response.json()) as ExecuteResponse;
-    return result;
+    const result = await response.json() as { 
+      success: boolean; 
+      logs?: string[];
+      message?: string;
+    };
+
+    // Map container response to expected format
+    return {
+      exitCode: result.success ? 0 : 1,
+      stdout: result.logs?.join('\n') || result.message || '',
+      stderr: result.success ? '' : (result.message || 'Command failed'),
+    };
   }
 
   /**
    * Retrieve container logs
+   * 
+   * For real containers, logs are retrieved from the container's runtime
+   * We use the /health endpoint response which includes diagnostic info
    */
   async getLogs(containerId: string): Promise<string[]> {
     if (!containerId) {
       throw new ValidationError('containerId is required');
     }
 
-    const response = await this.doRequest('GET', '/logs', undefined, containerId, {
-      containerId,
-    });
+    const response = await this.doRequest('GET', '/health', undefined, containerId);
 
     if (!response.ok) {
       throw new Error(`Failed to retrieve logs: ${response.statusText}`);
     }
 
-    return (await response.json()) as string[];
+    const health = await response.json() as { 
+      status: string; 
+      message: string;
+      timestamp: string;
+    };
+
+    // Return basic health info as logs
+    return [
+      `Status: ${health.status}`,
+      `Message: ${health.message}`,
+      `Timestamp: ${health.timestamp}`,
+    ];
   }
 
   /**
    * Terminate a container
+   * 
+   * For real Cloudflare Containers, termination happens automatically
+   * after the sleepAfter timeout (5 minutes by default in ContainerDO)
+   * We don't have explicit termination, so this is a no-op
    */
   async terminate(containerId: string): Promise<void> {
     if (!containerId) {
       throw new ValidationError('containerId is required');
     }
 
-    const response = await this.doRequest('DELETE', '/container', undefined, containerId, {
-      containerId,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to terminate container: ${response.statusText}`);
-    }
+    // Real containers auto-terminate after sleepAfter timeout
+    // This is a no-op for compliance with the interface
+    console.log(`Container ${containerId} will auto-terminate after inactivity`);
   }
 
   /**
    * Check container status
+   * 
+   * Checks if the container is responsive by hitting the /health endpoint
    */
   async getStatus(containerId: string): Promise<'running' | 'stopped' | 'error'> {
     if (!containerId) {
       throw new ValidationError('containerId is required');
     }
 
-    const response = await this.doRequest('GET', '/container', undefined, containerId, {
-      containerId,
-    });
+    try {
+      const response = await this.doRequest('GET', '/health', undefined, containerId);
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch container: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        return 'error';
+      }
 
-    const data = (await response.json()) as { status?: 'running' | 'stopped' | 'error' } | null;
-    if (!data) {
+      const health = await response.json() as { status: string };
+      
+      // Map health status to container status
+      if (health.status === 'healthy' || health.status === 'degraded') {
+        return 'running';
+      }
+
+      return 'error';
+    } catch (error) {
+      // Container is not responsive
       return 'stopped';
     }
-
-    return data.status ?? 'running';
   }
 
   private validateSpawnParams(params: {
@@ -169,10 +200,14 @@ export class ContainerServiceImpl implements IContainerService {
     return `ctr_${configId}_${suffix}`;
   }
 
-  private createSessionId(installationId: string, userId: string): string {
-    return `${installationId}:${userId}`;
-  }
-
+  /**
+   * Make a request to the container's HTTP server
+   * 
+   * The container runs an HTTP server (container_src) that handles:
+   * - GET /health - Health check
+   * - POST /process - Generic processing
+   * - POST /acp - ACP JSON-RPC endpoint
+   */
   private async doRequest(
     method: string,
     path: string,

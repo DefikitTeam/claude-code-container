@@ -1,342 +1,93 @@
 /**
- * Container Durable Object
- * Manages ephemeral container lifecycle and execution
+ * Real Cloudflare Workers Container for Claude Code processing
+ * Ported from src/durable-objects.ts - Uses actual @cloudflare/containers
  */
 
-import { DurableObject } from 'cloudflare:workers';
-import { ValidationError } from '../../shared/errors/validation.error';
+import { Container } from '@cloudflare/containers';
 
-interface ContainerInstance {
-  containerId: string;
-  sessionId: string;
-  userId: string;
-  installationId: string;
-  status: 'starting' | 'running' | 'paused' | 'stopped' | 'error';
-  createdAt: number;
-  updatedAt: number;
-  expiresAt: number;
-  logs: string[];
-  metadata?: Record<string, any>;
-}
-
-interface ExecuteResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-export class ContainerDO extends DurableObject {
-  private readonly CONTAINER_PREFIX = 'container:';
-  private readonly LOGS_PREFIX = 'logs:';
-  private readonly SESSION_INDEX_PREFIX = 'session_containers:';
-
-  constructor(ctx: DurableObjectState, env: any) {
-    super(ctx, env);
-  }
-
-  /**
-   * Spawn a new container
-   */
-  async spawnContainer(container: Omit<ContainerInstance, 'createdAt' | 'updatedAt' | 'logs'>): Promise<ContainerInstance> {
-    if (!container.containerId || !container.sessionId) {
-      throw new ValidationError('containerId and sessionId are required');
-    }
-
-    try {
-      const data: ContainerInstance = {
-        ...container,
-        status: 'starting',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        logs: [],
-      };
-
-      const key = `${this.CONTAINER_PREFIX}${container.containerId}`;
-      await this.ctx.storage.put(key, JSON.stringify(data));
-
-      await this.indexContainerForSession(container.sessionId, container.containerId, true);
-
-      return data;
-    } catch (error) {
-      throw new Error(`Failed to spawn container: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
+/**
+ * ContainerDO - Real container execution using Cloudflare Workers Containers
+ * 
+ * This extends Container from @cloudflare/containers package which provides
+ * actual isolated container workloads on Cloudflare infrastructure.
+ * 
+ * Unlike traditional Durable Objects, this handles the container lifecycle
+ * and forwards requests to the containerized application running inside.
+ */
+export class ContainerDO extends Container<any> {
+  // Port the container listens on (default: 8080)
+  defaultPort = 8080;
+  
+  // Time before container sleeps due to inactivity (allow time for GitHub issue processing)
+  sleepAfter = '5m'; // 5 minutes - enough for most GitHub issue processing
+  
+  // Environment variables passed to the container
+  // Note: ANTHROPIC_API_KEY and other sensitive data are provided per-request in fetch() env parameter
+  envVars = {
+    NODE_ENV: 'production',
+    CONTAINER_ID: crypto.randomUUID(),
+    PORT: '8080',
+    ACP_MODE: 'http-server',
+  };
+  
+  // Specify the command to run in the container
+  cmd = ['npm', 'start'];
 
   /**
-   * Get container by ID
-   */
-  async getContainer(containerId: string): Promise<ContainerInstance | null> {
-    if (!containerId) {
-      throw new ValidationError('containerId is required');
-    }
-
-    try {
-      const key = `${this.CONTAINER_PREFIX}${containerId}`;
-      const value = await this.ctx.storage.get(key);
-      if (!value) {
-        return null;
-      }
-
-      const container = JSON.parse(value as string) as ContainerInstance;
-      if (container.expiresAt <= Date.now()) {
-        await this.ctx.storage.delete(key);
-        await this.indexContainerForSession(container.sessionId, containerId, false);
-        return null;
-      }
-
-      return container;
-    } catch (error) {
-      throw new Error(`Failed to get container: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Update container status
-   */
-  async updateStatus(containerId: string, status: ContainerInstance['status']): Promise<void> {
-    try {
-      const container = await this.getContainer(containerId);
-      if (!container) {
-        throw new ValidationError('Container not found');
-      }
-
-      container.status = status;
-      container.updatedAt = Date.now();
-
-      const key = `${this.CONTAINER_PREFIX}${containerId}`;
-      await this.ctx.storage.put(key, JSON.stringify(container));
-    } catch (error) {
-      throw new Error(`Failed to update status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Add log entry
-   */
-  async addLog(containerId: string, message: string): Promise<void> {
-    try {
-      const container = await this.getContainer(containerId);
-      if (!container) {
-        throw new ValidationError('Container not found');
-      }
-
-      container.logs.push(`[${new Date().toISOString()}] ${message}`);
-      container.updatedAt = Date.now();
-
-      const key = `${this.CONTAINER_PREFIX}${containerId}`;
-      await this.ctx.storage.put(key, JSON.stringify(container));
-    } catch (error) {
-      throw new Error(`Failed to add log: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Get logs for container
-   */
-  async getLogs(containerId: string, limit: number = 100): Promise<string[]> {
-    try {
-      const container = await this.getContainer(containerId);
-      if (!container) {
-        return [];
-      }
-
-      return container.logs.slice(-limit);
-    } catch (error) {
-      throw new Error(`Failed to get logs: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * List containers for a session
-   */
-  async listSessionContainers(sessionId: string): Promise<ContainerInstance[]> {
-    if (!sessionId) {
-      throw new ValidationError('sessionId is required');
-    }
-
-    try {
-      const indexKey = `${this.SESSION_INDEX_PREFIX}${sessionId}`;
-      const indexValue = await this.ctx.storage.get(indexKey);
-
-      if (!indexValue) {
-        return [];
-      }
-
-      const containerIds: string[] = JSON.parse(indexValue as string);
-      const containers: ContainerInstance[] = [];
-
-      for (const containerId of containerIds) {
-        const container = await this.getContainer(containerId);
-        if (container) {
-          containers.push(container);
-        }
-      }
-
-      return containers;
-    } catch (error) {
-      throw new Error(`Failed to list containers: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Terminate container
-   */
-  async terminateContainer(containerId: string, sessionId?: string): Promise<void> {
-    try {
-      const container = await this.getContainer(containerId);
-      const effectiveSessionId = sessionId ?? container?.sessionId;
-
-      await this.updateStatus(containerId, 'stopped');
-      const key = `${this.CONTAINER_PREFIX}${containerId}`;
-      await this.ctx.storage.delete(key);
-
-      if (effectiveSessionId) {
-        await this.indexContainerForSession(effectiveSessionId, containerId, false);
-      }
-    } catch (error) {
-      throw new Error(`Failed to terminate container: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  private async indexContainerForSession(sessionId: string, containerId: string, add: boolean): Promise<void> {
-    try {
-      const indexKey = `${this.SESSION_INDEX_PREFIX}${sessionId}`;
-      const indexValue = await this.ctx.storage.get(indexKey);
-
-      let containerIds: string[] = indexValue ? JSON.parse(indexValue as string) : [];
-
-      if (add && !containerIds.includes(containerId)) {
-        containerIds.push(containerId);
-      } else if (!add) {
-        containerIds = containerIds.filter((id) => id !== containerId);
-      }
-
-      await this.ctx.storage.put(indexKey, JSON.stringify(containerIds));
-    } catch (error) {
-      console.error(`Failed to index container: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * HTTP handler
+   * Override fetch to handle errors gracefully
+   * This is the main entry point for all container requests
    */
   async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-
-    if (request.method === 'POST' && url.pathname === '/container') {
-      try {
-        const container = await request.json<Omit<ContainerInstance, 'createdAt' | 'updatedAt' | 'logs'>>();
-        const spawned = await this.spawnContainer(container);
-        return new Response(JSON.stringify(spawned), { status: 201 });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
-      }
-    }
-
-    if (request.method === 'POST' && url.pathname === '/command') {
-      try {
-        const { containerId, command } = await request.json<{ containerId: string; command: string }>();
-        const container = await this.getContainer(containerId);
-        if (!container) {
-          return new Response(JSON.stringify({ error: 'Container not found' }), { status: 404 });
-        }
-
-        await this.addLog(containerId, `Command executed: ${command}`);
-
-        const result: ExecuteResult = {
-          exitCode: 0,
-          stdout: `Command executed (simulated): ${command}`,
-          stderr: '',
-        };
-
-        return new Response(JSON.stringify(result), { status: 200 });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
-      }
-    }
-
-    if (request.method === 'GET' && url.pathname === '/container') {
-      try {
-        const containerId = url.searchParams.get('containerId');
-        if (!containerId) {
-          return new Response(JSON.stringify({ error: 'containerId required' }), { status: 400 });
-        }
-        const container = await this.getContainer(containerId);
-        return new Response(JSON.stringify(container), { status: 200 });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
+    try {
+      return await super.fetch(request);
+    } catch (error) {
+      console.error('Container fetch error:', error);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Container request failed',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+        {
           status: 500,
-        });
-      }
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     }
+  }
 
-    if (request.method === 'PUT' && url.pathname === '/container') {
-      try {
-        const { containerId, status } = await request.json<{
-          containerId: string;
-          status: ContainerInstance['status'];
-        }>();
-        await this.updateStatus(containerId, status);
-        return new Response(JSON.stringify({ success: true }), { status: 200 });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
-      }
+  /**
+   * Lifecycle method called when container shuts down
+   * Override this method to handle Container stopped events gracefully
+   */
+  onStop(params: { exitCode: number; reason: string }) {
+    try {
+      console.log('Container stopped gracefully:', {
+        exitCode: params.exitCode,
+        reason: params.reason,
+        timestamp: new Date().toISOString(),
+      });
+      // Don't throw errors here - just log the shutdown
+    } catch (error) {
+      console.error('Error in onStop (non-fatal):', error);
+      // Swallow the error to prevent the repeated error messages
     }
+  }
 
-    if (request.method === 'DELETE' && url.pathname === '/container') {
-      try {
-        const containerId = url.searchParams.get('containerId');
-        if (!containerId) {
-          return new Response(JSON.stringify({ error: 'containerId required' }), { status: 400 });
-        }
-
-        const sessionId = url.searchParams.get('sessionId') ?? undefined;
-        await this.terminateContainer(containerId, sessionId);
-        return new Response(JSON.stringify({ success: true }), { status: 200 });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
-      }
+  /**
+   * Lifecycle method called when container encounters an error
+   * Override this method to handle container errors gracefully
+   */
+  onError(error: Error) {
+    try {
+      console.error('Container error:', {
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      });
+      // Don't rethrow - just log the error
+    } catch (logError) {
+      console.error('Error logging container error (non-fatal):', logError);
     }
-
-    if (request.method === 'POST' && url.pathname === '/log') {
-      try {
-        const { containerId, message } = await request.json<{
-          containerId: string;
-          message: string;
-        }>();
-        await this.addLog(containerId, message);
-        return new Response(JSON.stringify({ success: true }), { status: 200 });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
-      }
-    }
-
-    if (request.method === 'GET' && url.pathname === '/logs') {
-      try {
-        const containerId = url.searchParams.get('containerId');
-        const limit = parseInt(url.searchParams.get('limit') || '100', 10);
-        if (!containerId) {
-          return new Response(JSON.stringify({ error: 'containerId required' }), { status: 400 });
-        }
-        const logs = await this.getLogs(containerId, limit);
-        return new Response(JSON.stringify(logs), { status: 200 });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 500,
-        });
-      }
-    }
-
-    return new Response('Not Found', { status: 404 });
   }
 }
