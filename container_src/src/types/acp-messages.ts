@@ -3,7 +3,7 @@
  * Based on Agent Client Protocol v0.3.1 specification
  */
 
-import type { GitHubAutomationResult } from '../services/github/github-automation.js';
+import type { GitHubAutomationResult } from '../core/interfaces/services/github-automation.service.js';
 
 // ===== Core JSON-RPC 2.0 Types =====
 

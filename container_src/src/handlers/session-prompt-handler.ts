@@ -10,7 +10,7 @@ import { claudeClientSingleton } from '../services/claude/claude-client.js';
 import { WorkspaceService } from '../services/workspace/workspace-service.js';
 import { SessionStore } from '../services/session/session-store.js';
 import { GitService } from '../services/git/git-service.js';
-import { GitHubAutomationService } from '../services/github/github-automation.js';
+import { GitHubAutomationService } from '../infrastructure/github/github-automation.service.js';
 
 // Basic DI singletons (could be hoisted elsewhere):
 const sessionStore = new SessionStore();

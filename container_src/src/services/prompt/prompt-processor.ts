@@ -25,12 +25,12 @@ import type {
 import type { GitService } from '../git/git-service.js';
 import type { DiagnosticsService } from '../../core/diagnostics/diagnostics-service.js';
 import type {
-  GitHubAutomationService,
+  IGitHubAutomationService,
   GitHubAutomationContext,
   GitHubAutomationResult,
   AutomationIntentSignals,
   GitHubIssueReference,
-} from '../github/github-automation.js';
+} from '../../core/interfaces/services/github-automation.service.js';
 import {
   buildPromptFromContent,
   estimateTokens,
@@ -51,7 +51,7 @@ export interface PromptProcessorDeps {
   claudeClient: IClaudeService;
   gitService?: GitService;
   diagnosticsService?: DiagnosticsService;
-  githubAutomationService?: GitHubAutomationService;
+  githubAutomationService?: IGitHubAutomationService;
 }
 
 export interface ProcessPromptOptions {

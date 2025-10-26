@@ -20,7 +20,8 @@ import { PromptProcessor } from './prompt/prompt-processor.js';
 import { GitService } from './git/git-service.js';
 
 // GitHub automation
-import { GitHubAutomationService } from './github/github-automation.js';
+import { GitHubAutomationService } from '../infrastructure/github/github-automation.service.js';
+import type { IGitHubAutomationService } from '../core/interfaces/services/github-automation.service.js';
 
 // Diagnostics
 import { DiagnosticsService } from '../core/diagnostics/diagnostics-service.js';
@@ -91,8 +92,8 @@ export function promptProcessor(): PromptProcessor {
   return _promptProcessor;
 }
 
-let _githubAutomationService: GitHubAutomationService | undefined;
-export function githubAutomationService(): GitHubAutomationService {
+let _githubAutomationService: IGitHubAutomationService | undefined;
+export function githubAutomationService(): IGitHubAutomationService {
   if (!_githubAutomationService) {
     _githubAutomationService = new GitHubAutomationService({
       gitService: gitService(),
