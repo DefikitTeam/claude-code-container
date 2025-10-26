@@ -18,9 +18,10 @@ import type {
   WorkspaceDescriptor,
 } from '../workspace/workspace-service.js';
 import type {
-  IClaudeClient,
-  ClaudeRunCallbacks,
-} from '../claude/claude-client.js';
+  IClaudeService,
+  ClaudeCallbacks,
+  ClaudeResult,
+} from '../../core/interfaces/services/claude.service.js';
 import type { GitService } from '../git/git-service.js';
 import type { DiagnosticsService } from '../../core/diagnostics/diagnostics-service.js';
 import type {
@@ -47,7 +48,7 @@ const GITHUB_AUTOMATION_VERSION = '1.0.0';
 export interface PromptProcessorDeps {
   sessionStore: ISessionStore;
   workspaceService: IWorkspaceService;
-  claudeClient: IClaudeClient;
+  claudeClient: IClaudeService;
   gitService?: GitService;
   diagnosticsService?: DiagnosticsService;
   githubAutomationService?: GitHubAutomationService;
@@ -154,10 +155,10 @@ export class PromptProcessor {
     const startTime = Date.now();
     let fullText = '';
     let outputTokens = 0;
-    let finished = false;
-    let completionError: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+  let completionError: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+  let runResult: ClaudeResult | undefined;
 
-    const callbacks: ClaudeRunCallbacks = {
+    const callbacks: ClaudeCallbacks = {
       onStart: () => {
         notificationSender?.('session/update', {
           sessionId,
@@ -183,7 +184,6 @@ export class PromptProcessor {
         });
       },
       onComplete: () => {
-        finished = true;
         logFull(
           'run_complete',
           `outputTokens=${outputTokens}`,
@@ -203,7 +203,7 @@ export class PromptProcessor {
     };
 
     try {
-      await this.deps.claudeClient.runPrompt(
+      runResult = await this.deps.claudeClient.runPrompt(
         prompt,
         {
           sessionId,
@@ -220,7 +220,7 @@ export class PromptProcessor {
 
     const durationMs = Date.now() - startTime;
 
-    if (completionError) {
+  if (completionError) {
       const classified = defaultErrorClassifier.classify(completionError);
       // extract stderr / diagnostics from error.detail if present
       const detail = (completionError as any)?.detail || {}; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -261,7 +261,7 @@ export class PromptProcessor {
 
     // 6. Persist session updates (append message history if not already appended by caller)
     session.lastActiveAt = Date.now();
-    if (!opts.historyAlreadyAppended) {
+  if (!opts.historyAlreadyAppended) {
       session.messageHistory.push(content);
     }
     if (session.sessionOptions?.persistHistory) {
@@ -304,9 +304,16 @@ export class PromptProcessor {
       }
     }
 
+    if (!fullText && runResult?.fullText) {
+      fullText = runResult.fullText;
+    }
+
+    const inputTokensUsed = runResult?.tokens?.input ?? inputEst;
+    const outputTokensUsed = runResult?.tokens?.output ?? outputTokens;
+
     const response: SessionPromptResponse['result'] = {
       stopReason: 'completed',
-      usage: { inputTokens: inputEst, outputTokens },
+      usage: { inputTokens: inputTokensUsed, outputTokens: outputTokensUsed },
       summary:
         fullText.substring(0, 200) + (fullText.length > 200 ? '...' : ''),
     };

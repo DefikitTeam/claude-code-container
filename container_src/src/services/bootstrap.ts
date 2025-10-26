@@ -10,8 +10,8 @@ import { WorkspaceService } from './workspace/workspace-service.js';
 import type { IWorkspaceService } from './workspace/workspace-service.js';
 
 // Claude client
-import { ClaudeClient } from './claude/claude-client.js';
-import type { IClaudeClient } from './claude/claude-client.js';
+// import { ClaudeClient } from './claude/claude-client.js';
+import type { IClaudeService } from '../core/interfaces/services/claude.service.js';
 
 // Prompt processor
 import { PromptProcessor } from './prompt/prompt-processor.js';
@@ -27,6 +27,7 @@ import { DiagnosticsService } from '../core/diagnostics/diagnostics-service.js';
 
 // Utility path helpers (assume process.cwd() as root for container runtime)
 import path from 'path';
+import ClaudeClient from './claude/claude-client.js';
 
 // ---- Lazy instantiation helpers -------------------------------------------------
 
@@ -65,14 +66,14 @@ export function diagnosticsService(): DiagnosticsService {
   return _diagnosticsService;
 }
 
-let _claudeClient: IClaudeClient | undefined;
-export function claudeClient(): IClaudeClient {
+let _claudeClient: IClaudeService | undefined;
+export function claudeClient(): IClaudeService {
   if (!_claudeClient) {
     _claudeClient = new ClaudeClient({
-      model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet',
+      defaultModel: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet',
     });
   }
-  return _claudeClient;
+  return _claudeClient!;
 }
 
 let _promptProcessor: PromptProcessor | undefined;
