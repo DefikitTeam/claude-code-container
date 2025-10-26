@@ -41,6 +41,10 @@ import type {
   SessionPromptResponse,
 } from '../../types/acp-messages';
 import type { ACPSession } from '../../types/acp-session.js';
+import { useDomainEntities } from '../../core/config/feature-flags.js';
+import { SessionEntity } from '../../core/entities/session.entity.js';
+import { PromptEntity } from '../../core/entities/prompt.entity.js';
+import { WorkspaceEntity } from '../../core/entities/workspace.entity.js';
 
 const GITHUB_AUTOMATION_VERSION = '1.0.0';
 
@@ -109,34 +113,63 @@ export class PromptProcessor {
       throw new Error('content must be non-empty array');
 
     // 1. Load session (from store or error)
-    const session = await this.loadSession(sessionId);
+    const baseSession = await this.loadSession(sessionId);
+    const entitiesEnabled = useDomainEntities();
+    let sessionEntity = entitiesEnabled
+      ? SessionEntity.fromPlain(baseSession)
+      : undefined;
+    let session: ACPSession = sessionEntity
+      ? sessionEntity.toJSON()
+      : baseSession;
 
     const mergedAgentContext = this.mergeAgentContext(
       session.agentContext,
       agentContext,
     );
-    if (mergedAgentContext) {
+    if (sessionEntity) {
+      sessionEntity = sessionEntity.withAgentContext(mergedAgentContext);
+      session = sessionEntity.toJSON();
+    } else if (mergedAgentContext) {
       session.agentContext = mergedAgentContext;
     }
-    const activeAgentContext = session.agentContext ?? agentContext;
+
+    const activeAgentContext =
+      sessionEntity?.agentContext ?? session.agentContext ?? agentContext;
 
     // 2. Build prompt text from content blocks
-    const prompt = buildPromptFromContent(
-      content,
-      contextFiles,
-      activeAgentContext,
-      session,
-    );
-    const inputEst = estimateTokens(prompt).estimatedTokens;
+    let promptEntity: PromptEntity | undefined;
+    let prompt: string;
+    let inputEst: number;
+
+    if (entitiesEnabled) {
+      promptEntity = PromptEntity.create(
+        { content, contextFiles, agentContext: activeAgentContext },
+        session,
+      );
+      prompt = promptEntity.text;
+      inputEst = promptEntity.tokenEstimate;
+    } else {
+      prompt = buildPromptFromContent(
+        content,
+        contextFiles,
+        activeAgentContext,
+        session,
+      );
+      inputEst = estimateTokens(prompt).estimatedTokens;
+    }
     logFull('prompt', prompt);
 
     // 3. Prepare workspace
-    const wsDesc = await this.deps.workspaceService.prepare({
+    let wsDesc = await this.deps.workspaceService.prepare({
       sessionId,
       reuse: reuseWorkspace,
       workspaceUri: session.workspaceUri,
       sessionOptions: session.sessionOptions,
     });
+
+    if (entitiesEnabled) {
+      wsDesc = WorkspaceEntity.fromDescriptor(wsDesc).toJSON();
+    }
 
     // 4.5 Optional diagnostics pre-run
     let preDiagnostics: Record<string, unknown> | undefined;
@@ -220,7 +253,7 @@ export class PromptProcessor {
 
     const durationMs = Date.now() - startTime;
 
-  if (completionError) {
+    if (completionError) {
       const classified = defaultErrorClassifier.classify(completionError);
       // extract stderr / diagnostics from error.detail if present
       const detail = (completionError as any)?.detail || {}; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -260,11 +293,31 @@ export class PromptProcessor {
     }
 
     // 6. Persist session updates (append message history if not already appended by caller)
-    session.lastActiveAt = Date.now();
-  if (!opts.historyAlreadyAppended) {
-      session.messageHistory.push(content);
+    const lastActiveTimestamp = Date.now();
+    if (sessionEntity) {
+      sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
+      if (!opts.historyAlreadyAppended) {
+        const historyContent = promptEntity
+          ? Array.from<ContentBlock>(promptEntity.content)
+          : content;
+        sessionEntity = sessionEntity.appendMessageHistory(
+          historyContent,
+          lastActiveTimestamp,
+        );
+      }
+      session = sessionEntity.toJSON();
+    } else {
+      session.lastActiveAt = lastActiveTimestamp;
+      if (!opts.historyAlreadyAppended) {
+        session.messageHistory.push(content);
+      }
     }
-    if (session.sessionOptions?.persistHistory) {
+
+    const shouldPersist = sessionEntity
+      ? sessionEntity.shouldPersistHistory()
+      : session.sessionOptions?.persistHistory;
+
+    if (shouldPersist) {
       try {
         await this.deps.sessionStore.save(session);
       } catch (e) {

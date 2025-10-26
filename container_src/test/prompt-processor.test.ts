@@ -5,8 +5,8 @@ import {
   ClassifiedErrorCode,
   defaultErrorClassifier,
 } from '../src/core/errors/error-classifier';
-import type { GitHubAutomationResult } from '../src/services/github/github-automation.js';
-import { GitHubAutomationService } from '../src/services/github/github-automation.js';
+import type { GitHubAutomationResult } from '../src/core/interfaces/services/github-automation.service.js';
+import { GitHubAutomationService } from '../src/infrastructure/github/github-automation.service.js';
 import type { GitService } from '../src/services/git/git-service.js';
 import type { Octokit } from '@octokit/rest';
 
@@ -95,6 +95,31 @@ describe('PromptProcessor', () => {
     expect(res.stopReason).toBe('completed');
     expect(sessionStore.save).not.toHaveBeenCalled(); // persistHistory false
     expect(githubAutomationService.execute).not.toHaveBeenCalled();
+  });
+
+  it('validates session via domain entities when flag enabled', async () => {
+    const originalFlag = process.env.USE_DOMAIN_ENTITIES;
+    process.env.USE_DOMAIN_ENTITIES = '1';
+    try {
+      const session = makeSession({
+        sessionOptions: {
+          persistHistory: true,
+          enableGitOps: false,
+          contextFiles: [],
+        },
+      });
+      sessionStore.load.mockResolvedValueOnce(session);
+
+      const res = await processor.processPrompt({
+        sessionId: 'sess-1',
+        content: [{ type: 'text', text: 'Test' }],
+      });
+
+      expect(res.stopReason).toBe('completed');
+      expect(sessionStore.save).toHaveBeenCalledTimes(1);
+    } finally {
+      process.env.USE_DOMAIN_ENTITIES = originalFlag;
+    }
   });
 
   it('does not append history when historyAlreadyAppended is true', async () => {

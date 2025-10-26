@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GitHubAutomationService } from '../src/services/github/github-automation.js';
+import { GitHubAutomationService } from '../src/infrastructure/github/github-automation.service.js';
 import type { GitService } from '../src/services/git/git-service.js';
 import type { Octokit } from '@octokit/rest';
 
