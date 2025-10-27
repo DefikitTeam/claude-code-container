@@ -5,27 +5,7 @@ import type {
   ContentBlock,
 } from '../types/acp-messages.js';
 import type { RequestContext } from '../services/stdio-jsonrpc.js';
-import { PromptProcessor } from '../services/prompt/prompt-processor.js';
-import { claudeClientSingleton } from '../services/claude/claude-client.js';
-import { WorkspaceService } from '../services/workspace/workspace-service.js';
-import { SessionStore } from '../services/session/session-store.js';
-import { GitService } from '../services/git/git-service.js';
-import { GitHubAutomationService } from '../infrastructure/github/github-automation.service.js';
-
-// Basic DI singletons (could be hoisted elsewhere):
-const sessionStore = new SessionStore();
-const workspaceService = new WorkspaceService();
-const gitService = new GitService();
-const githubAutomationService = new GitHubAutomationService({
-  gitService,
-});
-const promptProcessor = new PromptProcessor({
-  sessionStore: sessionStore as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-  workspaceService,
-  claudeClient: claudeClientSingleton,
-  gitService,
-  githubAutomationService,
-});
+import { getRuntimeServices } from '../config/runtime-services.js';
 
 function validateContentBlocks(blocks: ContentBlock[]) {
   if (!Array.isArray(blocks) || blocks.length === 0) {
@@ -42,6 +22,10 @@ export async function sessionPromptHandler(
   notificationSender?: (method: string, params: any) => void, // eslint-disable-line @typescript-eslint/no-explicit-any
 ): Promise<SessionPromptResponse['result']> {
   acpState.ensureInitialized();
+  const {
+    sessionStore,
+    promptProcessor,
+  } = getRuntimeServices();
   if (!params || !params.sessionId || !params.content) {
     throw Object.assign(
       new Error('Invalid params: sessionId & content required'),

@@ -3,37 +3,16 @@ import type {
   SessionLoadRequest,
   SessionLoadResponse,
 } from '../types/acp-messages.js';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import type { ACPSession } from '../types/acp-session.js';
 import { RequestContext } from '../services/stdio-jsonrpc.js';
-
-function getSessionStorageDir(): string {
-  return (
-    process.env.ACP_SESSION_STORAGE_DIR ||
-    path.join(process.cwd(), '.acp-sessions')
-  );
-}
-
-async function loadSessionFromPersistentStorage(
-  sessionId: string,
-): Promise<ACPSession | null> {
-  try {
-    const dir = getSessionStorageDir();
-    await fs.mkdir(dir, { recursive: true });
-    const file = path.join(dir, `${sessionId}.json`);
-    const raw = await fs.readFile(file, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+import { getRuntimeServices } from '../config/runtime-services.js';
 
 export async function sessionLoadHandler(
   params: SessionLoadRequest['params'],
   requestContext: RequestContext,
 ): Promise<SessionLoadResponse['result']> {
   acpState.ensureInitialized();
+  const { sessionStore } = getRuntimeServices();
   if (!params || !params.sessionId) {
     throw Object.assign(new Error('Invalid params: sessionId'), {
       code: -32602,
@@ -42,7 +21,7 @@ export async function sessionLoadHandler(
   const { sessionId, includeHistory = false } = params;
   let session = acpState.getSession(sessionId);
   if (!session) {
-    const persisted = await loadSessionFromPersistentStorage(sessionId);
+    const persisted = await sessionStore.load(sessionId);
     if (persisted) {
       session = persisted;
       acpState.setSession(sessionId, persisted);

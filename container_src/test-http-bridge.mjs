@@ -5,7 +5,7 @@
  * Tests communication between lightweight client and remote worker
  */
 
-import { WorkerHttpClient } from './src/utils.js';
+import { WorkerHttpClient } from './dist/utils.js';
 
 async function testHttpBridge() {
   console.log('🧪 Testing HTTP Bridge Client...');
@@ -26,7 +26,7 @@ async function testHttpBridge() {
     const initResult = await client.sendJsonRpc(
       'initialize',
       {
-        protocolVersion: 1,
+        protocolVersion: "0.3.1",
         clientCapabilities: {
           fs: { readTextFile: true, writeTextFile: true },
           terminal: true,

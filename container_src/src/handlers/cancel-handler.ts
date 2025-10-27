@@ -1,20 +1,22 @@
 import { acpState } from './acp-state.js';
 import type { CancelRequest, CancelResponse } from '../types/acp-messages.js';
-import { claudeClient } from '../services/bootstrap.js';
 import { RequestContext } from '../services/stdio-jsonrpc.js';
+import { getRuntimeServices } from '../config/runtime-services.js';
+import type { IClaudeService } from '../core/interfaces/services/claude.service.js';
 
 // Fallback local cancel if ClaudeClient not yet wired as singleton
 async function cancelInFlight(
   sessionId: string,
   operationId?: string,
+  claude?: IClaudeService,
 ): Promise<boolean> {
   let cancelled = false;
   try {
     if (operationId) {
-      await claudeClient().cancelOperation(sessionId, operationId);
+      await claude?.cancelOperation(sessionId, operationId);
       cancelled = true;
     } else {
-      await claudeClient().cancel(sessionId);
+      await claude?.cancel(sessionId);
       cancelled = true;
     }
   } catch {}
@@ -30,6 +32,7 @@ export async function cancelHandler(
   requestContext: RequestContext,
 ): Promise<CancelResponse['result']> {
   acpState.ensureInitialized();
+  const { claudeClient } = getRuntimeServices();
   if (!params || !params.sessionId) {
     throw Object.assign(new Error('Invalid params: sessionId'), {
       code: -32602,
@@ -42,7 +45,7 @@ export async function cancelHandler(
       code: -32001,
     });
   }
-  const cancelled = await cancelInFlight(sessionId, operationId);
+  const cancelled = await cancelInFlight(sessionId, operationId, claudeClient);
   session.state = 'paused';
   session.lastActiveAt = Date.now();
   acpState.setSession(sessionId, session);
