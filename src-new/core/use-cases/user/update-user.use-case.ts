@@ -33,7 +33,7 @@ export class UpdateUserUseCase {
     // Fetch current user
     const user = await this.userRepository.findById(dto.userId);
     if (!user) {
-      throw new NotFoundError(`User ${dto.userId} not found`);
+      throw NotFoundError.user(dto.userId);
     }
 
     let updatedUser = user;

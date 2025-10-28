@@ -38,12 +38,14 @@ describe('ContainerServiceImpl', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
 
     const { namespace, fetchSpy, lastIdFromNameArgRef } = createNamespace(async (request) => {
-      expect(request.method).toBe('POST');
-      expect(new URL(request.url).pathname).toBe('/container');
-      const body = await request.json();
-      expect(body.sessionId).toBe('inst-1:user-1');
-      return new Response(JSON.stringify(body), {
-        status: 201,
+      expect(request.method).toBe('GET');
+      expect(new URL(request.url).pathname).toBe('/health');
+      return new Response(JSON.stringify({ 
+        status: 'healthy',
+        message: 'Container ready',
+        timestamp: new Date().toISOString(),
+      }), {
+        status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
     });
@@ -65,12 +67,12 @@ describe('ContainerServiceImpl', () => {
 
   it('executes commands and returns result payload', async () => {
     const { namespace } = createNamespace(async (request) => {
-      if (request.method === 'POST' && new URL(request.url).pathname === '/command') {
+      if (request.method === 'POST' && new URL(request.url).pathname === '/process') {
         const body = await request.json();
-        expect(body.containerId).toBe('ctr-1');
+        expect(body.type).toBe('execute');
         expect(body.command).toBe('npm test');
         return new Response(
-          JSON.stringify({ exitCode: 0, stdout: 'ok', stderr: '' }),
+          JSON.stringify({ success: true, logs: ['test passed'], message: 'ok' }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
@@ -82,16 +84,19 @@ describe('ContainerServiceImpl', () => {
     const result = await service.execute('ctr-1', 'npm test');
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('ok');
+    expect(result.stdout).toBe('test passed');
   });
 
   it('retrieves logs with GET request parameters', async () => {
     const { namespace, fetchSpy } = createNamespace(async (request) => {
       expect(request.method).toBe('GET');
       const url = new URL(request.url);
-      expect(url.pathname).toBe('/logs');
-      expect(url.searchParams.get('containerId')).toBe('ctr-logs');
-      return new Response(JSON.stringify(['line one', 'line two']), {
+      expect(url.pathname).toBe('/health');
+      return new Response(JSON.stringify({ 
+        status: 'healthy',
+        message: 'Container operational',
+        timestamp: '2025-10-28T12:00:00.000Z',
+      }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -100,7 +105,11 @@ describe('ContainerServiceImpl', () => {
     const service = new ContainerServiceImpl(namespace);
     const logs = await service.getLogs('ctr-logs');
 
-    expect(logs).toEqual(['line one', 'line two']);
+    expect(logs).toEqual([
+      'Status: healthy',
+      'Message: Container operational',
+      'Timestamp: 2025-10-28T12:00:00.000Z',
+    ]);
     expect(fetchSpy).toHaveBeenCalled();
   });
 

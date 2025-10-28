@@ -11,8 +11,9 @@ import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
 import { SDKClientAdapter } from './sdk-client.adapter.js';
 import { CLIClientAdapter } from './cli-client.adapter.js';
 import { HTTPAPIClientAdapter } from './http-api-client.adapter.js';
+import { VercelOpenRouterAdapter } from '../ai/vercel-openrouter.adapter.js';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-5';
+const DEFAULT_MODEL = 'claude-sonnet-4'; // Maps to anthropic/claude-sonnet-4 on OpenRouter
 
 type InFlight = {
   sessionId: string;
@@ -33,6 +34,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
 
   constructor(options: ClaudeRuntimeSelectorOptions = {}) {
     this.adapters = options.adapters ?? [
+      new VercelOpenRouterAdapter(),
       new SDKClientAdapter(),
       new CLIClientAdapter(),
       new HTTPAPIClientAdapter(),
@@ -184,7 +186,8 @@ export class ClaudeRuntimeSelector implements IClaudeService {
   }
 
   private async createContext(options: RunOptions): Promise<ClaudeRuntimeContext> {
-    const apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY;
+    // Try ANTHROPIC_API_KEY first, then fall back to OPENROUTER_API_KEY for multi-model support
+    const apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       const diagnostics = await this.diagnostics();
       const error = new Error('anthropic_api_key_missing');

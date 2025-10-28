@@ -7,6 +7,8 @@ import { IUserRepository } from '../../core/interfaces/repositories/user.reposit
 import { UserEntity, type UserProps } from '../../core/entities/user.entity';
 import { ValidationError } from '../../shared/errors/validation.error';
 
+export const DEFAULT_USER_CONFIG_STUB = 'user-config';
+
 interface FetchOptions {
   method: string;
   path: string;
@@ -18,7 +20,10 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
   private readonly namespace: DurableObjectNamespace;
   private readonly stubName: string;
 
-  constructor(namespace: DurableObjectNamespace, stubName: string = 'user-config-global') {
+  constructor(
+    namespace: DurableObjectNamespace,
+    stubName: string = DEFAULT_USER_CONFIG_STUB,
+  ) {
     this.namespace = namespace;
     this.stubName = stubName;
   }
@@ -50,8 +55,7 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
       return null;
     }
 
-    const props = response as UserProps;
-    return new UserEntity(props);
+    return new UserEntity(response as UserProps);
   }
 
   async findByInstallationId(installationId: string): Promise<UserEntity[]> {
@@ -112,7 +116,7 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
 
     const response = await stub.fetch(new Request(url.toString(), init));
 
-    if (response.status === 404) {
+    if (response.status === 404 || response.status === 204) {
       return null;
     }
 
@@ -121,12 +125,13 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
       throw new Error(`Durable Object request failed: ${response.status} ${text}`);
     }
 
-    if (response.status === 204) {
-      return null;
-    }
-
-    if (response.headers.get('Content-Type')?.includes('application/json')) {
-      return (await response.json()) as T;
+    const contentType = response.headers.get('Content-Type');
+    if (contentType?.includes('application/json') || response.status === 200) {
+      try {
+        return (await response.json()) as T;
+      } catch {
+        return null;
+      }
     }
 
     return null;

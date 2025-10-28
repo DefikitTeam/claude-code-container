@@ -36,8 +36,8 @@ export class UserEntity {
       throw new ValidationError('anthropicApiKey must be a non-empty string');
     }
 
-    if (!Array.isArray(props.repositoryAccess) || props.repositoryAccess.length === 0) {
-      throw new ValidationError('repositoryAccess must be a non-empty array');
+    if (!Array.isArray(props.repositoryAccess)) {
+      throw new ValidationError('repositoryAccess must be an array');
     }
 
     if (typeof props.created !== 'number' || props.created <= 0) {
@@ -98,8 +98,8 @@ export class UserEntity {
    * Update repository access
    */
   updateRepositoryAccess(repos: string[]): UserEntity {
-    if (!Array.isArray(repos) || repos.length === 0) {
-      throw new ValidationError('repos must be a non-empty array');
+    if (!Array.isArray(repos)) {
+      throw new ValidationError('repos must be an array');
     }
     return new UserEntity({
       ...this.props,

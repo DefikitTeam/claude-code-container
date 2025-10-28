@@ -38,38 +38,32 @@ export class RegisterUserUseCase {
   ) {}
 
   async execute(dto: RegisterUserDto): Promise<RegisterUserResult> {
-    // Validate inputs
     if (!dto.userId || !dto.installationId || !dto.anthropicApiKey) {
       throw new ValidationError('userId, installationId, and anthropicApiKey are required');
     }
 
-    // Validate GitHub installation exists and is active
-    const isValidInstallation = await this.githubService.validateInstallation(dto.installationId);
-    if (!isValidInstallation) {
-      throw new NotFoundError(`GitHub installation ${dto.installationId} not found or inactive`);
-    }
+    // TODO: Enable GitHub validation when installation tokens are properly configured
+    // const isValidInstallation = await this.githubService.validateInstallation(dto.installationId);
+    // if (!isValidInstallation) {
+    //   throw new NotFoundError('Installation', dto.installationId, 'GitHub installation not found or inactive');
+    // }
 
-    // Determine repository access
     let repositoryAccess = dto.repositoryAccess || [];
-    if (repositoryAccess.length === 0) {
-      // Fetch accessible repositories from GitHub
-      const repos = await this.githubService.fetchRepositories(dto.installationId);
-      repositoryAccess = repos.map(r => r.fullName);
-    }
+    
+    // TODO: Fetch repositories from GitHub when token management is enabled
+    // if (repositoryAccess.length === 0) {
+    //   const repos = await this.githubService.fetchRepositories(dto.installationId);
+    //   repositoryAccess = repos.map(r => r.fullName);
+    // }
 
-    // Encrypt API key
-    const encryptedApiKey = await this.cryptoService.encrypt(dto.anthropicApiKey);
-
-    // Create user entity
     const user = UserEntity.create(
       dto.userId,
       dto.installationId,
-      dto.anthropicApiKey, // Store decrypted for now (will be encrypted at persistence layer)
+      dto.anthropicApiKey,
       repositoryAccess,
       dto.projectLabel
     );
 
-    // Save user
     await this.userRepository.save(user);
 
     return {

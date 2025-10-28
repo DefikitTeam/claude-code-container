@@ -14,7 +14,7 @@
     "package.json"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --pretty false",
     "start": "node dist/index.js",
     "dev": "npm run build && npm run start",
     "acp": "node dist/index.js",
@@ -37,7 +37,9 @@
     "@anthropic-ai/claude-code": "1.0.113",
     "@modelcontextprotocol/sdk": "1.18.0",
     "@octokit/rest": "^22.0.0",
+    "@openrouter/ai-sdk-provider": "^1.2.0",
     "@zed-industries/agent-client-protocol": "0.3.1",
+    "ai": "^5.0.81",
     "diff": "8.0.2",
     "minimist": "1.2.8",
     "ts-node": "^10.9.2",

@@ -688,6 +688,7 @@ async function handleIssueEvent(c: any, payload: GitHubIssuePayload) {
       {
         env: {
           ANTHROPIC_API_KEY: userConfig.anthropicApiKey, // Use user's API key
+          OPENROUTER_API_KEY: c.env.OPENROUTER_API_KEY, // Optional: OpenRouter for multi-model support
           GITHUB_TOKEN: installationToken,
           USER_ID: userConfig.userId,
         },
@@ -919,6 +920,7 @@ async function processPromptRequest(
       {
         env: {
           ANTHROPIC_API_KEY: userConfig.anthropicApiKey, // Use user's API key
+          OPENROUTER_API_KEY: c.env.OPENROUTER_API_KEY, // Optional: OpenRouter for multi-model support
           GITHUB_TOKEN: installationToken,
           USER_ID: userConfig.userId,
         },

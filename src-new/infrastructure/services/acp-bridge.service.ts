@@ -4,6 +4,7 @@
  * Ported from src/acp-bridge.ts to clean architecture
  */
 
+import { DEFAULT_USER_CONFIG_STUB } from '../adapters/user-repository.do-adapter';
 import type {
   ACPMessage,
   ACPSession,
@@ -59,7 +60,65 @@ export class ACPBridgeService implements IACPBridgeService {
    */
   async routeACPMethod(method: string, params: any, env: any): Promise<any> {
     try {
-      // Optional bypass when containers disabled locally
+      // Extract userId from params - REQUIRED for multi-tenant security
+      // Validate BEFORE checking NO_CONTAINERS flag
+      const userId = params?.userId;
+      if (!userId) {
+        console.error('[ACP-BRIDGE] Missing userId in request params');
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32602,
+            message: 'Invalid params: userId is required for multi-tenant security',
+            data: {
+              hint: 'Include userId in your request params. Get userId from /register-user endpoint.',
+            },
+          },
+          id: Date.now(),
+        };
+      }
+
+      // Fetch user configuration to get their encrypted API key
+      console.log(`[ACP-BRIDGE] Fetching config for user: ${userId}`);
+      let userConfig;
+      try {
+        userConfig = await this.fetchUserConfig(env, userId);
+      } catch (error) {
+        console.error('[ACP-BRIDGE] User config fetch failed:', error);
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: error instanceof Error ? error.message : 'User not found',
+            data: {
+              userId,
+              hint: 'Register user first via POST /register-user with installationId and anthropicApiKey',
+            },
+          },
+          id: Date.now(),
+        };
+      }
+
+      // Verify user has an API key
+      if (!userConfig.anthropicApiKey) {
+        console.error(`[ACP-BRIDGE] User ${userId} has no Anthropic API key configured`);
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32002,
+            message: 'User has no Anthropic API key configured',
+            data: {
+              userId,
+              hint: 'Update user configuration via PUT /user-config with anthropicApiKey',
+            },
+          },
+          id: Date.now(),
+        };
+      }
+
+      console.log(`[ACP-BRIDGE] Using API key for user: ${userId} (installation: ${userConfig.installationId})`);
+
+      // Optional bypass when containers disabled locally (AFTER validation!)
       if (env.NO_CONTAINERS === 'true') {
         console.log(`[ACP-BRIDGE] NO_CONTAINERS flag set - returning mock response for ${method}`);
         return this.getMockResponse(method);
@@ -75,13 +134,13 @@ export class ACPBridgeService implements IACPBridgeService {
       const container = env.MY_CONTAINER.get(containerId);
 
       // Create JSON-RPC request for container ACP server
-      // Include API key in params so container can access it
+      // Include user's decrypted API key in params (already decrypted by UserConfigDO)
       const jsonRpcRequest = {
         jsonrpc: '2.0',
         method: method,
         params: {
           ...params,
-          anthropicApiKey: env.ANTHROPIC_API_KEY, // Pass API key in request params
+          anthropicApiKey: userConfig.anthropicApiKey, // ✅ Use user's decrypted API key
         },
         id: Date.now(),
       };
@@ -89,6 +148,7 @@ export class ACPBridgeService implements IACPBridgeService {
       console.log(`[ACP-BRIDGE] Sending to container:`, {
         method,
         containerName,
+        userId,
         hasSessionId: !!params?.sessionId,
         paramsKeys: Object.keys(params || {}),
         containerId: containerId.toString(),
@@ -106,8 +166,10 @@ export class ACPBridgeService implements IACPBridgeService {
         }),
         {
           env: {
-            ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
+            ANTHROPIC_API_KEY: userConfig.anthropicApiKey, // ✅ Pass user's API key to container
             NODE_ENV: 'production',
+            USER_ID: userId,
+            INSTALLATION_ID: userConfig.installationId,
           },
         },
       );
@@ -288,6 +350,30 @@ export class ACPBridgeService implements IACPBridgeService {
               : {},
       id: Date.now(),
     };
+  }
+
+  /**
+   * Fetch user configuration by userId from UserConfigDO
+   */
+  private async fetchUserConfig(env: any, userId: string): Promise<any> {
+    const userConfigDO = this.getUserConfigDO(env);
+    const response = await userConfigDO.fetch(
+      new Request(`http://localhost/user?userId=${userId}`),
+    );
+    
+    if (!response.ok) {
+      throw new Error(`User ${userId} not found. Please register first via /register-user`);
+    }
+    
+    return await response.json();
+  }
+
+  /**
+   * Get UserConfigDO instance
+   */
+  private getUserConfigDO(env: any): any {
+  const id = env.USER_CONFIG.idFromName(DEFAULT_USER_CONFIG_STUB);
+    return env.USER_CONFIG.get(id);
   }
 
   /**

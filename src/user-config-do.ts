@@ -71,6 +71,8 @@ export class UserConfigDO extends DurableObject {
       switch (`${method} ${path}`) {
         case 'POST /register':
           return this.registerUser(request);
+        case 'POST /user':
+          return this.saveUser(request);
         case 'GET /user':
           return this.getUser(request);
         case 'PUT /user':
@@ -186,6 +188,132 @@ export class UserConfigDO extends DurableObject {
     return new Response(
       JSON.stringify(responsePayload),
       { status: 201, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  /**
+   * Save user with explicit userId (for adapter compatibility)
+   * Unlike /register which generates userId, this accepts user data from use cases
+   */
+  private async saveUser(request: Request): Promise<Response> {
+    console.log('[UserConfigDO] saveUser called');
+    
+    const data = await request.json() as {
+      userId: string;
+      installationId: string;
+      anthropicApiKey: string;
+      repositoryAccess?: string[];
+      projectLabel?: string | null;
+      isActive?: boolean;
+    };
+
+    console.log('[UserConfigDO] saveUser data:', {
+      userId: data.userId,
+      installationId: data.installationId,
+      hasApiKey: !!data.anthropicApiKey,
+      repoCount: data.repositoryAccess?.length || 0,
+    });
+
+    if (!data.userId || !data.installationId || !data.anthropicApiKey) {
+      console.error('[UserConfigDO] saveUser validation failed');
+      return new Response(
+        JSON.stringify({
+          error: 'userId, installationId and anthropicApiKey are required',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Check if user already exists
+    const existing = await this.ctx.storage.get<StoredUserConfig>(`user:${data.userId}`);
+    
+    if (existing) {
+      console.log('[UserConfigDO] User exists, updating');
+      // Update existing user
+      return this.updateExistingUser(data);
+    }
+
+    console.log('[UserConfigDO] Creating new user');
+
+    // Create new user with provided userId
+    const directory = await this.getOrCreateInstallationDirectory(data.installationId);
+
+    // Encrypt the Anthropic API key
+    const key = await this.getEncryptionKey();
+    const encryptedApiKey = await CryptoUtils.encrypt(
+      key,
+      data.anthropicApiKey,
+    );
+
+    const userConfig: StoredUserConfig = {
+      userId: data.userId,
+      installationId: data.installationId,
+      encryptedAnthropicApiKey: encryptedApiKey,
+      repositoryAccess: data.repositoryAccess || [],
+      created: Date.now(),
+      updated: Date.now(),
+      isActive: data.isActive ?? true,
+      projectLabel: data.projectLabel ?? null,
+    };
+
+    // Store the user configuration
+    await this.ctx.storage.put(`user:${data.userId}`, userConfig);
+    console.log('[UserConfigDO] Stored user config');
+
+    // Add to directory if not already present
+    if (!directory.userIds.includes(data.userId)) {
+      directory.userIds.push(data.userId);
+      await this.putInstallationDirectory(data.installationId, directory);
+      console.log('[UserConfigDO] Added to directory');
+    }
+
+    console.log(`✅ Saved user: ${data.userId} for installation: ${data.installationId}`);
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  /**
+   * Helper to update existing user via saveUser endpoint
+   */
+  private async updateExistingUser(data: {
+    userId: string;
+    installationId: string;
+    anthropicApiKey: string;
+    repositoryAccess?: string[];
+    projectLabel?: string | null;
+    isActive?: boolean;
+  }): Promise<Response> {
+    const storedConfig = await this.ctx.storage.get<StoredUserConfig>(`user:${data.userId}`);
+    
+    if (!storedConfig) {
+      return new Response(
+        JSON.stringify({ error: 'User not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const key = await this.getEncryptionKey();
+    const encryptedApiKey = await CryptoUtils.encrypt(key, data.anthropicApiKey);
+
+    const updatedConfig: StoredUserConfig = {
+      ...storedConfig,
+      encryptedAnthropicApiKey: encryptedApiKey,
+      repositoryAccess: data.repositoryAccess ?? storedConfig.repositoryAccess,
+      projectLabel: data.projectLabel !== undefined ? data.projectLabel : storedConfig.projectLabel,
+      isActive: data.isActive !== undefined ? data.isActive : storedConfig.isActive,
+      updated: Date.now(),
+    };
+
+    await this.ctx.storage.put(`user:${data.userId}`, updatedConfig);
+
+    console.log(`✅ Updated user: ${data.userId}`);
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
     );
   }
 

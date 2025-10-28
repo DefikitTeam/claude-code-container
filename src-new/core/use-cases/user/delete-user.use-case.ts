@@ -26,7 +26,7 @@ export class DeleteUserUseCase {
     // Fetch user to verify existence
     const user = await this.userRepository.findById(dto.userId);
     if (!user) {
-      throw new NotFoundError(`User ${dto.userId} not found`);
+      throw NotFoundError.user(dto.userId);
     }
 
     // Delete user

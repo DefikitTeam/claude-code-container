@@ -3,16 +3,19 @@ FROM node:22-alpine
 # Install system dependencies for git operations and Claude Code requirements
 RUN apk add --no-cache git bash curl ripgrep
 
+# Install pnpm globally
+RUN npm install -g pnpm@10.18.3
+
 # Set working directory
 WORKDIR /app
 
 # Copy container package files
-COPY container_src/package*.json ./
+COPY container_src/package.json container_src/pnpm-lock.yaml ./
 
 # Install all dependencies (including TypeScript for build)
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
-# Install Claude Code CLI globally (this is required for the SDK to work)
+# Install Claude Code CLI globally with npm (pnpm global requires setup)
 RUN npm install -g @anthropic-ai/claude-code
 
 # Copy container source code

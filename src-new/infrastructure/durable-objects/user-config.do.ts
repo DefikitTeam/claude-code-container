@@ -84,7 +84,7 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
     try {
       const allEntries = await this.ctx.storage.list({ prefix: this.USERS_PREFIX });
 
-      if (!allEntries) {
+      if (!allEntries || allEntries.size === 0) {
         return null;
       }
 
@@ -189,7 +189,7 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       await this.ctx.storage.put(key, JSON.stringify(cachedToken));
     } catch (error) {
-      console.error(`Failed to cache token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`Failed to cache token: ${error instanceof Error ? error.message : 'Unknown'}`);
     }
   }
 
@@ -214,7 +214,7 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       return cached;
     } catch (error) {
-      console.error(`Failed to get cached token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`Failed to get cached token: ${error instanceof Error ? error.message : 'Unknown'}`);
       return null;
     }
   }
@@ -227,7 +227,7 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
       const key = `${this.TOKENS_PREFIX}${installationId}:${userId}`;
       await this.ctx.storage.delete(key);
     } catch (error) {
-      console.error(`Failed to delete cached token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`Failed to delete cached token: ${error instanceof Error ? error.message : 'Unknown'}`);
     }
   }
 
@@ -254,7 +254,7 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       await this.ctx.storage.put(indexKey, JSON.stringify(users));
     } catch (error) {
-      console.error(`Failed to update installation index: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`Failed to update installation index: ${error instanceof Error ? error.message : 'Unknown'}`);
     }
   }
 
@@ -264,13 +264,19 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    const json = (data: unknown, status = 200): Response =>
+      new Response(JSON.stringify(data), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+
     if (request.method === 'POST') {
       try {
         if (url.pathname === '/user') {
           const payload = await request.json<UserProps>();
           const user = new UserEntity(payload);
           await this.save(user);
-          return new Response(JSON.stringify({ success: true }), { status: 200 });
+          return json({ success: true });
         }
 
         if (url.pathname === '/token') {
@@ -281,12 +287,10 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
             expiresAt: number;
           }>();
           await this.cacheToken(installationId, userId, token, expiresAt);
-          return new Response(JSON.stringify({ success: true }), { status: 200 });
+          return json({ success: true });
         }
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
+        return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 400);
       }
     }
 
@@ -297,12 +301,12 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
         if (url.pathname === '/user' && userId) {
           const user = await this.findById(userId);
-          return new Response(JSON.stringify(user ? user.getProps() : null), { status: 200 });
+          return json(user ? user.getProps() : null);
         }
 
         if (url.pathname === '/token' && installationId && userId) {
           const token = await this.getCachedToken(installationId, userId);
-          return new Response(JSON.stringify(token), { status: 200 });
+          return json(token);
         }
 
         if (url.pathname === '/users' && installationId) {
@@ -310,12 +314,10 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
           const users = onlyActive
             ? await this.listByInstallation(installationId)
             : await this.findByInstallationId(installationId);
-          return new Response(JSON.stringify(users.map((user) => user.getProps())), { status: 200 });
+          return json(users.map((user) => user.getProps()));
         }
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
+        return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 400);
       }
     }
 
@@ -326,7 +328,7 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
         if (url.pathname === '/token' && installationId && userId) {
           await this.deleteCachedToken(installationId, userId);
-          return new Response(JSON.stringify({ success: true }), { status: 200 });
+          return json({ success: true });
         }
 
         if (url.pathname === '/user' && userId) {
@@ -334,12 +336,10 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
           return new Response(null, { status: 204 });
         }
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
+        return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 400);
       }
     }
 
-    return new Response('Not Found', { status: 404 });
+    return json({ error: 'Not Found' }, 404);
   }
 }

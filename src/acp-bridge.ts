@@ -17,10 +17,88 @@ import type {
 const sessions: Map<string, ACPSession> = new Map();
 
 export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
+  // Helper function to get UserConfigDO
+  const getUserConfigDO = (env: Env) => {
+    const id = env.USER_CONFIG.idFromName('global');
+    return env.USER_CONFIG.get(id);
+  };
+
+  // Helper function to fetch user config by userId
+  const fetchUserConfig = async (env: Env, userId: string): Promise<any> => {
+    const userConfigDO = getUserConfigDO(env);
+    const response = await userConfigDO.fetch(
+      new Request(`http://localhost/user?userId=${userId}`),
+    );
+    
+    if (!response.ok) {
+      throw new Error(`User ${userId} not found. Please register first via /register-user`);
+    }
+    
+    return await response.json();
+  };
+
   // Generic ACP method router - routes all ACP methods to container
   const acpMethodRouter = async (c: any, method: string, params: any) => {
     try {
-      // Optional bypass when containers disabled locally
+      // Extract userId from params - REQUIRED for multi-tenant security
+      // Validate BEFORE checking NO_CONTAINERS flag
+      const userId = params?.userId;
+      if (!userId) {
+        console.error('[ACP-BRIDGE] Missing userId in request params');
+        return c.json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32602,
+            message: 'Invalid params: userId is required for multi-tenant security',
+            data: {
+              hint: 'Include userId in your request params. Get userId from /register-user endpoint.',
+            },
+          },
+          id: Date.now(),
+        }, 400);
+      }
+
+      // Fetch user configuration to get their encrypted API key
+      console.log(`[ACP-BRIDGE] Fetching config for user: ${userId}`);
+      let userConfig;
+      try {
+        userConfig = await fetchUserConfig(c.env, userId);
+      } catch (error) {
+        console.error('[ACP-BRIDGE] User config fetch failed:', error);
+        return c.json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: error instanceof Error ? error.message : 'User not found',
+            data: {
+              userId,
+              hint: 'Register user first via POST /register-user with installationId and anthropicApiKey',
+            },
+          },
+          id: Date.now(),
+        }, 404);
+      }
+
+      // Verify user has an API key
+      if (!userConfig.anthropicApiKey) {
+        console.error(`[ACP-BRIDGE] User ${userId} has no Anthropic API key configured`);
+        return c.json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32002,
+            message: 'User has no Anthropic API key configured',
+            data: {
+              userId,
+              hint: 'Update user configuration via PUT /user-config with anthropicApiKey',
+            },
+          },
+          id: Date.now(),
+        }, 400);
+      }
+
+      console.log(`[ACP-BRIDGE] Using API key for user: ${userId} (installation: ${userConfig.installationId})`);
+
+      // Optional bypass when containers disabled locally (AFTER validation!)
       if (c.env.NO_CONTAINERS === 'true') {
         console.log(
           `[ACP-BRIDGE] NO_CONTAINERS flag set - returning mock response for ${method}`,
@@ -60,13 +138,13 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
       const container = c.env.MY_CONTAINER.get(containerId);
 
       // Create JSON-RPC request for container ACP server
-      // Include API key in params so container can access it
+      // Include user's decrypted API key in params (already decrypted by UserConfigDO)
       const jsonRpcRequest = {
         jsonrpc: '2.0',
         method: method,
         params: {
           ...params,
-          anthropicApiKey: c.env.ANTHROPIC_API_KEY, // Pass API key in request params
+          anthropicApiKey: userConfig.anthropicApiKey, // ✅ Use user's decrypted API key
         },
         id: Date.now(),
       };
@@ -74,6 +152,7 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
       console.log(`[ACP-BRIDGE] Sending to container:`, {
         method,
         containerName,
+        userId,
         hasSessionId: !!params?.sessionId,
         paramsKeys: Object.keys(params || {}),
         containerId: containerId.toString(),
@@ -91,8 +170,10 @@ export function addACPEndpoints(app: Hono<{ Bindings: Env }>) {
         }),
         {
           env: {
-            ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY,
+            ANTHROPIC_API_KEY: userConfig.anthropicApiKey, // ✅ Pass user's API key to container
             NODE_ENV: 'production',
+            USER_ID: userId,
+            INSTALLATION_ID: userConfig.installationId,
           },
         },
       );

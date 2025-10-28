@@ -9,6 +9,7 @@ export interface Env {
 
   // Environment variables
   ANTHROPIC_API_KEY?: string;
+  OPENROUTER_API_KEY?: string;
   GITHUB_APP_ID?: string;
   GITHUB_WEBHOOK_SECRET?: string;
 
