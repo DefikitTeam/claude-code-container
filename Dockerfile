@@ -6,6 +6,10 @@ RUN apk add --no-cache git bash curl ripgrep
 # Install pnpm globally
 RUN npm install -g pnpm@10.18.3
 
+# Create a non-root user for running the application
+RUN addgroup -g 1001 -S appuser && \
+    adduser -u 1001 -S appuser -G appuser
+
 # Set working directory
 WORKDIR /app
 
@@ -15,15 +19,18 @@ COPY container_src/package.json container_src/pnpm-lock.yaml ./
 # Install all dependencies (including TypeScript for build)
 RUN pnpm install --frozen-lockfile
 
-# Install Claude Code CLI globally with npm (pnpm global requires setup)
-RUN npm install -g @anthropic-ai/claude-code
-
 # Copy container source code
 COPY container_src/src ./src
 COPY container_src/tsconfig.json ./
 
 # Build TypeScript to JavaScript
 RUN npx tsc
+
+# Change ownership of app directory to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Health check for container (only for HTTP mode)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
@@ -35,5 +42,6 @@ EXPOSE 8080
 # Set default environment for mode detection
 ENV ACP_MODE=http-server
 
-# Start the container server
-CMD ["node", "--max-old-space-size=256", "dist/index.js", "--http-server"]
+# Start the container server with increased memory limit (1GB for Vercel AI SDK + OpenRouter)
+# Exit code 137 (SIGKILL/OOM) indicates container needs more memory
+CMD ["node", "--max-old-space-size=1024", "dist/index.js", "--http-server"]

@@ -1,5 +1,9 @@
-import { streamText } from 'ai';
+import { streamText, tool } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { z } from 'zod';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import GitService from '../..//services/git/git-service.js';
 import type { ClaudeAdapter, ClaudeRuntimeContext } from '../claude/adapter.js';
 import type {
   ClaudeCallbacks,
@@ -37,11 +41,55 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
     // 2. Select model (default to Claude 3.5 Sonnet for compatibility)
     const modelName = this.selectModel(context.model || runOptions.model);
 
-    try {
+      // Prepare tools (optional) if enabled by env var
+      const tools: Record<string, any> | undefined =
+        process.env.ENABLE_AGENT_TOOLS === '1'
+          ? {
+              applyPatch: tool({
+                description: 'Apply a unified-diff patch to the repository workspace',
+                inputSchema: z.object({
+                  patch: z.string().min(1).describe('Unified diff patch to apply'),
+                }),
+                async execute({ patch }) {
+                  // Basic safety checks
+                  const maxBytes = Number(process.env.ACP_MAX_PATCH_BYTES) || 200 * 1024;
+                  if (Buffer.byteLength(patch, 'utf8') > maxBytes) {
+                    throw new Error('patch-too-large');
+                  }
+                  const git = new GitService();
+                  const ws = context.workspacePath;
+                  if (!ws) throw new Error('workspace-not-provided');
+                  await git.applyPatch(ws, patch);
+                  return { success: true };
+                },
+              }),
+              writeFile: tool({
+                description: 'Write a file into the repository workspace',
+                inputSchema: z.object({
+                  path: z.string().min(1).describe('Path to write, relative to workspace'),
+                  content: z.string().describe('File content'),
+                }),
+                async execute({ path: relPath, content }) {
+                  const ws = context.workspacePath;
+                  if (!ws) throw new Error('workspace-not-provided');
+                  // Normalize and prevent path traversal
+                  const normalized = path.posix.normalize(relPath).replace(/^\/+/, '');
+                  if (normalized.includes('..')) throw new Error('invalid-path');
+                  const target = path.join(ws, normalized);
+                  await fs.mkdir(path.dirname(target), { recursive: true });
+                  await fs.writeFile(target, content, 'utf8');
+                  return { success: true, path: normalized };
+                },
+              }),
+            }
+          : undefined;
+
+      try {
       // 3. Stream text using Vercel AI SDK
       const result = streamText({
         model: openrouter.chat(modelName),
         prompt: prompt,
+        tools,
         
         // Optional: Add providerOptions for OpenRouter-specific features
         providerOptions: {

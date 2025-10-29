@@ -5,6 +5,7 @@
  */
 
 import { DEFAULT_USER_CONFIG_STUB } from '../adapters/user-repository.do-adapter';
+import type { IGitHubService } from '../../core/interfaces/services/github.service';
 import type {
   ACPMessage,
   ACPSession,
@@ -54,6 +55,11 @@ export interface IACPBridgeService {
 export class ACPBridgeService implements IACPBridgeService {
   private sessions: Map<string, ACPSession> = new Map();
   private static readonly MAX_COMMIT_MESSAGE_AUDIT_LENGTH = 160;
+
+  constructor(
+    private readonly tokenService?: any,
+    private readonly githubService?: IGitHubService,
+  ) {}
 
   /**
    * Route an ACP method to the container's ACP server
@@ -126,6 +132,43 @@ export class ACPBridgeService implements IACPBridgeService {
 
       console.log(`[ACP-BRIDGE] Routing method: ${method}`);
 
+      // Generate GitHub installation token and fetch repository info
+      let githubToken: string | undefined;
+      let repository: string | undefined;
+
+      if (this.tokenService && userConfig.installationId) {
+        try {
+          console.log(`[ACP-BRIDGE] Generating GitHub token for installation: ${userConfig.installationId}`);
+          const tokenResult = await this.tokenService.getInstallationToken(userConfig.installationId);
+          githubToken = tokenResult.token;
+          console.log(`[ACP-BRIDGE] GitHub token generated successfully`);
+
+          // Fetch repositories from installation to auto-populate repository metadata
+          if (this.githubService) {
+            try {
+              console.log(`[ACP-BRIDGE] Fetching repositories for installation: ${userConfig.installationId}`);
+              const repositories = await this.githubService.fetchRepositories(userConfig.installationId);
+              
+              if (repositories.length > 0) {
+                // Use the first repository (installations typically have one repo)
+                repository = repositories[0].fullName;
+                console.log(`[ACP-BRIDGE] Auto-detected repository: ${repository} (from ${repositories.length} available)`);
+              } else {
+                console.warn(`[ACP-BRIDGE] No repositories found for installation ${userConfig.installationId}`);
+              }
+            } catch (repoError) {
+              console.warn(`[ACP-BRIDGE] Failed to fetch repositories:`, repoError);
+              // Continue without repository info - user can still pass it manually
+            }
+          }
+        } catch (error) {
+          console.warn(`[ACP-BRIDGE] Failed to generate GitHub token:`, error);
+          // Continue without GitHub token - container will skip GitHub operations
+        }
+      } else {
+        console.log(`[ACP-BRIDGE] No token service or installation ID - GitHub operations will be skipped`);
+      }
+
       // Route all ACP operations to a consistent container instance to maintain session state
       // Using single container pool since session state is stored in memory
       const containerName = 'acp-session';
@@ -141,6 +184,12 @@ export class ACPBridgeService implements IACPBridgeService {
         params: {
           ...params,
           anthropicApiKey: userConfig.anthropicApiKey, // ✅ Use user's decrypted API key
+          ...(githubToken ? { githubToken } : {}), // ✅ Pass GitHub token in params (NOT env vars)
+          // Auto-inject repository metadata from installation (unless user provided it)
+          context: {
+            ...(params.context || {}),
+            ...(repository && !params.context?.repository ? { repository } : {}),
+          },
         },
         id: Date.now(),
       };
@@ -150,6 +199,8 @@ export class ACPBridgeService implements IACPBridgeService {
         containerName,
         userId,
         hasSessionId: !!params?.sessionId,
+        hasRepository: !!repository || !!params.context?.repository,
+        repository: repository || params.context?.repository || 'none',
         paramsKeys: Object.keys(params || {}),
         containerId: containerId.toString(),
       });
@@ -164,14 +215,6 @@ export class ACPBridgeService implements IACPBridgeService {
           },
           body: JSON.stringify(jsonRpcRequest),
         }),
-        {
-          env: {
-            ANTHROPIC_API_KEY: userConfig.anthropicApiKey, // ✅ Pass user's API key to container
-            NODE_ENV: 'production',
-            USER_ID: userId,
-            INSTALLATION_ID: userConfig.installationId,
-          },
-        },
       );
 
       console.log(`[ACP-BRIDGE] Container response status:`, containerResponse.status);

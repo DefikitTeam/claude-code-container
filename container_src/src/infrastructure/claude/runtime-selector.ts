@@ -6,10 +6,7 @@ import type {
   IClaudeService,
   RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
-import { resolveClaudeCli } from './cli-resolver.js';
 import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
-import { SDKClientAdapter } from './sdk-client.adapter.js';
-import { CLIClientAdapter } from './cli-client.adapter.js';
 import { HTTPAPIClientAdapter } from './http-api-client.adapter.js';
 import { VercelOpenRouterAdapter } from '../ai/vercel-openrouter.adapter.js';
 
@@ -33,10 +30,11 @@ export class ClaudeRuntimeSelector implements IClaudeService {
   private readonly defaultModel: string;
 
   constructor(options: ClaudeRuntimeSelectorOptions = {}) {
+    // Clean architecture: Only use modern adapters
+    // 1. VercelOpenRouterAdapter - Primary (Vercel AI SDK + OpenRouter)
+    // 2. HTTPAPIClientAdapter - Fallback (Direct HTTP to Anthropic/OpenRouter)
     this.adapters = options.adapters ?? [
       new VercelOpenRouterAdapter(),
-      new SDKClientAdapter(),
-      new CLIClientAdapter(),
       new HTTPAPIClientAdapter(),
     ];
     this.defaultModel = options.defaultModel || DEFAULT_MODEL;
@@ -215,13 +213,11 @@ export class ClaudeRuntimeSelector implements IClaudeService {
 
     const candidates = [...this.adapters];
 
-    // When running as root, prioritise HTTP adapter.
+    // Priority: HTTP API when running as root for security
     if (context.runningAsRoot || context.forceHttpApi) {
       candidates.sort((a, b) => {
         if (a.name === 'http-api') return -1;
         if (b.name === 'http-api') return 1;
-        if (a.name === 'sdk') return 1;
-        if (b.name === 'sdk') return -1;
         return 0;
       });
     }
@@ -237,22 +233,13 @@ export class ClaudeRuntimeSelector implements IClaudeService {
   }
 
   protected async diagnostics(): Promise<Record<string, unknown>> {
-    const home = os.homedir();
-    const configDir = path.join(home, '.config', 'claude-code');
-    const authFile = path.join(configDir, 'auth.json');
-    const legacyFile = path.join(home, '.claude.json');
-
-    const cli = await resolveClaudeCli();
-
     return {
       node: process.version,
       platform: process.platform,
       cwd: process.cwd(),
       hasApiKeyEnv: Boolean(process.env.ANTHROPIC_API_KEY),
-      paths: { authFile, legacyFile },
-      claudeCliCommand: cli?.command ?? null,
-      claudeCliVersion: cli?.versionStdout ?? null,
-      claudeCliVersionError: cli?.versionError ?? null,
+      hasOpenRouterKeyEnv: Boolean(process.env.OPENROUTER_API_KEY),
+      adapters: this.adapters.map(a => a.name),
     };
   }
 }

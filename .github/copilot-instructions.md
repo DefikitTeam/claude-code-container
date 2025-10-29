@@ -1,5 +1,16 @@
 ## Claude Code Containers – Focused AI Working Guide
 
+> **⚠️ MIGRATION NOTICE:**
+> This guide covers the **CURRENT (monolithic)** architecture.
+> 
+> **NEW Clean Architecture version available:** `.github/copilot-instructions-clean-architecture.md`
+> 
+> **Comparison guide:** `.github/COPILOT_INSTRUCTIONS_COMPARISON.md`
+> 
+> Use this guide for current codebase work. Use Clean Architecture guide for refactoring.
+
+---
+
 Purpose: Equip an AI agent to extend or modify this multi-tenant Cloudflare
 Worker + Container automation system safely and fast. Always cite concrete
 files; never invent endpoints or config fields.

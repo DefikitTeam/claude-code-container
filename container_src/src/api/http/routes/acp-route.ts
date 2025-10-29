@@ -55,6 +55,8 @@ function buildRequestContext(
     sessionId: getString(params, ['sessionId']),
     anthropicApiKey:
       getString(params, ['anthropicApiKey']) ?? process.env.ANTHROPIC_API_KEY,
+    githubToken:
+      getString(params, ['githubToken']) ?? process.env.GITHUB_TOKEN, // ✅ Extract GitHub token from params
     workspaceUri: getString(params, ['configuration', 'workspaceUri']),
     repository: getValue(params, ['context', 'repository']),
     operation: getValue(params, ['context', 'operation']),

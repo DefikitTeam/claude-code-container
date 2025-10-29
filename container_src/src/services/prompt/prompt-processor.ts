@@ -45,6 +45,9 @@ import { useDomainEntities } from '../../core/config/feature-flags.js';
 import { SessionEntity } from '../../core/entities/session.entity.js';
 import { PromptEntity } from '../../core/entities/prompt.entity.js';
 import { WorkspaceEntity } from '../../core/entities/workspace.entity.js';
+import { extractPatchesFromText, extractFileWriteCandidate } from './patch-applier.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 const GITHUB_AUTOMATION_VERSION = '1.0.0';
 
@@ -386,6 +389,77 @@ export class PromptProcessor {
         createdAt: wsDesc.createdAt,
       },
     };
+
+    // Attempt to auto-apply unified-diff patches produced by the model, if enabled.
+    // Controlled via env APPLY_MODEL_PATCHES (default: enabled). Uses gitService.applyPatch.
+    if (process.env.APPLY_MODEL_PATCHES !== '0' && this.deps.gitService && fullText) {
+      try {
+        const patches = extractPatchesFromText(fullText);
+        if (patches && patches.length) {
+          for (let i = 0; i < patches.length; i++) {
+            const patch = patches[i];
+            try {
+              console.error(
+                `[PATCH-APPLY][${sessionId}] applying patch #${i + 1} size=${Buffer.byteLength(
+                  patch,
+                  'utf8',
+                )} bytes`,
+              );
+              // applyPatch may throw; we capture and continue
+              // @ts-ignore - gitService is optional but checked above
+              await this.deps.gitService.applyPatch(wsDesc.path, patch);
+              console.error(`[PATCH-APPLY][${sessionId}] patch #${i + 1} applied`);
+            } catch (err) {
+              console.error(
+                `[PATCH-APPLY][${sessionId}] failed to apply patch #${i + 1}`,
+                err instanceof Error ? err.message : String(err),
+              );
+              // record patch apply error in meta for diagnostics / issue body
+              const arr = (meta as any).patchApplyErrors || [];
+              arr.push({ index: i + 1, error: err instanceof Error ? err.message : String(err) });
+              (meta as any).patchApplyErrors = arr;
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[PATCH-APPLY][${sessionId}] extractor error`, e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    // If no unified-diff patches were found/applied, attempt a best-effort file write
+    // when the prompt or model output includes a filename hint + fenced code block.
+    try {
+      // check if any changed files already exist; if none, attempt file write
+      let preChanged: string[] = [];
+      if (this.deps.gitService && typeof this.deps.gitService.listChangedFiles === 'function') {
+        // @ts-ignore - guarded above
+        preChanged = (await this.deps.gitService.listChangedFiles(wsDesc.path)) || [];
+      }
+      if (preChanged.length === 0 && process.env.APPLY_MODEL_PATCHES !== '0' && fullText) {
+        const candidate = extractFileWriteCandidate(prompt, fullText);
+        if (candidate && candidate.filename && candidate.content) {
+          try {
+            const targetPath = path.join(wsDesc.path, candidate.filename);
+            console.error(`[FILE-WRITE][${sessionId}] writing ${candidate.filename} -> ${targetPath}`);
+            // ensure parent dir exists
+            try {
+              await fs.mkdir(path.dirname(targetPath), { recursive: true });
+            } catch (e) {}
+            await fs.writeFile(targetPath, candidate.content, { encoding: 'utf8' });
+            // leave as uncommitted change so existing automation will detect it
+            console.error(`[FILE-WRITE][${sessionId}] wrote ${candidate.filename}`);
+            (meta as any).autoWrittenFile = candidate.filename; // record for diagnostics
+          } catch (err) {
+            console.error(`[FILE-WRITE][${sessionId}] failed to write file`, err instanceof Error ? err.message : String(err));
+            const arr = (meta as any).fileWriteErrors || [];
+            arr.push({ filename: candidate.filename, error: err instanceof Error ? err.message : String(err) });
+            (meta as any).fileWriteErrors = arr;
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[FILE-WRITE][${sessionId}] detection error`, e instanceof Error ? e.message : String(e));
+    }
 
     const automationResult = await this.executeGitHubAutomation({
       session,

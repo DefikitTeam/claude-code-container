@@ -5,15 +5,31 @@
  * and prevent unauthorized access to other users' credentials.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { ACPBridgeService } from '../../infrastructure/services/acp-bridge.service';
 
 describe('Security: ACP Multi-Tenant Authentication', () => {
   let mockEnv: any;
   let acpBridge: ACPBridgeService;
+  let mockTokenService: any;
 
   beforeEach(() => {
+    // Mock TokenService
+    mockTokenService = {
+      getInstallationToken: async (installationId: string) => {
+        // Return different tokens for different installations
+        const tokens: Record<string, string> = {
+          '111': 'ghs_installation_token_111',
+          '222': 'ghs_installation_token_222',
+        };
+        return {
+          token: tokens[installationId] || `ghs_token_${installationId}`,
+          expiresAt: Date.now() + 3600000,
+        };
+      },
+    };
+
     // Mock environment with UserConfigDO
     const mockUserConfigs = new Map<string, any>();
     
@@ -73,7 +89,19 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       },
     };
 
-    acpBridge = new ACPBridgeService();
+    // Mock GitHub service
+    const mockGitHubService = {
+      fetchRepositories: vi.fn().mockResolvedValue([
+        {
+          id: 123,
+          name: 'test-repo',
+          fullName: 'test-owner/test-repo',
+          url: 'https://github.com/test-owner/test-repo',
+        },
+      ]),
+    };
+
+    acpBridge = new ACPBridgeService(mockTokenService, mockGitHubService as any);
   });
 
   describe('userId validation', () => {
@@ -221,6 +249,126 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       
       // The container should receive user_1's key ('sk-ant-user1-secret-key')
       // NOT the global key ('sk-ant-global-SHOULD-NOT-BE-USED')
+    });
+  });
+
+  describe('GitHub token generation', () => {
+    it('should generate GitHub token for user installation', async () => {
+      let capturedBody: any;
+      
+      // Disable NO_CONTAINERS to test real flow
+      delete mockEnv.NO_CONTAINERS;
+      
+      // Mock container to capture request body
+      mockEnv.MY_CONTAINER = {
+        idFromName: () => ({ toString: () => 'mock-container' }),
+        get: () => ({
+          fetch: async (req: Request) => {
+            const bodyText = await req.text();
+            capturedBody = JSON.parse(bodyText);
+            return new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 }
+            );
+          },
+        }),
+      };
+
+      await acpBridge.routeACPMethod(
+        'session/new',
+        { userId: 'user_1', configuration: {} },
+        mockEnv
+      );
+
+      // Verify GitHub token was generated and passed in params
+      expect(capturedBody).toBeDefined();
+      expect(capturedBody.params).toBeDefined();
+      expect(capturedBody.params.githubToken).toBe('ghs_installation_token_111');
+      expect(capturedBody.params.anthropicApiKey).toBe('sk-ant-user1-secret-key');
+    });
+
+    it('should generate different GitHub tokens for different users', async () => {
+      const capturedBodies: any[] = [];
+      
+      // Disable NO_CONTAINERS to test real flow
+      delete mockEnv.NO_CONTAINERS;
+      
+      mockEnv.MY_CONTAINER = {
+        idFromName: () => ({ toString: () => 'mock-container' }),
+        get: () => ({
+          fetch: async (req: Request) => {
+            const bodyText = await req.text();
+            capturedBodies.push(JSON.parse(bodyText));
+            return new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 }
+            );
+          },
+        }),
+      };
+
+      // User 1 request
+      await acpBridge.routeACPMethod(
+        'session/new',
+        { userId: 'user_1', configuration: {} },
+        mockEnv
+      );
+
+      // User 2 request
+      await acpBridge.routeACPMethod(
+        'session/new',
+        { userId: 'user_2', configuration: {} },
+        mockEnv
+      );
+
+      expect(capturedBodies).toHaveLength(2);
+      expect(capturedBodies[0].params.githubToken).toBe('ghs_installation_token_111');
+      expect(capturedBodies[1].params.githubToken).toBe('ghs_installation_token_222');
+    });
+
+    it('should handle GitHub token generation failure gracefully', async () => {
+      // Mock token service that fails
+      const failingTokenService = {
+        getInstallationToken: async () => {
+          throw new Error('Token generation failed');
+        },
+      };
+
+      const mockGitHubServiceForFailure = {
+        fetchRepositories: vi.fn().mockRejectedValue(new Error('Failed to fetch repos')),
+      };
+
+      const failingBridge = new ACPBridgeService(failingTokenService, mockGitHubServiceForFailure as any);
+      let capturedBody: any;
+      
+      // Disable NO_CONTAINERS to test real flow
+      delete mockEnv.NO_CONTAINERS;
+      
+      mockEnv.MY_CONTAINER = {
+        idFromName: () => ({ toString: () => 'mock-container' }),
+        get: () => ({
+          fetch: async (req: Request) => {
+            const bodyText = await req.text();
+            capturedBody = JSON.parse(bodyText);
+            return new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 }
+            );
+          },
+        }),
+      };
+
+      const result = await failingBridge.routeACPMethod(
+        'session/new',
+        { userId: 'user_1', configuration: {} },
+        mockEnv
+      );
+
+      // Should continue without error (GitHub operations just won't work)
+      expect(result.error).toBeUndefined();
+      expect(capturedBody).toBeDefined();
+      expect(capturedBody.params.githubToken).toBeUndefined();
+      expect(capturedBody.params.anthropicApiKey).toBe('sk-ant-user1-secret-key');
     });
   });
 });

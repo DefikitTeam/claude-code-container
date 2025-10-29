@@ -130,7 +130,7 @@ async function setupDI(env: Env): Promise<Controllers> {
   const deploymentRepository = new DeploymentRepositoryImpl();
   
   // Initialize ACP Bridge and Container Registry Auth services
-  const acpBridgeService = new ACPBridgeService();
+  const acpBridgeService = new ACPBridgeService(tokenService, githubService);
   const containerRegistryAuthService = new ContainerRegistryAuthService(env, tokenService);
 
   const registerUserUseCase = new RegisterUserUseCase(userRepository, githubService, cryptoService);
