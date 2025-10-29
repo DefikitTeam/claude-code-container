@@ -724,7 +724,9 @@ function buildAuthedUrl(
 ): string | undefined {
   if (!url) return undefined;
   const sanitized = sanitizeRemote(url);
-  const withoutProtocol = sanitized.replace(/^https?:\/\//i, '');
+  // CRITICAL FIX: Strip trailing slashes that cause git push to fail
+  // Error: "URL rejected: Port number was not a decimal number between 0 and 65535"
+  const withoutProtocol = sanitized.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
   return `https://x-access-token:${token}@${withoutProtocol}`;
 }
 

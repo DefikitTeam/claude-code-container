@@ -100,6 +100,7 @@ export interface GitHubAutomationContext {
   metadata?: Record<string, unknown>;
   dryRun?: boolean;
   allowEmptyCommit?: boolean;
+  workspaceAlreadyPrepared?: boolean;
 }
 
 export interface PreparedWorkspace {
@@ -350,25 +351,27 @@ export class GitHubAutomationService {
       context.auth.installationToken,
     );
 
-    if (context.repository.cloneUrl) {
-      this.log(logs, 'git.ensureRepo', {
+    if (!context.workspaceAlreadyPrepared) {
+      // Only setup workspace if not already prepared
+      if (context.repository.cloneUrl) {
+        this.log(logs, 'git.ensureRepo', {
+          path: workspacePath,
+          cloneUrl: redactToken(context.repository.cloneUrl),
+        });
+        await this.git.ensureRepo(workspacePath, {
+          defaultBranch: baseBranch,
+          cloneUrl: authedCloneUrl,
+        });
+      }
+      await this.git.runGit(workspacePath, ['fetch', 'origin', baseBranch]);
+      await this.git.checkoutBranch(workspacePath, baseBranch);
+      await this.git.runGit(workspacePath, ['pull', '--ff-only', 'origin', baseBranch]);
+    } else {
+      this.log(logs, 'git.workspaceAlreadyPrepared', {
         path: workspacePath,
-        cloneUrl: redactToken(context.repository.cloneUrl),
-      });
-      await this.git.ensureRepo(workspacePath, {
-        defaultBranch: baseBranch,
-        cloneUrl: authedCloneUrl,
+        reason: 'skipping ensureRepo, fetch, checkout, and pull',
       });
     }
-
-    await this.git.runGit(workspacePath, ['fetch', 'origin', baseBranch]);
-    await this.git.checkoutBranch(workspacePath, baseBranch);
-    await this.git.runGit(workspacePath, [
-      'pull',
-      '--ff-only',
-      'origin',
-      baseBranch,
-    ]);
 
     const branchName =
       context.branchNameOverride ||
@@ -388,6 +391,14 @@ export class GitHubAutomationService {
 
     const hasChanges = await this.git.hasUncommittedChanges(workspacePath);
     const changedFiles = await collectChangedFiles(this.git, workspacePath);
+
+    console.error('[GITHUB-AUTO][prepareWorkspace] Workspace status:', {
+      workspacePath,
+      branchName,
+      hasChanges,
+      changedFiles,
+      workspaceAlreadyPrepared: context.workspaceAlreadyPrepared,
+    });
 
     return {
       path: workspacePath,
@@ -813,7 +824,9 @@ function buildAuthedUrl(
 ): string | undefined {
   if (!url) return undefined;
   const sanitized = sanitizeRemote(url);
-  const withoutProtocol = sanitized.replace(/^https?:\/\//i, '');
+  // CRITICAL FIX: Strip trailing slashes that cause git push to fail
+  // Error: "URL rejected: Port number was not a decimal number between 0 and 65535"
+  const withoutProtocol = sanitized.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
   return `https://x-access-token:${token}@${withoutProtocol}`;
 }
 

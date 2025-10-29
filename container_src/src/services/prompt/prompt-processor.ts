@@ -170,6 +170,82 @@ export class PromptProcessor {
       sessionOptions: session.sessionOptions,
     });
 
+    // IMPORTANT: ensure repository is cloned into the workspace BEFORE running the model.
+    // The older/main flow cloned the repository prior to the Claude run so that any
+    // file writes or applied patches happen inside a real git checkout. If we don't
+    // clone first, the automation later may re-clone or init the repo and the
+    // model's modifications get lost / are not detected ("No workspace changes detected").
+    let repoEnsured = false;
+    try {
+      const resolvedRepo = this.resolveRepositoryDescriptor(
+        activeAgentContext,
+        opts,
+        wsDesc,
+      );
+      console.error(`[PROMPT][${sessionId}] resolvedRepo:`, JSON.stringify({
+        owner: resolvedRepo?.owner,
+        name: resolvedRepo?.name,
+        cloneUrl: resolvedRepo?.cloneUrl ? 'present' : 'missing',
+        defaultBranch: resolvedRepo?.defaultBranch,
+      }));
+      const token = await this.resolveGitHubToken(activeAgentContext, opts);
+      console.error(`[PROMPT][${sessionId}] token:`, token ? 'present' : 'missing', 'gitService:', !!this.deps.gitService);
+
+      // CRITICAL FIX: If cloneUrl is missing but we have owner/name, construct it
+      // DO NOT embed token here - let buildAuthedUrl handle it in automation service
+      if (resolvedRepo && !resolvedRepo.cloneUrl && resolvedRepo.owner && resolvedRepo.name) {
+        const baseUrl = `https://github.com/${resolvedRepo.owner}/${resolvedRepo.name}.git`;
+        resolvedRepo.cloneUrl = baseUrl; // Plain URL without token
+        console.error(`[PROMPT][${sessionId}] auto-constructed cloneUrl from owner/name:`, baseUrl);
+      }
+
+      if (resolvedRepo && resolvedRepo.cloneUrl && this.deps.gitService) {
+        // Attempt to ensure the repo is present in the workspace path (shallow clone/init)
+        // Add authentication for clone operation
+        const authedCloneUrl = token && resolvedRepo.cloneUrl
+          ? resolvedRepo.cloneUrl.replace('https://github.com/', `https://x-access-token:${token}@github.com/`)
+          : resolvedRepo.cloneUrl;
+        console.error(`[PROMPT][${sessionId}] calling ensureRepo at path:`, wsDesc.path);
+        try {
+          await this.deps.gitService.ensureRepo(wsDesc.path, {
+            defaultBranch: resolvedRepo.defaultBranch,
+            cloneUrl: authedCloneUrl,
+          });
+          console.error(`[PROMPT][${sessionId}] ensureRepo completed successfully`);
+          // Try to fetch the base branch so workspace is up-to-date
+          if (resolvedRepo.defaultBranch) {
+            await this.deps.gitService.runGit(wsDesc.path, [
+              'fetch',
+              'origin',
+              resolvedRepo.defaultBranch,
+            ]);
+            await this.deps.gitService.checkoutBranch(
+              wsDesc.path,
+              resolvedRepo.defaultBranch,
+            );
+          }
+          repoEnsured = true;
+          console.error(`[PROMPT][${sessionId}] ensured repo present at workspace`);
+        } catch (e) {
+          console.error(`[PROMPT][${sessionId}] pre-clone failed:`,
+            e instanceof Error ? e.message : String(e),
+            e instanceof Error ? e.stack : '');
+        }
+      } else {
+        console.error(`[PROMPT][${sessionId}] skipping ensureRepo - condition not met`);
+      }
+    } catch (e) {
+      // non-fatal: proceed without pre-clone (automation will still attempt),
+      // but log for diagnostics
+      console.error(`[PROMPT][${sessionId}] resolveRepo (pre-clone) failed:`,
+        e instanceof Error ? e.message : String(e),
+        e instanceof Error ? e.stack : '');
+    }
+
+    if (!repoEnsured) {
+      console.error(`[PROMPT][${sessionId}] WARNING: Repository was not cloned before Claude run. File writes may not be detected by git!`);
+    }
+
     if (entitiesEnabled) {
       wsDesc = WorkspaceEntity.fromDescriptor(wsDesc).toJSON();
     }
@@ -178,9 +254,10 @@ export class PromptProcessor {
     let preDiagnostics: Record<string, unknown> | undefined;
     if (this.deps.diagnosticsService) {
       try {
+        // IMPORTANT: Use wsDesc.path (where we cloned the repo), NOT session.workspaceUri
+        // session.workspaceUri might be a file:// URI or different path
         preDiagnostics = await this.deps.diagnosticsService.run({
-          workspacePath:
-            session.workspaceUri && new URL(session.workspaceUri).pathname,
+          workspacePath: wsDesc.path,
         });
       } catch (e) {
         /* ignore */
@@ -441,12 +518,35 @@ export class PromptProcessor {
           try {
             const targetPath = path.join(wsDesc.path, candidate.filename);
             console.error(`[FILE-WRITE][${sessionId}] writing ${candidate.filename} -> ${targetPath}`);
+            console.error(`[FILE-WRITE][${sessionId}] workspace path: ${wsDesc.path}`);
+            console.error(`[FILE-WRITE][${sessionId}] target path: ${targetPath}`);
+            console.error(`[FILE-WRITE][${sessionId}] isAbsolute: ${path.isAbsolute(targetPath)}`);
+
             // ensure parent dir exists
             try {
               await fs.mkdir(path.dirname(targetPath), { recursive: true });
             } catch (e) {}
+
             await fs.writeFile(targetPath, candidate.content, { encoding: 'utf8' });
-            // leave as uncommitted change so existing automation will detect it
+
+            // Verify file was written
+            try {
+              const stat = await fs.stat(targetPath);
+              console.error(`[FILE-WRITE][${sessionId}] verified file exists: size=${stat.size} bytes, mode=${stat.mode.toString(8)}`);
+            } catch (e) {
+              console.error(`[FILE-WRITE][${sessionId}] WARNING: file write succeeded but verification failed`, e instanceof Error ? e.message : String(e));
+            }
+
+            // Immediately check if git detects it
+            if (this.deps.gitService) {
+              try {
+                const immediateStatus = await this.deps.gitService.getStatus(wsDesc.path);
+                console.error(`[FILE-WRITE][${sessionId}] git status immediately after write:\n${immediateStatus}`);
+              } catch (e) {
+                console.error(`[FILE-WRITE][${sessionId}] git status check failed:`, e instanceof Error ? e.message : String(e));
+              }
+            }
+
             console.error(`[FILE-WRITE][${sessionId}] wrote ${candidate.filename}`);
             (meta as any).autoWrittenFile = candidate.filename; // record for diagnostics
           } catch (err) {
@@ -470,6 +570,41 @@ export class PromptProcessor {
       options: opts,
       operationId,
     });
+
+    // Comprehensive diagnostic: capture detailed git state right before automation executes
+    try {
+      if (this.deps.gitService) {
+        // Import diagnostic utility
+        const { diagnoseWorkspace, formatDiagnosticResult } = await import('./workspace-diagnostic.js');
+
+        // Run comprehensive diagnostic
+        const diagnostic = await diagnoseWorkspace(wsDesc.path, [
+          'styles.css',
+          (meta as any).autoWrittenFile,
+        ].filter(Boolean));
+
+        // Store in meta for API response
+        (meta as any).workspaceDiagnostic = diagnostic;
+
+        // Log formatted report
+        console.error(`[WORKSPACE-DIAGNOSTIC][${session.sessionId}]\n${formatDiagnosticResult(diagnostic)}`);
+
+        // Also keep lightweight version for backwards compatibility
+        const gitStatus = await this.deps.gitService.getStatus(wsDesc.path).catch((e) => `error: ${String(e)}`);
+        const changedFiles = await this.deps.gitService.listChangedFiles(wsDesc.path).catch((e) => [`error: ${String(e)}`]);
+        const hasUncommitted = await this.deps.gitService.hasUncommittedChanges(wsDesc.path).catch(() => {
+          return false;
+        });
+        (meta as any).githubPreAuto = {
+          gitStatus: typeof gitStatus === 'string' ? gitStatus : String(gitStatus),
+          changedFiles: Array.isArray(changedFiles) ? changedFiles : [String(changedFiles)],
+          hasUncommittedChanges: hasUncommitted,
+        };
+        console.error(`[GIT-DIAG][${session.sessionId}] status=${(meta as any).githubPreAuto.gitStatus} hasUncommitted=${hasUncommitted} files=${JSON.stringify((meta as any).githubPreAuto.changedFiles)}`);
+      }
+    } catch (e) {
+      console.error(`[GIT-DIAG][${session.sessionId}] diagnostic failed`, e instanceof Error ? e.message : String(e));
+    }
 
     if (automationResult) {
       response.githubAutomation = automationResult;
@@ -544,7 +679,7 @@ export class PromptProcessor {
       return this.buildAutomationSkipped('GitOps disabled for session');
     }
 
-    const token = this.resolveGitHubToken(agentContext, options);
+    const token = await this.resolveGitHubToken(agentContext, options);
     if (!token) {
       return this.buildAutomationSkipped('Missing GitHub token');
     }
@@ -556,6 +691,11 @@ export class PromptProcessor {
     );
     if (!resolvedRepo) {
       return this.buildAutomationSkipped('Missing repository metadata');
+    }
+
+    // Auto-construct cloneUrl if missing (DO NOT embed token - buildAuthedUrl handles it)
+    if (!resolvedRepo.cloneUrl && resolvedRepo.owner && resolvedRepo.name) {
+      resolvedRepo.cloneUrl = `https://github.com/${resolvedRepo.owner}/${resolvedRepo.name}.git`;
     }
 
     const intent = this.resolveAutomationIntent(agentContext, options);
@@ -590,6 +730,7 @@ export class PromptProcessor {
       metadata,
       dryRun: resolvedRepo.dryRun,
       allowEmptyCommit: resolvedRepo.allowEmptyCommit,
+      workspaceAlreadyPrepared: true,
     };
 
     this.logAutomation('start', session.sessionId, operationId, {
@@ -626,10 +767,11 @@ export class PromptProcessor {
     }
   }
 
-  private resolveGitHubToken(
+  private async resolveGitHubToken(
     agentContext: Record<string, unknown> | undefined,
     options: ProcessPromptOptions,
-  ): string | undefined {
+  ): Promise<string | undefined> {
+    // 1. Check if token explicitly provided
     const fromOptions = options.githubToken;
     if (fromOptions && typeof fromOptions === 'string') return fromOptions;
 
@@ -642,6 +784,32 @@ export class PromptProcessor {
       this.getNested(options.rawParams, ['context', 'github', 'token']),
     ]);
     if (ctxToken) return ctxToken;
+
+    // 2. Check for installation ID and generate token from GitHub App credentials
+    const installationId = this.findString([
+      this.getNested(agentContext, ['installationId']),
+      this.getNested(agentContext, ['github', 'installationId']),
+      this.getNested(options.rawParams, ['installationId']),
+      this.getNested(options.sessionMeta, ['installationId']),
+    ]);
+
+    if (installationId) {
+      try {
+        const { getGlobalGitHubAppAuth } = await import('../github/github-app-auth.js');
+        const authService = getGlobalGitHubAppAuth();
+        if (authService) {
+          console.error(`[PROMPT] Generating installation token for installation: ${installationId}`);
+          const token = await authService.getInstallationToken(installationId);
+          return token;
+        } else {
+          console.error('[PROMPT] GitHub App auth service not available (missing GITHUB_APP_ID or GITHUB_APP_PRIVATE_KEY)');
+        }
+      } catch (error) {
+        console.error('[PROMPT] Failed to generate installation token:', error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    // 3. Fallback to environment variable
     return process.env.GITHUB_TOKEN;
   }
 

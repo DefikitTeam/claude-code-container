@@ -225,7 +225,9 @@ export class GitService implements IGitService {
     from?: string,
   ): Promise<void> {
     if (from) {
-      await this.runGit(repoPath, ['checkout', '-b', branchName, from]);
+      // Create branch from base without checking out base first (preserves uncommitted changes)
+      await this.runGit(repoPath, ['branch', branchName, from]);
+      await this.runGit(repoPath, ['checkout', branchName]);
     } else {
       await this.runGit(repoPath, ['checkout', '-b', branchName]);
     }

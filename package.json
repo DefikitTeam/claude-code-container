@@ -10,13 +10,13 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
-    "build": "npm run build:container",
-    "build:all": "npm install --silent && npm run build:container",
-    "build:container": "cd container_src && npm install --silent && npm run build",
-    "install:all": "npm install && cd container_src && npm install",
+    "build": "pnpm run build:container",
+    "build:all": "pnpm install --silent && pnpm run build:container",
+    "build:container": "cd container_src && pnpm install --silent && pnpm run build",
+    "install:all": "pnpm install && cd container_src && pnpm install",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postinstall": "echo '📦 Installing container dependencies...' && cd container_src && npm install --silent || echo '⚠️  Container dependencies installation failed'"
+    "postinstall": "echo '📦 Installing container dependencies...' && cd container_src && pnpm install --silent || echo '⚠️  Container dependencies installation failed'"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

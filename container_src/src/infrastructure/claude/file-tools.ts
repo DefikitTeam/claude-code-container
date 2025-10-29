@@ -1,0 +1,324 @@
+/**
+ * File System Tools for Vercel AI SDK
+ * Provides Claude with file manipulation capabilities similar to @anthropic-ai/claude-code SDK
+ */
+
+import { tool } from 'ai';
+import { z } from 'zod';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
+
+/**
+ * File Tools Configuration
+ */
+export interface FileToolsConfig {
+  workspacePath: string;
+  allowedCommands?: string[]; // Whitelist of allowed bash commands
+  maxFileSize?: number; // Max file size in bytes (default: 10MB)
+}
+
+/**
+ * Create file system tools for the AI SDK
+ */
+export function createFileTools(config: FileToolsConfig) {
+  const {
+    workspacePath,
+    allowedCommands = ['ls', 'cat', 'grep', 'find', 'git', 'npm', 'node', 'python', 'pip'],
+    maxFileSize = 10 * 1024 * 1024, // 10MB default
+  } = config;
+
+  /**
+   * Resolve and validate file path within workspace
+   */
+  function resolvePath(relativePath: string): string {
+    const resolved = path.resolve(workspacePath, relativePath);
+    // Security: Ensure path is within workspace
+    if (!resolved.startsWith(workspacePath)) {
+      throw new Error(`Path ${relativePath} is outside workspace`);
+    }
+    return resolved;
+  }
+
+  /**
+   * Tool: Read file contents
+   */
+  const readFileTool = tool({
+    description: 'Read the contents of a file from the workspace',
+    inputSchema: z.object({
+      path: z.string().describe('Path to the file relative to workspace root'),
+    }),
+    execute: async ({ path: filePath }) => {
+      try {
+        const fullPath = resolvePath(filePath);
+        const stats = await fs.stat(fullPath);
+
+        if (stats.size > maxFileSize) {
+          return {
+            success: false,
+            error: `File too large: ${stats.size} bytes (max: ${maxFileSize})`,
+          };
+        }
+
+        const content = await fs.readFile(fullPath, 'utf-8');
+        return {
+          success: true,
+          path: filePath,
+          content,
+          size: stats.size,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    },
+  });
+
+  /**
+   * Tool: Write file contents
+   */
+  const writeFileTool = tool({
+    description: 'Write content to a file in the workspace. Creates parent directories if needed.',
+    inputSchema: z.object({
+      path: z.string().describe('Path to the file relative to workspace root'),
+      content: z.string().describe('Content to write to the file'),
+    }),
+    execute: async ({ path: filePath, content }) => {
+      try {
+        const fullPath = resolvePath(filePath);
+
+        console.error('[FILE-TOOLS][writeFile] Writing file:', {
+          workspacePath,
+          relativePath: filePath,
+          fullPath,
+          contentSize: Buffer.byteLength(content, 'utf-8'),
+        });
+
+        // Create parent directory if it doesn't exist
+        await fs.mkdir(path.dirname(fullPath), { recursive: true });
+
+        // Write file
+        await fs.writeFile(fullPath, content, 'utf-8');
+
+        console.error('[FILE-TOOLS][writeFile] Successfully wrote file:', {
+          fullPath,
+          size: Buffer.byteLength(content, 'utf-8'),
+        });
+
+        return {
+          success: true,
+          path: filePath,
+          size: Buffer.byteLength(content, 'utf-8'),
+        };
+      } catch (error: any) {
+        console.error('[FILE-TOOLS][writeFile] Error writing file:', {
+          fullPath: resolvePath(filePath),
+          error: error.message,
+        });
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    },
+  });
+
+  /**
+   * Tool: List directory contents
+   */
+  const listDirectoryTool = tool({
+    description: 'List contents of a directory in the workspace',
+    inputSchema: z.object({
+      path: z.string().describe('Path to directory relative to workspace root').default('.'),
+      recursive: z.boolean().describe('List subdirectories recursively').default(false),
+    }),
+    execute: async ({ path: dirPath, recursive }) => {
+      try {
+        const fullPath = resolvePath(dirPath);
+
+        if (recursive) {
+          // Recursive listing
+          const files: string[] = [];
+
+          async function walk(dir: string, prefix: string = '') {
+            const entries = await fs.readdir(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+              const relativePath = path.join(prefix, entry.name);
+              files.push(entry.isDirectory() ? `${relativePath}/` : relativePath);
+
+              if (entry.isDirectory()) {
+                await walk(path.join(dir, entry.name), relativePath);
+              }
+            }
+          }
+
+          await walk(fullPath);
+          return {
+            success: true,
+            path: dirPath,
+            files,
+            count: files.length,
+          };
+        } else {
+          // Non-recursive listing
+          const entries = await fs.readdir(fullPath, { withFileTypes: true });
+          const files = entries.map(entry =>
+            entry.isDirectory() ? `${entry.name}/` : entry.name
+          );
+
+          return {
+            success: true,
+            path: dirPath,
+            files,
+            count: files.length,
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    },
+  });
+
+  /**
+   * Tool: Execute bash command (with safety restrictions)
+   */
+  const executeBashTool = tool({
+    description: `Execute a bash command in the workspace. Allowed commands: ${allowedCommands.join(', ')}`,
+    inputSchema: z.object({
+      command: z.string().describe('Bash command to execute'),
+    }),
+    execute: async ({ command }) => {
+      try {
+        // Security: Check if command starts with an allowed command
+        const commandBase = command.trim().split(/\s+/)[0];
+        if (!allowedCommands.includes(commandBase)) {
+          return {
+            success: false,
+            error: `Command '${commandBase}' not allowed. Allowed: ${allowedCommands.join(', ')}`,
+          };
+        }
+
+        // Execute command in workspace directory
+        const { stdout, stderr } = await execAsync(command, {
+          cwd: workspacePath,
+          timeout: 30000, // 30 second timeout
+          maxBuffer: 1024 * 1024, // 1MB buffer
+        });
+
+        return {
+          success: true,
+          command,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+          stderr: error.stderr || '',
+          stdout: error.stdout || '',
+        };
+      }
+    },
+  });
+
+  /**
+   * Tool: Delete file or directory
+   */
+  const deletePathTool = tool({
+    description: 'Delete a file or directory from the workspace',
+    inputSchema: z.object({
+      path: z.string().describe('Path to file/directory relative to workspace root'),
+      recursive: z.boolean().describe('Delete directory recursively').default(false),
+    }),
+    execute: async ({ path: targetPath, recursive }) => {
+      try {
+        const fullPath = resolvePath(targetPath);
+        const stats = await fs.stat(fullPath);
+
+        if (stats.isDirectory() && recursive) {
+          await fs.rm(fullPath, { recursive: true, force: true });
+          return {
+            success: true,
+            path: targetPath,
+            type: 'directory',
+          };
+        } else if (stats.isDirectory()) {
+          return {
+            success: false,
+            error: 'Path is a directory. Set recursive=true to delete.',
+          };
+        } else {
+          await fs.unlink(fullPath);
+          return {
+            success: true,
+            path: targetPath,
+            type: 'file',
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    },
+  });
+
+  /**
+   * Tool: Move/rename file or directory
+   */
+  const movePathTool = tool({
+    description: 'Move or rename a file or directory in the workspace',
+    inputSchema: z.object({
+      from: z.string().describe('Current path relative to workspace root'),
+      to: z.string().describe('New path relative to workspace root'),
+    }),
+    execute: async ({ from, to }) => {
+      try {
+        const fromPath = resolvePath(from);
+        const toPath = resolvePath(to);
+
+        // Create parent directory if needed
+        await fs.mkdir(path.dirname(toPath), { recursive: true });
+
+        await fs.rename(fromPath, toPath);
+
+        return {
+          success: true,
+          from,
+          to,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    },
+  });
+
+  // Return all tools
+  return {
+    readFile: readFileTool,
+    writeFile: writeFileTool,
+    listDirectory: listDirectoryTool,
+    executeBash: executeBashTool,
+    deletePath: deletePathTool,
+    movePath: movePathTool,
+  };
+}
+
+/**
+ * Export type for tools
+ */
+export type FileTools = ReturnType<typeof createFileTools>;

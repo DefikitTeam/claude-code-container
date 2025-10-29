@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc --pretty false",
     "start": "node dist/index.js",
-    "dev": "npm run build && npm run start",
+    "dev": "pnpm run build && pnpm run start",
     "acp": "node dist/index.js",
     "http-bridge": "node dist/index.js --http-bridge",
     "test": "vitest",
@@ -36,6 +36,7 @@
   "dependencies": {
     "@anthropic-ai/claude-code": "1.0.113",
     "@modelcontextprotocol/sdk": "1.18.0",
+    "@octokit/auth-app": "^8.1.1",
     "@octokit/rest": "^22.0.0",
     "@openrouter/ai-sdk-provider": "^1.2.0",
     "@zed-industries/agent-client-protocol": "0.3.1",
