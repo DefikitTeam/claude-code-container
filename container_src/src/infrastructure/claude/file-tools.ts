@@ -47,9 +47,19 @@ export function createFileTools(config: FileToolsConfig) {
    * Tool: Read file contents
    */
   const readFileTool = tool({
-    description: 'Read the contents of a file from the workspace',
+    description: `Read the contents of a file from the workspace.
+
+Use this to:
+- Examine existing code before modifying it
+- Understand the current implementation
+- Check configuration files
+- Read documentation or README files
+
+IMPORTANT: Always read a file before modifying it to understand its current state and structure.
+
+Example: readFile({ path: "src/components/Button.tsx" })`,
     inputSchema: z.object({
-      path: z.string().describe('Path to the file relative to workspace root'),
+      path: z.string().describe('Path to the file relative to workspace root (e.g., "src/app.ts" or "package.json")'),
     }),
     execute: async ({ path: filePath }) => {
       try {
@@ -83,10 +93,34 @@ export function createFileTools(config: FileToolsConfig) {
    * Tool: Write file contents
    */
   const writeFileTool = tool({
-    description: 'Write content to a file in the workspace. Creates parent directories if needed.',
+    description: `Write complete file contents to the workspace. This REPLACES the entire file.
+
+Use this to:
+- Create new files (tool automatically creates parent directories)
+- Update existing files (must provide COMPLETE new file content)
+- Fix bugs or add features to code files
+- Modify configuration files
+
+CRITICAL INSTRUCTIONS:
+1. You must provide the COMPLETE file content, not just the changes
+2. Include ALL imports, functions, and code - not just what changed
+3. Maintain proper indentation and formatting
+4. Match the existing code style (spaces vs tabs, line endings)
+5. For existing files: Read the file first, then write the complete updated version
+
+BAD (incomplete):
+  writeFile({ path: "styles.css", content: "/* TODO: make background red */" })
+
+GOOD (complete implementation):
+  writeFile({ path: "styles.css", content: "body {\\n  background-color: red;\\n}\\n" })
+
+Example workflow for modifying a file:
+1. readFile({ path: "src/app.ts" }) // Read current content
+2. Analyze what needs to change
+3. writeFile({ path: "src/app.ts", content: "...COMPLETE FILE..." }) // Write entire file`,
     inputSchema: z.object({
-      path: z.string().describe('Path to the file relative to workspace root'),
-      content: z.string().describe('Content to write to the file'),
+      path: z.string().describe('Path to the file relative to workspace root (e.g., "src/utils/helper.ts")'),
+      content: z.string().describe('COMPLETE file content to write (not just changes - the entire file)'),
     }),
     execute: async ({ path: filePath, content }) => {
       try {
@@ -132,10 +166,22 @@ export function createFileTools(config: FileToolsConfig) {
    * Tool: List directory contents
    */
   const listDirectoryTool = tool({
-    description: 'List contents of a directory in the workspace',
+    description: `List contents of a directory to explore the project structure.
+
+Use this to:
+- Understand the project organization (start with path: ".")
+- Find relevant files before making changes
+- Discover test directories, configuration files, etc.
+- Navigate the codebase structure
+
+Best practice: Start by listing the root directory to understand the project layout.
+
+Example:
+  listDirectory({ path: ".", recursive: false }) // See top-level structure
+  listDirectory({ path: "src", recursive: true })  // Deep exploration of src/`,
     inputSchema: z.object({
-      path: z.string().describe('Path to directory relative to workspace root').default('.'),
-      recursive: z.boolean().describe('List subdirectories recursively').default(false),
+      path: z.string().describe('Path to directory relative to workspace root (use "." for root)').default('.'),
+      recursive: z.boolean().describe('List subdirectories recursively (use false for quick overview, true for deep exploration)').default(false),
     }),
     execute: async ({ path: dirPath, recursive }) => {
       try {
@@ -192,9 +238,27 @@ export function createFileTools(config: FileToolsConfig) {
    * Tool: Execute bash command (with safety restrictions)
    */
   const executeBashTool = tool({
-    description: `Execute a bash command in the workspace. Allowed commands: ${allowedCommands.join(', ')}`,
+    description: `Execute bash commands for testing, building, and git operations.
+
+Allowed commands: ${allowedCommands.join(', ')}
+
+Common use cases:
+- Run tests: "npm test" or "pytest"
+- Check git status: "git status"
+- Install dependencies: "npm install" or "pip install"
+- Build project: "npm run build"
+- Run linters: "npm run lint"
+- Execute project scripts: "npm run dev"
+
+Examples:
+  executeBash({ command: "git status" })           // Check for uncommitted changes
+  executeBash({ command: "npm test" })             // Run test suite
+  executeBash({ command: "ls -la src/" })          // List files with details
+  executeBash({ command: "grep -r 'TODO' src/" }) // Search for TODOs
+
+Note: Commands must start with one of the allowed commands for security.`,
     inputSchema: z.object({
-      command: z.string().describe('Bash command to execute'),
+      command: z.string().describe(`Bash command to execute (must start with: ${allowedCommands.join(', ')})`),
     }),
     execute: async ({ command }) => {
       try {

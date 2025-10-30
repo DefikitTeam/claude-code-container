@@ -1,10 +1,11 @@
-import { streamText, tool } from 'ai';
+import { streamText, tool, stepCountIs } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { z } from 'zod';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import GitService from '../..//services/git/git-service.js';
 import { createFileTools } from '../claude/file-tools.js';
+import { getWorkspaceSystemPrompt } from './system-prompts.js';
 import type { ClaudeAdapter, ClaudeRuntimeContext } from '../claude/adapter.js';
 import type {
   ClaudeCallbacks,
@@ -84,11 +85,24 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
     } : undefined;
 
       try {
-      // 4. Stream text using Vercel AI SDK with file tools
+      // 4. Prepare system instructions for coding assistant behavior
+      const systemPrompt = getWorkspaceSystemPrompt({
+        workspacePath: context.workspacePath,
+      });
+
+      // 5. Stream text using Vercel AI SDK with file tools and system instructions
       const result = streamText({
         model: openrouter.chat(modelName),
+        system: systemPrompt, // ✅ Critical: System instructions for coding assistant behavior
         prompt: prompt,
         tools, // File system tools now available to Claude!
+
+        // ⚠️ CRITICAL: stopWhen allows AI to make multiple tool calls in sequence
+        // Without this, the stream ends after the first tool call!
+        // stopWhen: stepCountIs(N) means: allow up to N steps of tool calls
+        // Each step: AI thinks → calls tool → gets result → thinks again → ...
+        // We need multiple steps so AI can: list files → analyze → write files → verify
+        stopWhen: stepCountIs(10), // Allow up to 10 reasoning steps
 
         // Optional: Add providerOptions for OpenRouter-specific features
         providerOptions: {
@@ -117,32 +131,70 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
         abortSignal,
       });
 
-      // 5. Notify start
+      // 6. Notify start
       callbacks.onStart?.({ startTime });
 
-      // 6. Stream text chunks
+      // 7. Stream text chunks AND handle tool calls
+      // CRITICAL: Must use fullStream to get both text AND tool call execution
+      // textStream only gives text responses, not tool calls!
       let fullText = '';
-      for await (const textPart of result.textStream) {
-        fullText += textPart;
-        callbacks.onDelta?.({ text: textPart });
+      let toolCallCount = 0;
+      let toolExecutionCount = 0;
 
+      for await (const part of result.fullStream) {
         // Check abort signal
         if (abortSignal.aborted) {
           throw new Error('aborted');
         }
+
+        // Handle different part types from the stream
+        if (part.type === 'text-delta') {
+          // Text chunk from AI
+          const delta = part.text;
+          fullText += delta;
+          callbacks.onDelta?.({ text: delta });
+        } else if (part.type === 'tool-call') {
+          // AI is calling a tool
+          toolCallCount++;
+          console.error('[VercelOpenRouterAdapter] Tool call:', {
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            input: 'input' in part ? part.input : undefined,
+          });
+        } else if (part.type === 'tool-result') {
+          // Tool execution completed
+          toolExecutionCount++;
+          console.error('[VercelOpenRouterAdapter] Tool result:', {
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            output: 'output' in part ? part.output : undefined,
+          });
+        } else if (part.type === 'finish') {
+          // Stream finished
+          console.error('[VercelOpenRouterAdapter] Stream finished:', {
+            finishReason: part.finishReason,
+            totalUsage: part.totalUsage,
+          });
+        }
       }
 
-      // 7. Get final result (await promises for usage and metadata)
+      console.error('[VercelOpenRouterAdapter] Stream complete:', {
+        textLength: fullText.length,
+        toolCallsMade: toolCallCount,
+        toolsExecuted: toolExecutionCount,
+      });
+
+      // 8. Get final result (await promises for usage and metadata)
       const usage = await result.usage;
       const providerMetadata = await result.providerMetadata;
 
-      // 8. Extract token usage (if available)
+      // 9. Extract token usage (if available)
       const tokens = {
         input: usage?.inputTokens || this.estimateTokens(prompt),
         output: usage?.outputTokens || this.estimateTokens(fullText),
       };
 
-      // 9. Optional: Log OpenRouter-specific metadata (cost tracking)
+      // 10. Optional: Log OpenRouter-specific metadata (cost tracking)
       if (providerMetadata?.openrouter) {
         const metadata = providerMetadata.openrouter as any;
         console.log('[VercelOpenRouterAdapter] Usage:', {

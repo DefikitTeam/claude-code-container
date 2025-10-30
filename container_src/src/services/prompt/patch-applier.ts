@@ -24,31 +24,10 @@ export function extractPatchesFromText(text: string): string[] {
     if (candidate && isLikelyPatch(candidate)) patches.push(candidate);
   }
 
-  // 3) fallback: extract contiguous region that contains at least one @@ hunk header
-  const hunkRegex = /(^|\n)(diff --git[\s\S]*?|(?:^|\n)\+{3} [^\n\r]|@@ [^\n\r].*\n)/gi;
-  if (!patches.length) {
-    const all = text;
-    const hunks: string[] = [];
-    let idx = 0;
-    const lines = all.split(/\r?\n/);
-    while (idx < lines.length) {
-      const line = lines[idx];
-      if (line.startsWith('diff --git') || line.startsWith('@@ ') || line.startsWith('+++ ')) {
-        // collect until empty line separating blocks
-        let j = idx;
-        const buf: string[] = [];
-        while (j < lines.length) {
-          buf.push(lines[j]);
-          if (lines[j].trim() === '' && buf.length > 5) break;
-          j++;
-        }
-        const candidate = buf.join('\n').trim();
-        if (candidate && isLikelyPatch(candidate)) hunks.push(candidate);
-        idx = j + 1;
-      } else idx++;
-    }
-    patches.push(...hunks);
-  }
+  // ⚠️ NO-FALLBACK PRINCIPLE: Removed heuristic patch extraction
+  // If patches can't be found via fenced blocks or clear diff markers,
+  // don't try to guess - just return what we have (possibly empty array)
+  // This prevents extracting malformed or incomplete patches that could break code.
 
   // final filter: size and uniqueness
   const out: string[] = [];
@@ -75,7 +54,10 @@ export default { extractPatchesFromText };
 /**
  * Try to infer a file write from model prompt & output.
  * - filenameHint: searched from prompt text (e.g., "update styles.css")
- * - content: first fenced code block or whole text fallback
+ * - content: ONLY from fenced code blocks (NO fallback to entire text)
+ *
+ * ⚠️ NO-FALLBACK PRINCIPLE: Returns undefined if no code block found.
+ * This prevents writing conversational AI responses to files.
  */
 export function extractFileWriteCandidate(
   promptText: string | undefined,
@@ -100,7 +82,16 @@ export function extractFileWriteCandidate(
   // extract first fenced code block (any language)
   const fenceAny = /```(?:[^\n]*)\n([\s\S]*?)```/i;
   const fm = fullText.match(fenceAny);
-  const content = fm ? fm[1].trim() : fullText.trim();
+
+  // ⚠️ CRITICAL FIX: Only extract content from actual fenced code blocks
+  // NEVER fall back to entire AI response text (which could be conversational)
+  if (!fm) {
+    // No fenced code block found - this means the AI probably responded conversationally
+    // instead of providing code. Return undefined to prevent writing garbage to files.
+    return undefined;
+  }
+
+  const content = fm[1].trim();
 
   if (filename && content && content.length > 0) {
     return { filename, content };

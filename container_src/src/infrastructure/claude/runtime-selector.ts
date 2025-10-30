@@ -85,9 +85,19 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       const context = await this.createContext(options);
       const candidates = await this.planAdapters(context);
 
+      console.error(`[ClaudeRuntimeSelector] Available adapters: ${candidates.map(a => a.name).join(', ')}`);
+      console.error(`[ClaudeRuntimeSelector] Context:`, {
+        hasWorkspace: !!context.workspacePath,
+        model: context.model,
+        disableSdk: context.disableSdk,
+        forceHttpApi: context.forceHttpApi,
+        runningAsRoot: context.runningAsRoot,
+      });
+
       let lastError: unknown = null;
       for (const adapter of candidates) {
         try {
+          console.error(`[ClaudeRuntimeSelector] Using adapter: ${adapter.name}`);
           const result = await adapter.run(
             prompt,
             options,

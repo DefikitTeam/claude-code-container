@@ -370,3 +370,10 @@ This project is licensed under the MIT License.
 
 _Generated and maintained by Claude Code - Automated GitHub Issue Processing
 System_
+
+## Active Technologies
+- TypeScript 5.9.2, Node.js 22+ (006-add-openhands-sdk)
+- N/A (stateless adapter, conversation IDs ephemeral) (006-add-openhands-sdk)
+
+## Recent Changes
+- 006-add-openhands-sdk: Added TypeScript 5.9.2, Node.js 22+

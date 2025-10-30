@@ -46,8 +46,6 @@ import { SessionEntity } from '../../core/entities/session.entity.js';
 import { PromptEntity } from '../../core/entities/prompt.entity.js';
 import { WorkspaceEntity } from '../../core/entities/workspace.entity.js';
 import { extractPatchesFromText, extractFileWriteCandidate } from './patch-applier.js';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 
 const GITHUB_AUTOMATION_VERSION = '1.0.0';
 
@@ -503,62 +501,43 @@ export class PromptProcessor {
       }
     }
 
-    // If no unified-diff patches were found/applied, attempt a best-effort file write
-    // when the prompt or model output includes a filename hint + fenced code block.
-    try {
-      // check if any changed files already exist; if none, attempt file write
-      let preChanged: string[] = [];
-      if (this.deps.gitService && typeof this.deps.gitService.listChangedFiles === 'function') {
-        // @ts-ignore - guarded above
-        preChanged = (await this.deps.gitService.listChangedFiles(wsDesc.path)) || [];
-      }
-      if (preChanged.length === 0 && process.env.APPLY_MODEL_PATCHES !== '0' && fullText) {
-        const candidate = extractFileWriteCandidate(prompt, fullText);
-        if (candidate && candidate.filename && candidate.content) {
-          try {
-            const targetPath = path.join(wsDesc.path, candidate.filename);
-            console.error(`[FILE-WRITE][${sessionId}] writing ${candidate.filename} -> ${targetPath}`);
-            console.error(`[FILE-WRITE][${sessionId}] workspace path: ${wsDesc.path}`);
-            console.error(`[FILE-WRITE][${sessionId}] target path: ${targetPath}`);
-            console.error(`[FILE-WRITE][${sessionId}] isAbsolute: ${path.isAbsolute(targetPath)}`);
+    // ⚠️ NO-FALLBACK PRINCIPLE: File writes should ONLY happen via AI tool usage
+    // This fallback logic has been REMOVED to prevent wrong results.
+    //
+    // If no files were changed, that means:
+    // 1. AI responded conversationally instead of using tools (ERROR)
+    // 2. AI didn't understand the request (ERROR)
+    // 3. Request was not a file operation (OK)
+    //
+    // DO NOT try to "help" by extracting code from text - this creates garbage results.
+    // Better to fail clearly than succeed incorrectly.
+    //
+    // To re-enable legacy fallback behavior (NOT RECOMMENDED):
+    // Set environment variable: ENABLE_FALLBACK_FILE_WRITE=1
 
-            // ensure parent dir exists
-            try {
-              await fs.mkdir(path.dirname(targetPath), { recursive: true });
-            } catch (e) {}
+    if (process.env.ENABLE_FALLBACK_FILE_WRITE === '1') {
+      console.warn(`[FILE-WRITE][${sessionId}] WARNING: Legacy fallback file write is enabled. This can produce incorrect results.`);
 
-            await fs.writeFile(targetPath, candidate.content, { encoding: 'utf8' });
+      try {
+        let preChanged: string[] = [];
+        if (this.deps.gitService && typeof this.deps.gitService.listChangedFiles === 'function') {
+          // @ts-ignore - guarded above
+          preChanged = (await this.deps.gitService.listChangedFiles(wsDesc.path)) || [];
+        }
 
-            // Verify file was written
-            try {
-              const stat = await fs.stat(targetPath);
-              console.error(`[FILE-WRITE][${sessionId}] verified file exists: size=${stat.size} bytes, mode=${stat.mode.toString(8)}`);
-            } catch (e) {
-              console.error(`[FILE-WRITE][${sessionId}] WARNING: file write succeeded but verification failed`, e instanceof Error ? e.message : String(e));
-            }
-
-            // Immediately check if git detects it
-            if (this.deps.gitService) {
-              try {
-                const immediateStatus = await this.deps.gitService.getStatus(wsDesc.path);
-                console.error(`[FILE-WRITE][${sessionId}] git status immediately after write:\n${immediateStatus}`);
-              } catch (e) {
-                console.error(`[FILE-WRITE][${sessionId}] git status check failed:`, e instanceof Error ? e.message : String(e));
-              }
-            }
-
-            console.error(`[FILE-WRITE][${sessionId}] wrote ${candidate.filename}`);
-            (meta as any).autoWrittenFile = candidate.filename; // record for diagnostics
-          } catch (err) {
-            console.error(`[FILE-WRITE][${sessionId}] failed to write file`, err instanceof Error ? err.message : String(err));
-            const arr = (meta as any).fileWriteErrors || [];
-            arr.push({ filename: candidate.filename, error: err instanceof Error ? err.message : String(err) });
-            (meta as any).fileWriteErrors = arr;
+        if (preChanged.length === 0 && fullText) {
+          const candidate = extractFileWriteCandidate(prompt, fullText);
+          if (!candidate) {
+            console.error(`[FILE-WRITE][${sessionId}] No file write candidate found. AI may have responded conversationally without using tools or providing code blocks.`);
+          } else {
+            console.warn(`[FILE-WRITE][${sessionId}] Attempting fallback file write for ${candidate.filename} - this may produce incorrect results!`);
+            // Fallback logic would go here, but we're not implementing it
+            // to prevent wrong results from being committed
           }
         }
+      } catch (e) {
+        console.error(`[FILE-WRITE][${sessionId}] fallback detection error`, e instanceof Error ? e.message : String(e));
       }
-    } catch (e) {
-      console.error(`[FILE-WRITE][${sessionId}] detection error`, e instanceof Error ? e.message : String(e));
     }
 
     const automationResult = await this.executeGitHubAutomation({
