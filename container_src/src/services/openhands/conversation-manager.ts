@@ -32,14 +32,18 @@ export interface OpenHandsConversation {
 }
 
 export interface CreateConversationRequest {
-  // initial prompt or user message
-  prompt: string;
+  // Required: initial user message (OpenHands API field name)
+  initial_user_msg: string;
 
-  // optional repositories context (multi-repo support)
+  // Optional: repository in format "owner/repo" (OpenHands API field name)
+  repository?: string;
+
+  // Optional: additional repositories for multi-repo support
+  // Note: Check OpenHands API docs for current multi-repo support
   repositories?: Array<{ owner: string; repo: string; ref?: string }>;
 
-  // optional model / adapter configuration overrides
-  config?: Record<string, unknown>;
+  // Note: Model selection is typically done via headers or account settings,
+  // not in the request body. If needed, check OpenHands API for supported fields.
 }
 
 export interface ConversationStatusResponse {
@@ -76,13 +80,63 @@ export class ConversationManager {
   };
 
   private baseUrl(): string { 
-    return this.options?.baseUrl || process.env.OPENHANDS_BASE_URL || 'https://api.openhands.ai';
+    // The OpenHands docs and examples use https://app.all-hands.dev as the API host.
+    // Use that as the default here but allow overriding via options or OPENHANDS_BASE_URL.
+    return this.options?.baseUrl || process.env.OPENHANDS_BASE_URL || 'https://app.all-hands.dev';
+  }
+
+  /**
+   * Return an ordered list of candidate base URLs to try. First preference
+   * is options.baseUrl, then OPENHANDS_BASE_URL, then canonical hosts.
+   */
+  private baseUrlCandidates(): string[] {
+    const seen = new Set<string>();
+    const candidates = [
+      this.options?.baseUrl,
+      process.env.OPENHANDS_BASE_URL,
+      'https://app.all-hands.dev',
+      'https://api.openhands.ai',
+    ];
+    const out: string[] = [];
+    for (const c of candidates) {
+      if (!c) continue;
+      const trimmed = String(c).trim().replace(/\/$/, '');
+      if (!trimmed) continue;
+      if (!seen.has(trimmed)) {
+        seen.add(trimmed);
+        out.push(trimmed);
+      }
+    }
+    return out;
   }
 
   private buildHeaders(): Record<string, string> {
     const h: Record<string, string> = { 'content-type': 'application/json' };
-    const apiKey = this.options?.apiKey ?? process.env.OPENHANDS_API_KEY;
-    if (apiKey) h['authorization'] = `Bearer ${apiKey}`;
+    // Normalize and sanitize API key values. Some environments accidentally
+    // set the literal string 'undefined' or 'null' which would pass a Boolean
+    // check but are not valid credentials. Treat those as absent.
+    const raw = this.options?.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.LLM_API_KEY;
+    const apiKey = typeof raw === 'string' && raw.trim() && raw !== 'undefined' && raw !== 'null' ? raw.trim() : undefined;
+    if (apiKey) {
+      // Prefer standard Bearer Authorization but include common alternate
+      // header names some deployments accept (x-api-key) to improve
+      // compatibility with self-hosted or proxied installations.
+      h['authorization'] = `Bearer ${apiKey}`;
+      h['x-api-key'] = apiKey;
+
+      // Some deployments (and some endpoints like /api/options/agents)
+      // accept a session-style key presented as X-Session-API-Key (for
+      // example OpenRouter-style tokens `sk-or-...`). Detect common
+      // OpenRouter prefix and add the header to improve compatibility
+      // when callers only have that token available.
+      try {
+        if (typeof apiKey === 'string' && /^sk-or-/.test(apiKey)) {
+          h['x-session-api-key'] = apiKey;
+        }
+      } catch (e) {
+        // Defensive: if regex throws for any reason, ignore and proceed
+      }
+    }
     if (this.options?.headers) Object.assign(h, this.options.headers);
     return h;
   }
@@ -93,13 +147,35 @@ export class ConversationManager {
    * Error with diagnostic information on failure.
    */
   async createConversation(req: CreateConversationRequest, signal?: AbortSignal): Promise<ConversationStatusResponse> {
-    const url = `${this.baseUrl().replace(/\/$/, '')}/api/conversations`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(req),
-      signal,
-    });
+    const candidates = this.baseUrlCandidates();
+    let lastNetworkErr: any = null;
+    let res: Response | undefined;
+    for (const base of candidates) {
+      const url = `${base.replace(/\/$/, '')}/api/conversations`;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: this.buildHeaders(),
+          body: JSON.stringify(req),
+          signal,
+        });
+        // if we got a response, stop trying alternatives
+        break;
+      } catch (err: any) {
+        // Network-level failure (DNS/TCP/TLS) -> remember and try next candidate
+        lastNetworkErr = err;
+        // continue to next candidate
+        continue;
+      }
+    }
+
+    if (!res) {
+      const msg = String(lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error');
+      const e = new Error(`[ConversationManager] network error when POST (all candidates tried): ${msg}`);
+      e.name = 'NetworkError';
+      (e as any).code = lastNetworkErr?.code ?? undefined;
+      throw e;
+    }
 
     const text = await res.text();
     if (!res.ok) {
@@ -126,13 +202,32 @@ export class ConversationManager {
    * Retrieve conversation status and basic metadata from OpenHands.
    */
   async getConversationStatus(conversationId: string, latestEventId?: number, signal?: AbortSignal): Promise<ConversationStatusResponse> {
-    let url = `${this.baseUrl().replace(/\/$/, '')}/api/conversations/${encodeURIComponent(
-      conversationId
-    )}`;
-    if (typeof latestEventId === 'number') {
-      url += `?latest_event_id=${encodeURIComponent(String(latestEventId))}`;
+    const candidates = this.baseUrlCandidates();
+    let lastNetworkErr: any = null;
+    let res: Response | undefined;
+    for (const base of candidates) {
+      let url = `${base.replace(/\/$/, '')}/api/conversations/${encodeURIComponent(
+        conversationId
+      )}`;
+      if (typeof latestEventId === 'number') {
+        url += `?latest_event_id=${encodeURIComponent(String(latestEventId))}`;
+      }
+      try {
+        res = await fetch(url, { method: 'GET', headers: this.buildHeaders(), signal });
+        break;
+      } catch (err: any) {
+        lastNetworkErr = err;
+        continue;
+      }
     }
-    const res = await fetch(url, { method: 'GET', headers: this.buildHeaders(), signal });
+
+    if (!res) {
+      const msg = String(lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error');
+      const e = new Error(`[ConversationManager] network error when GET (all candidates tried): ${msg}`);
+      e.name = 'NetworkError';
+      (e as any).code = lastNetworkErr?.code ?? undefined;
+      throw e;
+    }
     const text = await res.text();
     if (!res.ok) {
       let body = text;

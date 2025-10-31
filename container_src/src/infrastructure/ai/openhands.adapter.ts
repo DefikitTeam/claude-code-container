@@ -43,7 +43,10 @@ export interface OpenHandsAdapterConfig {
  */
 export const defaultOpenHandsConfig: OpenHandsAdapterConfig = {
   apiKey: process.env.OPENHANDS_API_KEY || undefined,
-  baseUrl: process.env.OPENHANDS_BASE_URL || 'https://api.openhands.ai',
+  // NOTE: The canonical API host used in OpenHands docs is https://app.all-hands.dev
+  // Use that as the default to avoid DNS issues with older or unofficial hostnames.
+  // Callers may still override via OPENHANDS_BASE_URL.
+  baseUrl: process.env.OPENHANDS_BASE_URL || 'https://app.all-hands.dev',
   pollingIntervalMs: Number(process.env.OPENHANDS_POLLING_INTERVAL_MS || 2000),
   enableWebsocket: (process.env.OPENHANDS_ENABLE_WEBSOCKET || 'true') === 'true',
   websocketTimeoutMs: Number(process.env.OPENHANDS_CONNECTION_TIMEOUT_MS || 10000),
@@ -91,7 +94,14 @@ const logger = {
  * callbacks) will be implemented in subsequent tasks.
  */
 export class OpenHandsAdapter implements ClaudeAdapter {
+  // Keep runtime-kind compatible name (ClaudeRuntimeKind) while exposing a
+  // more specific adapter identifier for logging and diagnostics.
+  // The runtime selector expects `name` to be one of 'sdk'|'cli'|'http-api'.
   readonly name = 'http-api' as const;
+
+  // Human/readable adapter id used for logs and diagnostics so we can
+  // distinguish this adapter instance from other http-api adapters.
+  readonly adapterId = 'openhands' as const;
   private cfg: OpenHandsAdapterConfig;
 
   constructor(config?: Partial<OpenHandsAdapterConfig>) {
@@ -108,7 +118,7 @@ export class OpenHandsAdapter implements ClaudeAdapter {
     if ((process.env.CLAUDE_CLIENT_DISABLE_OPENHANDS || 'false') === 'true') return false;
 
     // Determine API key from (1) adapter config override, (2) runtime context, (3) environment
-    const apiKey = this.cfg.apiKey ?? context.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.ALLHANDS_API_KEY ?? process.env.ALLHANDS_API_KEY;
+    const apiKey = this.cfg.apiKey ?? context.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.OPENROUTER_API_KEY ?? process.env.ALLHANDS_API_KEY;
 
     // Only handle if we have an API key
     return Boolean(apiKey);
@@ -126,20 +136,32 @@ export class OpenHandsAdapter implements ClaudeAdapter {
     callbacks: ClaudeCallbacks,
     abortSignal: AbortSignal,
   ): Promise<ClaudeResult> {
-    const startTime = Date.now();
-    const apiKey = this.cfg.apiKey ?? runOptions.apiKey ?? context.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.ALLHANDS_API_KEY;
+    try {
+      const startTime = Date.now();
 
-    if (!apiKey) {
-      const err = new Error('[OpenHandsAdapter] missing API key');
-      callbacks.onError?.(err);
-      throw err;
-    }
+      // Use the same API key resolution logic as canHandle() to ensure consistency
+      const apiKey = this.cfg.apiKey ?? context.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.OPENROUTER_API_KEY ?? process.env.ALLHANDS_API_KEY;
+
+      if (!apiKey) {
+        const err = new Error('[OpenHandsAdapter] missing API key');
+        logger.error('API key missing - cannot proceed');
+        callbacks.onError?.(err);
+        throw err;
+      }
 
   // Allow environment variables to override adapter config at runtime.
   // This makes it possible to change base URL and polling interval without
   // recreating the adapter instance (useful in containerized or test runs).
   const effectiveBaseUrl = process.env.OPENHANDS_BASE_URL ?? this.cfg.baseUrl;
   const effectivePollingMs = Number(process.env.OPENHANDS_POLLING_INTERVAL_MS ?? String(this.cfg.pollingIntervalMs ?? 2000));
+
+  // Sanitize and log a safe preview of the API key for debugging (do not log secrets).
+  // This helps diagnose situations where a literal string like 'undefined' or an
+  // incorrect key is being passed while still avoiding full secret exposure.
+  const safeKeyPreview = apiKey
+    ? `${String(apiKey).slice(0, 6)}...(${String(apiKey).length} chars)`
+    : '<<no-key>>';
+  logger.info('effective apiKey preview:', { safeKeyPreview, effectiveBaseUrl, hasApiKey: Boolean(apiKey) });
 
   const cm = new ConversationManager({ baseUrl: effectiveBaseUrl, apiKey });
     const parser = new EventParser({ maxBuffer: this.cfg.maxEventBuffer });
@@ -161,13 +183,41 @@ export class OpenHandsAdapter implements ClaudeAdapter {
 
     // Create conversation with a small retry for transient failures
     let convResp;
+
+    // Extract repository information from context if available (e.g., from git remote)
+    // OpenHands expects format: "owner/repo"
+    const repository = (runOptions as any)?.repository ?? (context as any)?.repository ?? process.env.OPENHANDS_REPOSITORY;
+
     for (let attempt = 0; attempt <= this.cfg.maxRetries; attempt++) {
       try {
-        convResp = await cm.createConversation({ prompt, config: { model: runOptions.model } }, abortSignal);
+        // Use OpenHands API field names: initial_user_msg (required), repository (optional)
+        // Note: Model selection is handled via API key/account settings, not request body
+        const createRequest: any = {
+          initial_user_msg: prompt,
+        };
+        if (repository) {
+          createRequest.repository = repository;
+        }
+        logger.info('calling createConversation', {
+          attempt,
+          hasRepository: Boolean(repository),
+          requestKeys: Object.keys(createRequest),
+          promptLength: prompt.length
+        });
+        convResp = await cm.createConversation(createRequest, abortSignal);
+        logger.info('createConversation succeeded', { id: convResp?.id });
         break;
       } catch (err: any) {
         const msg = String(err?.message ?? err);
-        logger.error('createConversation error:', msg);
+        // Log enhanced diagnostics for network vs HTTP errors without printing secrets
+        logger.error('createConversation error:', msg, {
+          name: err?.name ?? null,
+          code: err?.code ?? null,
+          status: typeof err?.status === 'number' ? err.status : undefined,
+          body: typeof err?.body === 'string' ? err.body : undefined,
+          baseUrl: effectiveBaseUrl,
+          hasApiKey: Boolean(apiKey),
+        });
         if (abortSignal.aborted) {
           const aerr = new Error('[OpenHandsAdapter] aborted during createConversation');
           safeInvoke(callbacks.onError, aerr, 'onError');
@@ -175,7 +225,7 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         }
 
         // Prefer numeric status code when available (ConversationManager.HTTPError)
-        const statusCode = typeof err?.status === 'number' ? Number(err.status) : undefined;
+  const statusCode = typeof err?.status === 'number' ? Number(err.status) : undefined;
 
         // Permanent auth errors - do not retry
         if (statusCode === 401 || statusCode === 403) {
@@ -263,7 +313,14 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         statusResp = await cm.getConversationStatus(conversationId, latestEventId, abortSignal);
       } catch (err: any) {
   const msg = String(err?.message ?? err);
-  logger.error('getConversationStatus error:', msg);
+  logger.error('getConversationStatus error:', msg, {
+    name: err?.name ?? null,
+    code: err?.code ?? null,
+    status: typeof err?.status === 'number' ? err.status : undefined,
+    body: typeof err?.body === 'string' ? err.body : undefined,
+    baseUrl: effectiveBaseUrl,
+    hasApiKey: Boolean(apiKey),
+  });
         if (abortSignal.aborted) {
           const aerr = new Error('[OpenHandsAdapter] aborted during getConversationStatus');
           safeInvoke(callbacks.onError, aerr, 'onError');
@@ -385,6 +442,14 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         throw err;
       }
       // otherwise loop
+    }
+    } catch (topLevelErr: any) {
+      logger.error('[OpenHandsAdapter] UNCAUGHT ERROR in run():', {
+        message: String(topLevelErr?.message ?? topLevelErr),
+        name: topLevelErr?.name,
+        stack: topLevelErr?.stack?.split('\n').slice(0, 3).join('\n')
+      });
+      throw topLevelErr;
     }
   }
 }

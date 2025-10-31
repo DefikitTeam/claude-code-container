@@ -88,7 +88,11 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       const context = await this.createContext(options);
       const candidates = await this.planAdapters(context);
 
-      console.error(`[ClaudeRuntimeSelector] Available adapters: ${candidates.map(a => a.name).join(', ')}`);
+      console.error(`[ClaudeRuntimeSelector] Available adapters: ${candidates.map(a => {
+        // Prefer a human-friendly adapterId when present for clearer diagnostics
+        const id = (a as any).adapterId ?? null;
+        return id ? `${a.name}(${id})` : a.name;
+      }).join(', ')}`);
       console.error(`[ClaudeRuntimeSelector] Context:`, {
         hasWorkspace: !!context.workspacePath,
         model: context.model,
@@ -100,7 +104,8 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       let lastError: unknown = null;
       for (const adapter of candidates) {
         try {
-          console.error(`[ClaudeRuntimeSelector] Using adapter: ${adapter.name}`);
+          const adapterId = (adapter as any).adapterId ?? null;
+          console.error(`[ClaudeRuntimeSelector] Using adapter: ${adapter.name}${adapterId ? ` (${adapterId})` : ''}`);
           const result = await adapter.run(
             prompt,
             options,
@@ -116,7 +121,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
           const durationMs = Date.now() - startTime;
           callbacks.onComplete?.({ fullText, durationMs });
 
-          return {
+      return {
             fullText,
             tokens: {
               input: inputTokens,
@@ -252,7 +257,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       cwd: process.cwd(),
       hasApiKeyEnv: Boolean(process.env.ANTHROPIC_API_KEY),
       hasOpenRouterKeyEnv: Boolean(process.env.OPENROUTER_API_KEY),
-      adapters: this.adapters.map(a => a.name),
+      adapters: this.adapters.map(a => ({ name: a.name, id: (a as any).adapterId ?? null })),
       hasOpenHandsKey: Boolean(process.env.OPENHANDS_API_KEY),
     };
   }
