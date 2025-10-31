@@ -9,6 +9,7 @@ import type {
 import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
 import { HTTPAPIClientAdapter } from './http-api-client.adapter.js';
 import { VercelOpenRouterAdapter } from '../ai/vercel-openrouter.adapter.js';
+import { OpenHandsAdapter } from '../ai/openhands.adapter.js';
 
 const DEFAULT_MODEL = 'claude-sonnet-4'; // Maps to anthropic/claude-sonnet-4 on OpenRouter
 
@@ -34,6 +35,8 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     // 1. VercelOpenRouterAdapter - Primary (Vercel AI SDK + OpenRouter)
     // 2. HTTPAPIClientAdapter - Fallback (Direct HTTP to Anthropic/OpenRouter)
     this.adapters = options.adapters ?? [
+      // Prefer OpenHands when available and enabled, then Vercel OpenRouter, then HTTP API fallback
+      new OpenHandsAdapter(),
       new VercelOpenRouterAdapter(),
       new HTTPAPIClientAdapter(),
     ];
@@ -250,6 +253,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       hasApiKeyEnv: Boolean(process.env.ANTHROPIC_API_KEY),
       hasOpenRouterKeyEnv: Boolean(process.env.OPENROUTER_API_KEY),
       adapters: this.adapters.map(a => a.name),
+      hasOpenHandsKey: Boolean(process.env.OPENHANDS_API_KEY),
     };
   }
 }
