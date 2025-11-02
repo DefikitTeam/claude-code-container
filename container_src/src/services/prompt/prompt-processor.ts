@@ -174,8 +174,28 @@ export class PromptProcessor {
     // clone first, the automation later may re-clone or init the repo and the
     // model's modifications get lost / are not detected ("No workspace changes detected").
     let repoEnsured = false;
+    // Resolve repository descriptor (may be used for cloning and also passed
+    // to the OpenHands adapter so the remote agent has repository context).
+    let resolvedRepo = undefined as
+      | {
+          owner: string;
+          name: string;
+          defaultBranch?: string;
+          cloneUrl?: string;
+          issueTitle?: string;
+          labels?: string[];
+          issue?: any;
+          branchNameOverride?: string;
+          baseBranchOverride?: string;
+          gitIdentity?: { name?: string; email?: string };
+          dryRun?: boolean;
+          allowEmptyCommit?: boolean;
+          source?: string;
+        }
+      | undefined;
+
     try {
-      const resolvedRepo = this.resolveRepositoryDescriptor(
+      resolvedRepo = this.resolveRepositoryDescriptor(
         activeAgentContext,
         opts,
         wsDesc,
@@ -314,15 +334,21 @@ export class PromptProcessor {
     };
 
     try {
+      // runtimeOptions typed as any to avoid requiring changes to RunOptions
+      const runtimeOptions: any = {
+        sessionId,
+        operationId,
+        workspacePath: wsDesc.path,
+        apiKey,
+        abortSignal,
+      };
+      if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
+        runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;
+      }
+
       runResult = await this.deps.claudeClient.runPrompt(
         prompt,
-        {
-          sessionId,
-          operationId,
-          workspacePath: wsDesc.path,
-          apiKey,
-          abortSignal,
-        },
+        runtimeOptions,
         callbacks,
       );
     } catch (err) {

@@ -85,30 +85,6 @@ export class ConversationManager {
     return this.options?.baseUrl || process.env.OPENHANDS_BASE_URL || 'https://app.all-hands.dev';
   }
 
-  /**
-   * Return an ordered list of candidate base URLs to try. First preference
-   * is options.baseUrl, then OPENHANDS_BASE_URL, then canonical hosts.
-   */
-  private baseUrlCandidates(): string[] {
-    const seen = new Set<string>();
-    const candidates = [
-      this.options?.baseUrl,
-      process.env.OPENHANDS_BASE_URL,
-      'https://app.all-hands.dev',
-      'https://api.openhands.ai',
-    ];
-    const out: string[] = [];
-    for (const c of candidates) {
-      if (!c) continue;
-      const trimmed = String(c).trim().replace(/\/$/, '');
-      if (!trimmed) continue;
-      if (!seen.has(trimmed)) {
-        seen.add(trimmed);
-        out.push(trimmed);
-      }
-    }
-    return out;
-  }
 
   private buildHeaders(): Record<string, string> {
     const h: Record<string, string> = { 'content-type': 'application/json' };
@@ -147,7 +123,7 @@ export class ConversationManager {
    * Error with diagnostic information on failure.
    */
   async createConversation(req: CreateConversationRequest, signal?: AbortSignal): Promise<ConversationStatusResponse> {
-    const candidates = this.baseUrlCandidates();
+    const candidates = [this.baseUrl()];
     let lastNetworkErr: any = null;
     let res: Response | undefined;
     for (const base of candidates) {
@@ -191,8 +167,25 @@ export class ConversationManager {
     }
 
     try {
-      const json = JSON.parse(text) as ConversationStatusResponse;
-      return json;
+      const json = JSON.parse(text) as ConversationStatusResponse | any;
+
+      // Defensive normalization: some OpenHands deployments return different
+      // shapes (conversation_id, conversationId, data:{ id }) instead of id.
+      // Normalize to expected shape so callers can rely on `id`.
+      if (json) {
+        if (!json.id) {
+          if (json.conversation_id) json.id = String(json.conversation_id);
+          else if (json.conversationId) json.id = String(json.conversationId);
+          else if (json.data && json.data.id) json.id = String(json.data.id);
+        }
+      }
+
+      if (!json || !json.id) {
+        // Provide a clearer error with the raw body for diagnostics
+        throw new Error(`[ConversationManager.createConversation] missing id in response - raw: ${text}`);
+      }
+
+      return json as ConversationStatusResponse;
     } catch (err) {
       throw new Error(`[ConversationManager.createConversation] invalid-json response: ${String(err)} - raw: ${text}`);
     }
@@ -202,7 +195,7 @@ export class ConversationManager {
    * Retrieve conversation status and basic metadata from OpenHands.
    */
   async getConversationStatus(conversationId: string, latestEventId?: number, signal?: AbortSignal): Promise<ConversationStatusResponse> {
-    const candidates = this.baseUrlCandidates();
+    const candidates = [this.baseUrl()];
     let lastNetworkErr: any = null;
     let res: Response | undefined;
     for (const base of candidates) {
@@ -241,12 +234,18 @@ export class ConversationManager {
     }
 
     try {
-      const json = JSON.parse(text) as ConversationStatusResponse;
-      return json;
+      const json = JSON.parse(text) as ConversationStatusResponse | any;
+      if (!json) throw new Error('empty response body');
+
+      // Normalize status field differences (in_progress vs running)
+      if (json.status === 'in_progress') json.status = 'running';
+
+      return json as ConversationStatusResponse;
     } catch (err) {
       throw new Error(`[ConversationManager.getConversationStatus] invalid-json response: ${String(err)} - raw: ${text}`);
     }
   }
+
 }
 
 export default ConversationManager;

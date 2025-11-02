@@ -11,14 +11,8 @@ export interface OpenHandsAdapterConfig {
   // Base URL for OpenHands REST endpoints
   baseUrl: string;
 
-  // Polling interval (ms) when using REST polling
+  // Polling interval (ms) when using REST polling (optional fallback)
   pollingIntervalMs: number;
-
-  // Whether to attempt WebSocket streaming first
-  enableWebsocket: boolean;
-
-  // WebSocket connection timeout (ms)
-  websocketTimeoutMs: number;
 
   // Maximum number of retries for transient errors
   maxRetries: number;
@@ -48,8 +42,6 @@ export const defaultOpenHandsConfig: OpenHandsAdapterConfig = {
   // Callers may still override via OPENHANDS_BASE_URL.
   baseUrl: process.env.OPENHANDS_BASE_URL || 'https://app.all-hands.dev',
   pollingIntervalMs: Number(process.env.OPENHANDS_POLLING_INTERVAL_MS || 2000),
-  enableWebsocket: (process.env.OPENHANDS_ENABLE_WEBSOCKET || 'true') === 'true',
-  websocketTimeoutMs: Number(process.env.OPENHANDS_CONNECTION_TIMEOUT_MS || 10000),
   maxRetries: Number(process.env.OPENHANDS_MAX_RETRIES || 3),
   retryBackoffBaseMs: Number(process.env.OPENHANDS_RETRY_BACKOFF_BASE_MS || 500),
   maxEventBuffer: Number(process.env.OPENHANDS_MAX_EVENT_BUFFER || 1000),
@@ -73,9 +65,8 @@ import type {
   ClaudeResult,
   RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
-import ConversationManager from '../../services/openhands/conversation-manager.js';
-import { EventParser } from '../../services/openhands/event-parser.js';
-import { setTimeout as delay } from 'node:timers/promises';
+import { ConversationManager } from '../../services/openhands/conversation-manager.js';
+import { io, Socket } from 'socket.io-client';
 
 // Lightweight logger scoped to this adapter so all logs share the same
 // prefix and can be changed later to a different logging backend.
@@ -104,6 +95,10 @@ export class OpenHandsAdapter implements ClaudeAdapter {
   readonly adapterId = 'openhands' as const;
   private cfg: OpenHandsAdapterConfig;
 
+  // Socket.IO client session management
+  // Maps sessionId -> Socket.IO client for multi-turn conversations
+  private socketClients: Map<string, Socket> = new Map();
+
   constructor(config?: Partial<OpenHandsAdapterConfig>) {
     this.cfg = loadConfig(config);
   }
@@ -125,9 +120,259 @@ export class OpenHandsAdapter implements ClaudeAdapter {
   }
 
   /**
-   * Run a prompt using OpenHands. Not implemented yet — T014+ will add
-   * conversation creation, polling/WebSocket streaming, callbacks, and
-   * error handling.
+   * Run conversation via Socket.IO real-time streaming.
+   * Manages Socket.IO client per session for multi-turn conversations.
+   */
+  private async runViaSocketIO(
+    conversationId: string,
+    sessionId: string,
+    apiKey: string,
+    prompt: string,
+    callbacks: ClaudeCallbacks,
+    abortSignal: AbortSignal
+  ): Promise<{ success: boolean; output?: string; error?: string }> {
+    let collectedOutput = '';
+    let isCompleted = false;
+
+    return new Promise((resolve, reject) => {
+      // Get or create Socket.IO client for this session
+      let socket = this.socketClients.get(sessionId);
+
+      // Timeout and abort tracking
+      let conversationTimeout: NodeJS.Timeout | null = null;
+      let connectionTimeout: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (socket && socket.connected) {
+          logger.debug('Socket.IO cleanup', { sessionId, wasConnected: true });
+          // Don't disconnect - keep connection alive for multi-turn
+          // socket.disconnect();
+        }
+        // Clear all timeouts
+        if (conversationTimeout) clearTimeout(conversationTimeout);
+        if (connectionTimeout) clearTimeout(connectionTimeout);
+        // Remove abort listener
+        abortSignal.removeEventListener('abort', abortHandler);
+      };
+
+      const complete = (result: { success: boolean; output?: string; error?: string }) => {
+        if (isCompleted) return;
+        isCompleted = true;
+        logger.debug('Socket.IO completing', { sessionId, success: result.success });
+        cleanup();
+        resolve(result);
+      };
+
+      const fail = (error: string) => {
+        if (isCompleted) return;
+        isCompleted = true;
+        logger.error('Socket.IO failing', { sessionId, error });
+        cleanup();
+        resolve({ success: false, error });
+      };
+
+      // Handle abort signal
+      const abortHandler = () => {
+        logger.info('Conversation aborted by signal', { sessionId });
+        fail('Aborted by user');
+      };
+      abortSignal.addEventListener('abort', abortHandler);
+
+      if (!socket) {
+        logger.info('Creating new Socket.IO client', { sessionId, conversationId, baseUrl: this.cfg.baseUrl });
+
+        // Create Socket.IO client with autoConnect: false to register handlers first
+        socket = io(this.cfg.baseUrl, {
+          autoConnect: false,  // Don't auto-connect, we'll call connect() after registering handlers
+          transports: ['websocket', 'polling'],  // Allow fallback to polling
+          auth: {
+            token: apiKey,
+          },
+          query: {
+            conversation_id: conversationId,
+            latest_event_id: '-1',    // Use -1 to get all events from start
+            // NOTE: Official docs don't use session_api_key, testing without it
+            // If connection fails, may need to fetch it from /api/conversations/{id}/config
+          },
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 1000,
+          timeout: 20000,
+        });
+        
+        this.socketClients.set(sessionId, socket);
+
+        // Register event handlers BEFORE connecting
+        socket.on('connect', () => {
+          logger.info('✅ Socket.IO connected successfully', { 
+            sessionId, 
+            socketId: socket!.id,
+            transport: socket!.io.engine.transport.name,
+            conversationId 
+          });
+          
+          // Register engine-level ping/pong handlers AFTER connection (engine now exists)
+          socket!.io.engine.on('ping', () => {
+            logger.debug('🏓 Socket.IO ping sent', { sessionId });
+          });
+
+          socket!.io.engine.on('pong', () => {
+            logger.debug('🏓 Socket.IO pong received', { sessionId });
+          });
+          
+          // Clear connection timeout on successful connect
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+          }
+          
+          // 🔥 CRITICAL: Send initial user action to start conversation processing
+          // Without this, OpenHands won't process the conversation even though it's created
+          logger.info('📤 Sending initial user action', { sessionId, promptLength: prompt.length });
+          socket!.emit('oh_user_action', {
+            type: 'message',
+            source: 'user',
+            message: prompt
+          });
+        });
+
+        socket.on('disconnect', (reason) => {
+          logger.warn('Socket.IO disconnected', { sessionId, reason });
+          if (!isCompleted) {
+            fail(`Connection disconnected: ${reason}`);
+          }
+        });
+
+        socket.on('connect_error', (error) => {
+          logger.error('❌ Socket.IO connection error', {
+            sessionId,
+            errorMessage: error.message,
+            errorType: error.constructor.name,
+            stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+            queryParams: {
+              conversation_id: conversationId,
+              has_session_api_key: Boolean(apiKey),
+              latest_event_id: '-1'
+            }
+          });
+          if (!isCompleted) {
+            fail(`Connection error: ${error.message}`);
+          }
+        });
+
+        socket.on('error', (error) => {
+          logger.error('Socket.IO generic error', { sessionId, error });
+        });
+
+        // Debug: log all Socket.IO engine events
+        socket.io.on('open', () => {
+          logger.debug('🔌 Socket.IO engine opened (low-level transport connected)', { sessionId });
+        });
+
+        socket.io.on('close', (reason) => {
+          logger.debug('🔌 Socket.IO engine closed (low-level transport closed)', { sessionId, reason });
+        });
+
+        // Note: ping/pong handlers are registered in 'connect' event handler above
+        // because socket.io.engine doesn't exist until after connect() is called
+
+        socket.io.on('error', (error) => {
+          logger.error('Socket.IO engine error', { sessionId, error });
+        });
+
+        socket.io.on('reconnect_attempt', (attempt) => {
+          logger.info('Socket.IO reconnect attempt', { sessionId, attempt });
+        });
+
+        socket.io.on('reconnect_error', (error) => {
+          logger.error('Socket.IO reconnect error', { sessionId, error });
+        });
+
+        socket.io.on('reconnect_failed', () => {
+          logger.error('Socket.IO reconnect failed', { sessionId });
+        });
+
+        // OpenHands event: oh_event
+        socket.on('oh_event', (event: any) => {
+          logger.debug('Received oh_event', {
+            sessionId,
+            eventId: event.id,
+            type: event.type,
+            source: event.source,
+            hasMessage: Boolean(event.message)
+          });
+
+          // Collect agent output
+          if (event.source === 'agent' && typeof event.message === 'string') {
+            collectedOutput += event.message;
+            callbacks.onDelta?.({ text: event.message });
+          }
+
+          // Check for completion
+          if (event.type === 'agent_state_changed' && event.result?.state === 'finished') {
+            logger.info('Conversation completed via Socket.IO', { sessionId });
+            complete({ success: true, output: collectedOutput });
+          }
+
+          // Check for errors
+          if (event.type === 'error') {
+            logger.error('Received error event', { sessionId, error: event.message });
+            fail(event.message || 'Unknown error from OpenHands');
+          }
+        });
+
+        // Now connect after handlers are registered
+        logger.info('🚀 Initiating Socket.IO connection', {
+          sessionId,
+          baseUrl: this.cfg.baseUrl,
+          conversationId,
+          hasApiKey: Boolean(apiKey),
+          apiKeyPrefix: apiKey.substring(0, 8) + '...',
+          queryParams: {
+            conversation_id: conversationId,
+            has_session_api_key: true,
+            latest_event_id: '-1'
+          }
+        });
+        socket.connect();
+
+        // Set connection timeout (20 seconds)
+        connectionTimeout = setTimeout(() => {
+          if (!socket!.connected && !isCompleted) {
+            logger.error('Socket.IO connection timeout after 20s', {
+              sessionId,
+              socketConnected: socket!.connected,
+              socketId: socket!.id
+            });
+            fail('Connection timeout: Could not connect to OpenHands within 20 seconds');
+          }
+        }, 20000);
+
+      } else {
+        logger.info('Reusing existing Socket.IO client', { sessionId, conversationId });
+
+        // For reused socket, event handlers already registered, just check connection
+        if (!socket.connected) {
+          logger.info('Reconnecting reused Socket.IO client', { sessionId });
+          socket.connect();
+        } else {
+          logger.info('Socket.IO already connected (reused)', { sessionId, socketId: socket.id });
+        }
+      }
+
+      // Conversation timeout fallback (5 minutes)
+      conversationTimeout = setTimeout(() => {
+        if (!isCompleted) {
+          logger.warn('Socket.IO conversation timeout after 5 minutes', { sessionId });
+          fail('Conversation timed out after 5 minutes');
+        }
+      }, 5 * 60 * 1000);
+    });
+  }
+
+  /**
+   * Run a prompt using OpenHands REST API and Socket.IO streaming.
+   * Creates a conversation, sends initial_user_msg to start processing, and streams results.
    */
   async run(
     prompt: string,
@@ -149,300 +394,136 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         throw err;
       }
 
-  // Allow environment variables to override adapter config at runtime.
-  // This makes it possible to change base URL and polling interval without
-  // recreating the adapter instance (useful in containerized or test runs).
-  const effectiveBaseUrl = process.env.OPENHANDS_BASE_URL ?? this.cfg.baseUrl;
-  const effectivePollingMs = Number(process.env.OPENHANDS_POLLING_INTERVAL_MS ?? String(this.cfg.pollingIntervalMs ?? 2000));
+      // Extract repository information from context if available
+      const repository = (runOptions as any)?.repository ?? (context as any)?.repository ?? process.env.OPENHANDS_REPOSITORY;
 
-  // Sanitize and log a safe preview of the API key for debugging (do not log secrets).
-  // This helps diagnose situations where a literal string like 'undefined' or an
-  // incorrect key is being passed while still avoiding full secret exposure.
-  const safeKeyPreview = apiKey
-    ? `${String(apiKey).slice(0, 6)}...(${String(apiKey).length} chars)`
-    : '<<no-key>>';
-  logger.info('effective apiKey preview:', { safeKeyPreview, effectiveBaseUrl, hasApiKey: Boolean(apiKey) });
+      logger.info('starting OpenHands conversation', {
+        hasRepository: Boolean(repository),
+        promptLength: prompt.length
+      });
 
-  const cm = new ConversationManager({ baseUrl: effectiveBaseUrl, apiKey });
-    const parser = new EventParser({ maxBuffer: this.cfg.maxEventBuffer });
+      // Notify start
+      callbacks.onStart?.({ startTime });
 
-    // Helper to safely invoke callbacks provided by the caller. Callbacks
-    // must not be allowed to throw and disrupt adapter control flow.
-    const safeInvoke = <T extends unknown>(fn: ((arg: T) => void) | undefined, arg: T, name = 'callback') => {
-      if (!fn) return;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (fn as any)(arg);
-      } catch (cbErr) {
-        console.error(`[OpenHandsAdapter] ${name} threw error:`, cbErr);
-      }
-    };
+      // Create conversation manager
+      const conversationManager = new ConversationManager({
+        baseUrl: this.cfg.baseUrl,
+        apiKey,
+        headers: this.cfg.headers
+      });
 
-    // Helper to classify transient HTTP errors from ConversationManager messages
-    const isTransientError = (msg: string) => /HTTP (429|500|503)/i.test(msg);
+      // Create conversation with initial user message
+      const createRequest = {
+        initial_user_msg: prompt,
+        ...(repository && { repository })
+      };
 
-    // Create conversation with a small retry for transient failures
-    let convResp;
+      logger.debug('creating conversation', { repository });
+      const conversation = await conversationManager.createConversation(createRequest, abortSignal);
 
-    // Extract repository information from context if available (e.g., from git remote)
-    // OpenHands expects format: "owner/repo"
-    const repository = (runOptions as any)?.repository ?? (context as any)?.repository ?? process.env.OPENHANDS_REPOSITORY;
+      logger.info('conversation created', {
+        conversationId: conversation.id,
+        initialStatus: conversation.status
+      });
 
-    for (let attempt = 0; attempt <= this.cfg.maxRetries; attempt++) {
-      try {
-        // Use OpenHands API field names: initial_user_msg (required), repository (optional)
-        // Note: Model selection is handled via API key/account settings, not request body
-        const createRequest: any = {
-          initial_user_msg: prompt,
-        };
-        if (repository) {
-          createRequest.repository = repository;
-        }
-        logger.info('calling createConversation', {
-          attempt,
-          hasRepository: Boolean(repository),
-          requestKeys: Object.keys(createRequest),
-          promptLength: prompt.length
+      // 🔍 CRITICAL FIX: ALWAYS poll conversation status before connecting WebSocket
+      // OpenHands server rejects connections if conversation not ready (status: 'ok', 'pending', etc.)
+      // Cloud returns 'ok' initially, not 'pending', so we MUST poll regardless of initial status
+      logger.info('⏳ Polling conversation status to ensure ready...', { 
+        conversationId: conversation.id,
+        initialStatus: conversation.status 
+      });
+      
+      const maxPolls = 10;
+      const pollIntervalMs = 500;
+      let currentStatus = conversation.status;
+      let isReady = false;
+      
+      // Check if already ready (case-insensitive comparison for status)
+      const statusUpper = currentStatus?.toUpperCase() || '';
+      if (statusUpper === 'RUNNING' || statusUpper === 'IN_PROGRESS') {
+        logger.info('✅ Conversation already ready', { 
+          conversationId: conversation.id, 
+          status: currentStatus 
         });
-        convResp = await cm.createConversation(createRequest, abortSignal);
-        logger.info('createConversation succeeded', { id: convResp?.id });
-        break;
-      } catch (err: any) {
-        const msg = String(err?.message ?? err);
-        // Log enhanced diagnostics for network vs HTTP errors without printing secrets
-        logger.error('createConversation error:', msg, {
-          name: err?.name ?? null,
-          code: err?.code ?? null,
-          status: typeof err?.status === 'number' ? err.status : undefined,
-          body: typeof err?.body === 'string' ? err.body : undefined,
-          baseUrl: effectiveBaseUrl,
-          hasApiKey: Boolean(apiKey),
-        });
-        if (abortSignal.aborted) {
-          const aerr = new Error('[OpenHandsAdapter] aborted during createConversation');
-          safeInvoke(callbacks.onError, aerr, 'onError');
-          throw aerr;
-        }
-
-        // Prefer numeric status code when available (ConversationManager.HTTPError)
-  const statusCode = typeof err?.status === 'number' ? Number(err.status) : undefined;
-
-        // Permanent auth errors - do not retry
-        if (statusCode === 401 || statusCode === 403) {
-          const aerr = new Error(`[OpenHandsAdapter] authentication error HTTP ${statusCode}`);
-          logger.error('auth error creating conversation:', { statusCode, msg });
-          safeInvoke(callbacks.onError, aerr, 'onError');
-          throw err;
-        }
-
-        // Not found - permanent (likely bad id or endpoint) - do not retry
-        if (statusCode === 404) {
-          const aerr = new Error('[OpenHandsAdapter] createConversation returned 404 (not found)');
-          logger.error('createConversation 404:', msg);
-          safeInvoke(callbacks.onError, aerr, 'onError');
-          throw err;
-        }
-
-        // Transient server errors: allow retry/backoff
-        if (statusCode === 429 || statusCode === 500 || statusCode === 503) {
-          // continue to retry below
-        } else if (attempt >= this.cfg.maxRetries || !isTransientError(msg)) {
-          // If we don't recognize this as transient, surface and abort
-          safeInvoke(callbacks.onError, err, 'onError');
-          throw err;
-        }
-
-        const backoff = this.cfg.retryBackoffBaseMs * Math.pow(2, attempt);
-        try {
-          await delay(backoff, { signal: abortSignal });
-        } catch (dErr: any) {
+        isReady = true;
+      } else {
+        // Poll until ready
+        for (let i = 0; i < maxPolls; i++) {
           if (abortSignal.aborted) {
-            const aerr = new Error('[OpenHandsAdapter] aborted during retry backoff');
-            safeInvoke(callbacks.onError, aerr, 'onError');
-            throw aerr;
+            throw new Error('[OpenHandsAdapter] aborted while waiting for conversation ready');
           }
-          throw dErr;
+          
+          await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+          
+          const status = await conversationManager.getConversationStatus(conversation.id, undefined, abortSignal);
+          currentStatus = status.status;
+          
+          logger.debug('conversation status poll', { 
+            conversationId: conversation.id, 
+            status: currentStatus, 
+            poll: i + 1 
+          });
+          
+          // Case-insensitive comparison
+          const currentStatusUpper = currentStatus?.toUpperCase() || '';
+          if (currentStatusUpper === 'RUNNING' || currentStatusUpper === 'IN_PROGRESS') {
+            logger.info('✅ Conversation ready', { 
+              conversationId: conversation.id, 
+              status: currentStatus, 
+              pollsNeeded: i + 1,
+              timeMs: (i + 1) * pollIntervalMs
+            });
+            isReady = true;
+            break;
+          }
+          
+          // Check for failure states (case-insensitive)
+          if (currentStatusUpper === 'FAILED' || currentStatusUpper === 'ERROR') {
+            throw new Error(`[OpenHandsAdapter] conversation failed during initialization: ${currentStatus}`);
+          }
+        }
+        
+        // If still not ready after max polls, log warning but proceed
+        if (!isReady) {
+          logger.warn('⚠️ Conversation not ready after max polls, attempting connection anyway', { 
+            conversationId: conversation.id,
+            currentStatus,
+            maxPolls,
+            totalWaitMs: maxPolls * pollIntervalMs
+          });
         }
       }
-    }
 
-    if (!convResp || !convResp.id) {
-      const err = new Error('[OpenHandsAdapter] invalid createConversation response');
-      callbacks.onError?.(err);
-      throw err;
-    }
+      // Generate or extract sessionId for Socket.IO connection management
+      const sessionId = (runOptions as any)?.sessionId || conversation.id;
 
-    const conversationId = convResp.id;
-  logger.info('created conversation', { conversationId });
+      // Run conversation via Socket.IO streaming
+      const result = await this.runViaSocketIO(
+        conversation.id,
+        sessionId,
+        apiKey,
+        prompt,
+        callbacks,
+        abortSignal
+      );
 
-  // Notify start (safe wrapper to protect adapter from callback errors)
-  safeInvoke(callbacks.onStart, { startTime }, 'onStart');
+      const durationMs = Date.now() - startTime;
+      logger.info('OpenHands conversation completed', {
+        success: result.success,
+        durationMs,
+        hasOutput: Boolean(result.output)
+      });
 
-    // Polling loop: fetch conversation status until completed/failed/cancelled
-    let lastSummary = '';
-    let fullText = '';
-
-  const pollingMs = effectivePollingMs || 2000;
-
-  // Track latestEventId per OpenHands API (default -1). If server returns
-  // numeric event indices we'll use them; otherwise fall back to incrementing
-  // by the number of events received to avoid re-reading the same batch.
-  let latestEventId = -1;
-
-  while (true) {
-      if (abortSignal.aborted) {
-        const err = new Error('aborted');
+      if (result.success && result.output) {
+        callbacks.onComplete?.({ fullText: result.output, durationMs });
+        return { fullText: result.output };
+      } else {
+        const err = new Error(`[OpenHandsAdapter] conversation failed: ${result.error || 'Unknown error'}`);
         callbacks.onError?.(err);
         throw err;
       }
 
-      // Wait before polling (skip immediate wait if no events yet)
-      try {
-        await delay(pollingMs, { signal: abortSignal });
-      } catch (dErr: any) {
-        if (abortSignal.aborted) {
-          const aerr = new Error('[OpenHandsAdapter] aborted during polling delay');
-          safeInvoke(callbacks.onError, aerr, 'onError');
-          throw aerr;
-        }
-        throw dErr;
-      }
-
-      let statusResp;
-      try {
-        statusResp = await cm.getConversationStatus(conversationId, latestEventId, abortSignal);
-      } catch (err: any) {
-  const msg = String(err?.message ?? err);
-  logger.error('getConversationStatus error:', msg, {
-    name: err?.name ?? null,
-    code: err?.code ?? null,
-    status: typeof err?.status === 'number' ? err.status : undefined,
-    body: typeof err?.body === 'string' ? err.body : undefined,
-    baseUrl: effectiveBaseUrl,
-    hasApiKey: Boolean(apiKey),
-  });
-        if (abortSignal.aborted) {
-          const aerr = new Error('[OpenHandsAdapter] aborted during getConversationStatus');
-          safeInvoke(callbacks.onError, aerr, 'onError');
-          throw aerr;
-        }
-
-        const statusCode = typeof err?.status === 'number' ? Number(err.status) : undefined;
-
-        // Auth errors - surface immediately
-        if (statusCode === 401 || statusCode === 403) {
-          const aerr = new Error(`[OpenHandsAdapter] authentication error HTTP ${statusCode}`);
-          logger.error('auth error during getConversationStatus:', { statusCode, msg });
-          safeInvoke(callbacks.onError, aerr, 'onError');
-          throw err;
-        }
-
-        // Not found - conversation may not exist -> treat as terminal
-        if (statusCode === 404) {
-          const aerr = new Error('[OpenHandsAdapter] conversation not found (404)');
-          logger.error('getConversationStatus 404:', msg);
-          safeInvoke(callbacks.onError, aerr, 'onError');
-          throw err;
-        }
-
-        // Transient server errors: notify and continue retrying
-        if (statusCode === 429 || statusCode === 500 || statusCode === 503 || isTransientError(msg)) {
-          safeInvoke(callbacks.onError, err, 'onError');
-          continue;
-        }
-
-        // Unknown/permanent -> surface and abort
-        safeInvoke(callbacks.onError, err, 'onError');
-        throw err;
-      }
-
-  // Prefer per-event streaming when available (OpenHands API: events[])
-  const conv = statusResp as any;
-  const events = (conv.events ?? []) as Array<Record<string, any>>;
-      if (events.length > 0) {
-        // Try to discover numeric event id if present
-        const numericIds: number[] = [];
-        for (const ev of events) {
-          const maybe = ev['event_index'] ?? ev['index'] ?? ev['seq'] ?? ev['sequence'] ?? ev['numeric_id'];
-          if (typeof maybe === 'number' && Number.isFinite(maybe)) numericIds.push(maybe as number);
-        }
-
-        for (const ev of events) {
-          // Use EventParser to dedupe and buffer events
-          const added = parser.parseAndAdd(ev);
-          if (!added) continue; // skip duplicates or invalid
-
-          // Extract message text when present
-          const text = (typeof ev.message === 'string' && ev.message) ||
-            (ev.payload && typeof ev.payload.text === 'string' && ev.payload.text) ||
-            undefined;
-
-          if (text) {
-            fullText += text;
-            // Currently we don't have token accounting from OpenHands events;
-            // callers can augment with token info later if available. Use the
-            // safe wrapper to call onDelta.
-            safeInvoke(callbacks.onDelta, { text, tokens: undefined }, 'onDelta');
-          }
-        }
-
-        // Update latestEventId: prefer max numeric id if available, otherwise
-        // increment by number of events to avoid re-requesting same batch.
-        if (numericIds.length > 0) {
-          latestEventId = Math.max(latestEventId, ...numericIds);
-        } else {
-          latestEventId = latestEventId + events.length;
-        }
-      } else {
-        // Fallback to summary field if events not present
-        const conv = (statusResp as any) as { summary?: string };
-        const summary = conv.summary ?? '';
-        if (summary && summary.length > lastSummary.length) {
-          const delta = summary.slice(lastSummary.length);
-          lastSummary = summary;
-          fullText = summary;
-            try {
-              callbacks.onDelta?.({ text: delta });
-            } catch (cbErr) {
-              logger.error('callback onDelta threw:', cbErr);
-            }
-        }
-      }
-
-      // Terminal statuses: normalize and detect a variety of server-side
-      // status values or explicit error fields that indicate the conversation
-      // is finished (successfully or with failure). This implements T017.
-      const rawStatus = (conv.status ?? '') as string;
-      const status = String(rawStatus).toLowerCase().trim();
-
-      // If the server provided an explicit error object/message treat it as
-      // a failure regardless of the 'status' string.
-      const explicitError = (conv.error ?? conv.error_message ?? conv.failure_reason) as string | undefined;
-      if (explicitError) {
-        const err = new Error(`[OpenHandsAdapter] conversation error: ${String(explicitError)}`);
-        logger.error('conversation explicit error:', explicitError);
-        safeInvoke(callbacks.onError, err, 'onError');
-        throw err;
-      }
-
-      // Success statuses
-      if (status === 'completed' || status === 'done' || status === 'finished' || status === 'success') {
-        const durationMs = Date.now() - startTime;
-        logger.info('conversation completed', { conversationId, durationMs });
-        safeInvoke(callbacks.onComplete, { fullText, durationMs }, 'onComplete');
-        return { fullText };
-      }
-
-      // Failure statuses
-      if (status === 'failed' || status === 'failure' || status === 'error' || status === 'errored' || status === 'cancelled' || status === 'aborted') {
-        const reason = explicitError ?? rawStatus;
-        const err = new Error(`[OpenHandsAdapter] conversation ${String(reason)}`);
-        logger.error('conversation terminal failure:', { status: rawStatus, reason });
-        safeInvoke(callbacks.onError, err, 'onError');
-        throw err;
-      }
-      // otherwise loop
-    }
     } catch (topLevelErr: any) {
       logger.error('[OpenHandsAdapter] UNCAUGHT ERROR in run():', {
         message: String(topLevelErr?.message ?? topLevelErr),
@@ -451,6 +532,38 @@ export class OpenHandsAdapter implements ClaudeAdapter {
       });
       throw topLevelErr;
     }
+  }
+
+  /**
+   * Disconnect Socket.IO client for a specific session.
+   * Useful for cleanup after session completion or timeout.
+   */
+  disconnectSession(sessionId: string): void {
+    const socket = this.socketClients.get(sessionId);
+    if (socket) {
+      logger.info('Disconnecting Socket.IO client', { sessionId });
+      socket.disconnect();
+      this.socketClients.delete(sessionId);
+    }
+  }
+
+  /**
+   * Disconnect all Socket.IO clients.
+   * Useful for graceful shutdown or cleanup.
+   */
+  disconnectAll(): void {
+    logger.info('Disconnecting all Socket.IO clients', { count: this.socketClients.size });
+    for (const [sessionId, socket] of this.socketClients.entries()) {
+      socket.disconnect();
+    }
+    this.socketClients.clear();
+  }
+
+  /**
+   * Get active session count for monitoring.
+   */
+  getActiveSessionCount(): number {
+    return this.socketClients.size;
   }
 }
 

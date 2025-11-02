@@ -10,6 +10,8 @@ import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
 import { HTTPAPIClientAdapter } from './http-api-client.adapter.js';
 import { VercelOpenRouterAdapter } from '../ai/vercel-openrouter.adapter.js';
 import { OpenHandsAdapter } from '../ai/openhands.adapter.js';
+import { OpenAIOpenRouterAdapter } from '../ai/openai-openrouter.adapter.js';
+import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adapter.js';
 
 const DEFAULT_MODEL = 'claude-sonnet-4'; // Maps to anthropic/claude-sonnet-4 on OpenRouter
 
@@ -31,14 +33,17 @@ export class ClaudeRuntimeSelector implements IClaudeService {
   private readonly defaultModel: string;
 
   constructor(options: ClaudeRuntimeSelectorOptions = {}) {
-    // Clean architecture: Only use modern adapters
-    // 1. VercelOpenRouterAdapter - Primary (Vercel AI SDK + OpenRouter)
-    // 2. HTTPAPIClientAdapter - Fallback (Direct HTTP to Anthropic/OpenRouter)
+    // Clean architecture: Modern adapters with cascade priority
+    // Priority order (highest to lowest):
+    // 1. VercelOpenRouterAdapter - Primary (Vercel AI SDK + OpenRouter) - Full tool support (writeFile, readFile, executeBash)
+    // 2. OpenAIOpenRouterAdapter - Secondary (OpenAI SDK + OpenRouter) - Simple streaming (NO tool support yet)
+    // 3. OpenHandsAdapter - Tertiary (OpenHands cloud service) - WebSocket-based, complex
+    // 4. HTTPAPIClientAdapter - Fallback (Direct Anthropic HTTP API) - Last resort for reliability
     this.adapters = options.adapters ?? [
-      // Prefer OpenHands when available and enabled, then Vercel OpenRouter, then HTTP API fallback
-      new OpenHandsAdapter(),
-      new VercelOpenRouterAdapter(),
-      new HTTPAPIClientAdapter(),
+      new OpenAIOpenRouterToolsAdapter(),   // � Primary: Vercel AI SDK with FULL TOOL SUPPORT
+      new OpenAIOpenRouterAdapter(),  // Secondary: OpenAI SDK (text-only, no tools)
+      new OpenHandsAdapter(),          // Tertiary: OpenHands (complex, WebSocket-based)
+      new HTTPAPIClientAdapter(),      // Fallback: Direct Anthropic API
     ];
     this.defaultModel = options.defaultModel || DEFAULT_MODEL;
   }
