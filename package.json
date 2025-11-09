@@ -7,8 +7,8 @@
     "deploy:prod": "wrangler deploy --env production",
     "deploy:safe": "./deploy-with-auth-check.sh",
     "deploy:button": "./deploy-button.sh",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
+    "dev": "wrangler dev --port 8788",
+    "start": "wrangler dev --port 8788",
     "cf-typegen": "wrangler types",
     "build": "pnpm run build:container",
     "build:all": "pnpm install --silent && pnpm run build:container",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "dotenv-vault": "^1.27.0",
     "prettier": "3.6.2",
     "typescript": "5.8.3",
     "vitest": "^2.1.9",

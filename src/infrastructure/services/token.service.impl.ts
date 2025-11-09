@@ -3,6 +3,10 @@
  * Manages GitHub installation tokens with caching and validation
  *
  * Implements: ITokenService
+ * 
+ * IMPORTANT: This service NO LONGER generates tokens using GitHub App credentials.
+ * Instead, it calls an external token provider API (e.g., LumiLink backend) which
+ * securely manages GitHub App credentials and generates tokens server-side.
  */
 
 import { ITokenService } from '../../core/interfaces/services/token.service';
@@ -15,8 +19,21 @@ export interface TokenCache {
 }
 
 /**
+ * External token provider interface
+ * Implement this to call your platform's token generation API
+ */
+export interface ExternalTokenProvider {
+  /**
+   * Get installation token from external API
+   * @param installationId - GitHub installation ID
+   * @returns Token and expiration timestamp
+   */
+  getToken(installationId: string): Promise<{ token: string; expiresAt: number }>;
+}
+
+/**
  * Token Service Implementation
- * Handles token generation, caching, and validation
+ * Handles token retrieval, caching, and validation
  */
 export class TokenServiceImpl implements ITokenService {
   /**
@@ -32,19 +49,17 @@ export class TokenServiceImpl implements ITokenService {
   private readonly TOKEN_EXPIRY_BUFFER = 5 * 60 * 1000;
 
   /**
-   * Token TTL (1 hour) - GitHub installation tokens last 1 hour
+   * @param externalProvider - External token provider (e.g., LumiLink API client)
    */
-  private readonly TOKEN_TTL = 60 * 60 * 1000;
-
-  constructor(private githubTokenGenerator?: (installationId: string) => Promise<string>) {}
+  constructor(private externalProvider?: ExternalTokenProvider) {}
 
   /**
    * Get or refresh installation token
-   * Returns cached token if valid, otherwise generates new one
+   * Returns cached token if valid, otherwise fetches from external provider
    *
    * @param installationId - GitHub installation ID
    * @returns Token and expiration time
-   * @throws ValidationError if installationId is invalid
+   * @throws ValidationError if installationId is invalid or provider not configured
    */
   async getInstallationToken(
     installationId: string,
@@ -65,16 +80,14 @@ export class TokenServiceImpl implements ITokenService {
       };
     }
 
-    // Generate new token
-    let token: string;
-    if (this.githubTokenGenerator) {
-      token = await this.githubTokenGenerator(installationId);
-    } else {
-      throw new ValidationError('Token generator not configured');
+    // Fetch new token from external provider
+    if (!this.externalProvider) {
+      throw new ValidationError('External token provider not configured');
     }
 
+    const { token, expiresAt } = await this.externalProvider.getToken(installationId);
+
     // Cache the token
-    const expiresAt = Date.now() + this.TOKEN_TTL;
     this.tokenCache.set(installationId, {
       token,
       expiresAt,

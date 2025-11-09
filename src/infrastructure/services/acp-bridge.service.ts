@@ -184,11 +184,18 @@ export class ACPBridgeService implements IACPBridgeService {
         params: {
           ...params,
           anthropicApiKey: userConfig.anthropicApiKey, // ✅ Use user's decrypted API key
-          ...(githubToken ? { githubToken } : {}), // ✅ Pass GitHub token in params (NOT env vars)
-          // Auto-inject repository metadata from installation (unless user provided it)
+          // Auto-inject GitHub context (token + repository) from installation
           context: {
             ...(params.context || {}),
+            // Auto-inject repository if not provided by user
             ...(repository && !params.context?.repository ? { repository } : {}),
+            // Inject GitHub token in context.github.token (container expects it here)
+            ...(githubToken ? {
+              github: {
+                ...(params.context?.github || {}),
+                token: githubToken,
+              }
+            } : {}),
           },
         },
         id: Date.now(),

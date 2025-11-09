@@ -41,8 +41,8 @@ export interface OpenAIOpenRouterConfig {
   
   // API key for OpenRouter (defaults to OPENROUTER_API_KEY env var)
   apiKey?: string;
-  
-  // Default model to use (defaults to anthropic/claude-sonnet-4)
+
+  // Default model to use (defaults to openai/gpt-5)
   defaultModel?: string;
   
   // Optional HTTP referer header (for OpenRouter rankings)
@@ -63,7 +63,7 @@ export interface OpenAIOpenRouterConfig {
  */
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'anthropic/claude-sonnet-4',
+  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5',
   httpReferer: process.env.OPENROUTER_HTTP_REFERER || 'https://github.com/DefikitTeam/claude-code-container',
   siteName: process.env.OPENROUTER_SITE_NAME || 'Claude Code Container',
   timeout: Number(process.env.OPENROUTER_TIMEOUT || 180000), // 3 minutes
@@ -321,6 +321,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       // OpenAI models
       'gpt-4o': 'openai/gpt-4o',
       'gpt-4': 'openai/gpt-4',
+      'gpt-5': 'openai/gpt-5',
       'o1': 'openai/o1',
       
       // Google models
@@ -335,7 +336,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'anthropic/claude-sonnet-4'; // Default
+      return 'openai/gpt-5'; // Default
     }
 
     // Check if it's already an OpenRouter model ID (contains /)

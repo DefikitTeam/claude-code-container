@@ -638,6 +638,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       'claude-3.7-sonnet': 'anthropic/claude-3.7-sonnet:thinking',
       'gpt-4o': 'openai/gpt-4o',
       'gpt-4': 'openai/gpt-4',
+      'gpt-5': 'openai/gpt-5',
       'o1': 'openai/o1',
       'gemini-2.0-flash': 'google/gemini-2.0-flash-001:free',
       'gemini-flash': 'google/gemini-2.0-flash-001:free',

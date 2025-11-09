@@ -772,14 +772,28 @@ export class PromptProcessor {
     }
   }
 
+  /**
+   * Resolve GitHub token from context
+   * 
+   * IMPORTANT: Containers NO LONGER generate tokens.
+   * Tokens must be provided by the caller (worker) who gets them from LumiLink API.
+   * 
+   * Priority:
+   * 1. Explicit token in options
+   * 2. Token in context
+   * 3. Environment variable GITHUB_TOKEN (set by worker)
+   * 
+   * @returns GitHub token or undefined
+   */
   private async resolveGitHubToken(
     agentContext: Record<string, unknown> | undefined,
     options: ProcessPromptOptions,
   ): Promise<string | undefined> {
-    // 1. Check if token explicitly provided
+    // 1. Check if token explicitly provided in options
     const fromOptions = options.githubToken;
     if (fromOptions && typeof fromOptions === 'string') return fromOptions;
 
+    // 2. Check for token in context
     const ctxToken = this.findString([
       this.getNested(agentContext, ['githubToken']),
       this.getNested(agentContext, ['token']),
@@ -790,7 +804,11 @@ export class PromptProcessor {
     ]);
     if (ctxToken) return ctxToken;
 
-    // 2. Check for installation ID and generate token from GitHub App credentials
+    // 3. Fallback to environment variable (provided by worker)
+    const envToken = process.env.GITHUB_TOKEN;
+    if (envToken) return envToken;
+
+    // 4. Check if installation ID provided without token - log warning
     const installationId = this.findString([
       this.getNested(agentContext, ['installationId']),
       this.getNested(agentContext, ['github', 'installationId']),
@@ -799,23 +817,17 @@ export class PromptProcessor {
     ]);
 
     if (installationId) {
-      try {
-        const { getGlobalGitHubAppAuth } = await import('../github/github-app-auth.js');
-        const authService = getGlobalGitHubAppAuth();
-        if (authService) {
-          console.error(`[PROMPT] Generating installation token for installation: ${installationId}`);
-          const token = await authService.getInstallationToken(installationId);
-          return token;
-        } else {
-          console.error('[PROMPT] GitHub App auth service not available (missing GITHUB_APP_ID or GITHUB_APP_PRIVATE_KEY)');
-        }
-      } catch (error) {
-        console.error('[PROMPT] Failed to generate installation token:', error instanceof Error ? error.message : String(error));
-      }
+      console.warn(
+        '[PROMPT] ⚠️ Installation ID provided but no GitHub token found.\n' +
+        '[PROMPT] Containers cannot generate tokens. Token must be provided by worker.\n' +
+        '[PROMPT] The worker should call LumiLink API to get a token and pass it via:\n' +
+        '[PROMPT]   - options.githubToken, or\n' +
+        '[PROMPT]   - context.github.token, or\n' +
+        '[PROMPT]   - GITHUB_TOKEN environment variable'
+      );
     }
 
-    // 3. Fallback to environment variable
-    return process.env.GITHUB_TOKEN;
+    return undefined;
   }
 
   private resolveRepositoryDescriptor(

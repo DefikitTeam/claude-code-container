@@ -27,6 +27,7 @@ export class GitHubController {
         installationId,
         eventType: webhookData.event,
         payload: webhookData.payload,
+        env: c.env, // Pass environment bindings
       });
 
       return successResponse(c, result, 200);

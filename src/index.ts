@@ -50,15 +50,13 @@ import { ValidateConfigUseCase } from './core/use-cases/deployment/validate-conf
 import { GitHubServiceImpl } from './infrastructure/services/github.service.impl';
 import { CryptoServiceImpl } from './infrastructure/services/crypto.service.impl';
 import { TokenServiceImpl } from './infrastructure/services/token.service.impl';
+import { LumiLinkTokenProvider } from './infrastructure/adapters/lumilink-token-provider';
 import { DeploymentServiceImpl } from './infrastructure/services/deployment.service.impl';
 import { ContainerServiceImpl } from './infrastructure/services/container.service.impl';
 import { ACPBridgeService } from './infrastructure/services/acp-bridge.service';
 import { ContainerRegistryAuthService } from './infrastructure/services/container-registry-auth.service';
 import { DeploymentRepositoryImpl } from './infrastructure/repositories/deployment-repository.impl';
 import { UserRepositoryDurableObjectAdapter } from './infrastructure/adapters/user-repository.do-adapter';
-
-// Utilities
-import { generateGitHubInstallationToken } from './shared/utils/github-token.util';
 
 // Durable Objects
 import {
@@ -75,11 +73,13 @@ export interface Env {
   MY_CONTAINER: DurableObjectNamespace;
   ACP_SESSION: DurableObjectNamespace;
   
-  // Environment variables
-  ENCRYPTION_KEY: string;
-  GITHUB_APP_ID: string;
-  GITHUB_APP_PRIVATE_KEY: string;
-  ANTHROPIC_API_KEY?: string;
+  // LumiLink Integration - Simple authentication with user JWT token
+  LUMILINK_API_URL?: string;    // LumiLink API base URL (e.g., http://localhost:8788 or https://api.lumilink.ai)
+  LUMILINK_JWT_TOKEN?: string;  // User's JWT token from LumiLink authentication
+  
+  // User-specific credentials
+  ENCRYPTION_KEY: string;       // For encrypting user data (Anthropic API keys, etc.)
+  ANTHROPIC_API_KEY?: string;   // Optional default Anthropic API key
 }
 
 /**
@@ -109,20 +109,39 @@ async function setupDI(env: Env): Promise<Controllers> {
   const cryptoService = new CryptoServiceImpl();
   await cryptoService.initialize(env.ENCRYPTION_KEY);
 
-  // Real GitHub token generator using JWT + Installation Token flow
-  const tokenService = new TokenServiceImpl(async (installationId: string) => {
-    return await generateGitHubInstallationToken(
-      installationId,
-      env.GITHUB_APP_ID,
-      env.GITHUB_APP_PRIVATE_KEY,
-    );
-  });
+  // Token service using LumiLink API with user JWT authentication
+  // Worker authenticates using the user's JWT token (same as regular API calls)
+  // This is simpler than managing separate API keys
+  let tokenService: TokenServiceImpl;
+  
+  if (env.LUMILINK_JWT_TOKEN && env.LUMILINK_API_URL) {
+    console.log('[DI] ✅ Using LumiLink token provider (JWT auth)');
+    const lumilinkProvider = new LumiLinkTokenProvider({
+      apiUrl: env.LUMILINK_API_URL,
+      jwtToken: env.LUMILINK_JWT_TOKEN,
+    });
+    tokenService = new TokenServiceImpl(lumilinkProvider);
+  } else {
+    // No token provider configured - GitHub operations will fail, but user registration still works
+    console.warn('[DI] ⚠️  No LumiLink credentials configured.');
+    console.warn('[DI] User registration works, but GitHub operations (repos, branches, PRs) will fail.');
+    console.warn('[DI] Set these environment variables:');
+    console.warn('[DI]   - LUMILINK_API_URL (e.g., http://localhost:8788)');
+    console.warn('[DI]   - LUMILINK_JWT_TOKEN (get from LumiLink login)');
+    
+    // Create a dummy token service that throws helpful errors when used
+    tokenService = new TokenServiceImpl({
+      getToken: async (installationId: string) => {
+        throw new Error(
+          'LumiLink credentials not configured. Cannot perform GitHub operations.\n' +
+          'Set LUMILINK_API_URL and LUMILINK_JWT_TOKEN environment variables.\n' +
+          'Get JWT token by logging into LumiLink.'
+        );
+      },
+    });
+  }
 
-  const githubService = new GitHubServiceImpl(
-    tokenService,
-    env.GITHUB_APP_ID,
-    env.GITHUB_APP_PRIVATE_KEY,
-  );
+  const githubService = new GitHubServiceImpl(tokenService);
 
   const deploymentService = new DeploymentServiceImpl();
   const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG);

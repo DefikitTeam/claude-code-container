@@ -15,21 +15,22 @@
         "type": "secret",
         "description": "Anthropic Claude API key (get from https://console.anthropic.com/)"
       },
-      "GITHUB_APP_PRIVATE_KEY": {
-        "type": "secret",
-        "description": "GitHub App Private Key in PEM format"
-      },
-      "GITHUB_APP_ID": {
-        "type": "plain_text",
-        "description": "GitHub App ID number"
-      },
-      "GITHUB_WEBHOOK_SECRET": {
-        "type": "secret",
-        "description": "GitHub Webhook Secret"
-      },
       "ENCRYPTION_KEY": {
         "type": "secret",
         "description": "32-byte hex encryption key (generate with: openssl rand -hex 32)"
+      },
+      "LUMILINK_API_KEY": {
+        "type": "secret",
+        "description": "LumiLink platform API key (for GitHub token generation)"
+      },
+      "USER_ID": {
+        "type": "plain_text",
+        "description": "Your user ID in the LumiLink platform"
+      },
+      "LUMILINK_API_URL": {
+        "type": "plain_text",
+        "description": "LumiLink API URL (default: https://api.lumilink.ai)",
+        "default": "https://api.lumilink.ai"
       }
     },
     "services": {

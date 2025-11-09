@@ -3,6 +3,9 @@
  * Provides GitHub API operations (repositories, branches, PR creation, etc.)
  *
  * Implements: IGitHubService
+ * 
+ * IMPORTANT: This service NO LONGER requires GitHub App credentials.
+ * It uses TokenService which calls an external provider (e.g., LumiLink) to get tokens.
  */
 
 import { IGitHubService } from '../../core/interfaces/services/github.service';
@@ -21,30 +24,17 @@ interface GitHubConfig {
 
 /**
  * GitHub Service Implementation
- * Handles all GitHub API interactions
+ * Handles all GitHub API interactions using installation tokens
  */
 export class GitHubServiceImpl implements IGitHubService {
   private readonly apiBaseUrl: string;
   private readonly apiVersion: string;
   private readonly timeout: number;
-  private readonly appId: string;
-  private readonly privateKey: string;
 
   constructor(
     private tokenService: ITokenService,
-    appId: string,
-    privateKey: string,
     config: GitHubConfig = {},
   ) {
-    if (!appId || typeof appId !== 'string') {
-      throw new ValidationError('appId must be a non-empty string');
-    }
-    if (!privateKey || typeof privateKey !== 'string') {
-      throw new ValidationError('privateKey must be a non-empty string');
-    }
-
-    this.appId = appId;
-    this.privateKey = privateKey;
     this.apiBaseUrl = config.apiBaseUrl || 'https://api.github.com';
     this.apiVersion = config.apiVersion || '2022-11-28';
     this.timeout = config.timeout || 30000;
