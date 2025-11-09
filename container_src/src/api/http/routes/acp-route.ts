@@ -50,6 +50,14 @@ function buildRequestContext(
       ? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
       : String(requestId);
 
+  // Debug logging to trace API key
+  console.error('[ACP-ROUTE] Building request context:', {
+    hasParams: !!params,
+    paramsKeys: params ? Object.keys(params) : [],
+    hasAnthropicApiKey: !!(params && params.anthropicApiKey),
+    anthropicApiKeySource: params?.anthropicApiKey ? 'params' : process.env.ANTHROPIC_API_KEY ? 'env' : 'missing',
+  });
+
   const metadata = {
     userId: getString(params, ['userId']) ?? 'http-server',
     sessionId: getString(params, ['sessionId']),
@@ -61,6 +69,13 @@ function buildRequestContext(
     repository: getValue(params, ['context', 'repository']),
     operation: getValue(params, ['context', 'operation']),
   };
+
+  console.error('[ACP-ROUTE] Metadata built:', {
+    userId: metadata.userId,
+    hasAnthropicApiKey: !!metadata.anthropicApiKey,
+    hasGithubToken: !!metadata.githubToken,
+    hasRepository: !!metadata.repository,
+  });
 
   return {
     requestId: id,

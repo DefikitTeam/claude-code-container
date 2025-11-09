@@ -21,6 +21,9 @@ export function createACPRoutes(controller: ACPController): Hono {
   // POST /session/prompt - Send prompt to session
   router.post('/session/prompt', requireJsonBody(), (c) => controller.sessionPrompt(c));
 
+  // GET /job/:jobId - Get async job status
+  router.get('/job/:jobId', (c) => controller.getJobStatus(c));
+
   // POST /session/load - Load existing session
   router.post('/session/load', requireJsonBody(), (c) => controller.sessionLoad(c));
 

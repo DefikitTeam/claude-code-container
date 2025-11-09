@@ -8,7 +8,7 @@ import { NotFoundError } from '../../../shared/errors/not-found.error';
 export interface RegisterUserDto {
   userId: string;
   installationId: string;
-  anthropicApiKey: string;
+  anthropicApiKey?: string; // Optional - worker uses its own OPENROUTER_API_KEY
   repositoryAccess?: string[];
   projectLabel?: string;
 }
@@ -38,8 +38,8 @@ export class RegisterUserUseCase {
   ) {}
 
   async execute(dto: RegisterUserDto): Promise<RegisterUserResult> {
-    if (!dto.userId || !dto.installationId || !dto.anthropicApiKey) {
-      throw new ValidationError('userId, installationId, and anthropicApiKey are required');
+    if (!dto.userId || !dto.installationId) {
+      throw new ValidationError('userId and installationId are required');
     }
 
     // TODO: Enable GitHub validation when installation tokens are properly configured
@@ -56,10 +56,13 @@ export class RegisterUserUseCase {
     //   repositoryAccess = repos.map(r => r.fullName);
     // }
 
+    // Use placeholder API key - worker will use its own OPENROUTER_API_KEY from environment
+    const apiKey = dto.anthropicApiKey || 'WORKER_MANAGED';
+
     const user = UserEntity.create(
       dto.userId,
       dto.installationId,
-      dto.anthropicApiKey,
+      apiKey,
       repositoryAccess,
       dto.projectLabel
     );

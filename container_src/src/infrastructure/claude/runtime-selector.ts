@@ -207,8 +207,23 @@ export class ClaudeRuntimeSelector implements IClaudeService {
   }
 
   private async createContext(options: RunOptions): Promise<ClaudeRuntimeContext> {
+    // Debug logging for API key resolution
+    console.error('[RUNTIME-SELECTOR] Creating context:', {
+      hasOptionsApiKey: !!options.apiKey,
+      optionsApiKeyLength: options.apiKey?.length || 0,
+      hasEnvAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+      hasEnvOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
+    });
+
     // Try ANTHROPIC_API_KEY first, then fall back to OPENROUTER_API_KEY for multi-model support
     const apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY;
+
+    console.error('[RUNTIME-SELECTOR] API key resolved:', {
+      hasApiKey: !!apiKey,
+      apiKeyLength: apiKey?.length || 0,
+      source: options.apiKey ? 'options' : process.env.ANTHROPIC_API_KEY ? 'env-anthropic' : process.env.OPENROUTER_API_KEY ? 'env-openrouter' : 'none',
+    });
+
     if (!apiKey) {
       const diagnostics = await this.diagnostics();
       const error = new Error('anthropic_api_key_missing');

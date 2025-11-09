@@ -65,6 +65,7 @@ import {
   UserConfigDO,
   AcpSessionDO,
 } from './infrastructure/durable-objects';
+import { AsyncJobDO } from './infrastructure/durable-objects/async-job.do';
 
 export interface Env {
   // Cloudflare bindings (must match wrangler.jsonc binding names)
@@ -72,6 +73,7 @@ export interface Env {
   GITHUB_APP_CONFIG: DurableObjectNamespace;
   MY_CONTAINER: DurableObjectNamespace;
   ACP_SESSION: DurableObjectNamespace;
+  ASYNC_JOB: DurableObjectNamespace;
   
   // LumiLink Integration - Simple authentication with user JWT token
   LUMILINK_API_URL?: string;    // LumiLink API base URL (e.g., http://localhost:8788 or https://api.lumilink.ai)
@@ -262,4 +264,5 @@ export {
   GitHubAppConfigDO,
   UserConfigDO,
   AcpSessionDO as ACPSessionDO,
+  AsyncJobDO,
 };

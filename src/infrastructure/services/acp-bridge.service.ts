@@ -21,9 +21,23 @@ import type {
  */
 export interface IACPBridgeService {
   /**
-   * Route an ACP method to the container
+   * Route an ACP method to the container (synchronous - waits for completion)
    */
   routeACPMethod(method: string, params: any, env: any): Promise<any>;
+
+  /**
+   * Route an ACP method to the container asynchronously
+   * Returns immediately with jobId, actual processing happens in background
+   */
+  routeACPMethodAsync(method: string, params: any, env: any): Promise<{
+    jobId: string;
+    status: string;
+  }>;
+
+  /**
+   * Get async job status
+   */
+  getAsyncJobStatus(jobId: string, env: any): Promise<any>;
 
   /**
    * Handle session prompt side effects (audit logging)
@@ -84,7 +98,25 @@ export class ACPBridgeService implements IACPBridgeService {
         };
       }
 
-      // Fetch user configuration to get their encrypted API key
+      // Use worker's own OpenRouter API key (from environment/secrets)
+      const openrouterApiKey = env.OPENROUTER_API_KEY;
+
+      if (!openrouterApiKey) {
+        console.error('[ACP-BRIDGE] Missing OPENROUTER_API_KEY in worker environment');
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Worker not configured: Missing OPENROUTER_API_KEY',
+            data: {
+              hint: 'Set OPENROUTER_API_KEY in worker secrets (wrangler secret put OPENROUTER_API_KEY)',
+            },
+          },
+          id: Date.now(),
+        };
+      }
+
+      // Fetch user configuration to get their installation ID for GitHub operations
       console.log(`[ACP-BRIDGE] Fetching config for user: ${userId}`);
       let userConfig;
       try {
@@ -94,35 +126,18 @@ export class ACPBridgeService implements IACPBridgeService {
         return {
           jsonrpc: '2.0',
           error: {
-            code: -32001,
+            code: -32002,
             message: error instanceof Error ? error.message : 'User not found',
             data: {
               userId,
-              hint: 'Register user first via POST /register-user with installationId and anthropicApiKey',
+              hint: 'Register user first via POST /register-user with installationId',
             },
           },
           id: Date.now(),
         };
       }
 
-      // Verify user has an API key
-      if (!userConfig.anthropicApiKey) {
-        console.error(`[ACP-BRIDGE] User ${userId} has no Anthropic API key configured`);
-        return {
-          jsonrpc: '2.0',
-          error: {
-            code: -32002,
-            message: 'User has no Anthropic API key configured',
-            data: {
-              userId,
-              hint: 'Update user configuration via PUT /user-config with anthropicApiKey',
-            },
-          },
-          id: Date.now(),
-        };
-      }
-
-      console.log(`[ACP-BRIDGE] Using API key for user: ${userId} (installation: ${userConfig.installationId})`);
+      console.log(`[ACP-BRIDGE] Using worker OpenRouter API key for user: ${userId} (installation: ${userConfig.installationId})`);
 
       // Optional bypass when containers disabled locally (AFTER validation!)
       if (env.NO_CONTAINERS === 'true') {
@@ -177,19 +192,21 @@ export class ACPBridgeService implements IACPBridgeService {
       const container = env.MY_CONTAINER.get(containerId);
 
       // Create JSON-RPC request for container ACP server
-      // Include user's decrypted API key in params (already decrypted by UserConfigDO)
+      // Use worker's OpenRouter API key (not user-provided)
       const jsonRpcRequest = {
         jsonrpc: '2.0',
         method: method,
         params: {
           ...params,
-          anthropicApiKey: userConfig.anthropicApiKey, // ✅ Use user's decrypted API key
+          anthropicApiKey: openrouterApiKey, // ✅ Use worker's OpenRouter API key
+          // Also pass GitHub token at top level for container compatibility
+          ...(githubToken ? { githubToken } : {}),
           // Auto-inject GitHub context (token + repository) from installation
           context: {
             ...(params.context || {}),
             // Auto-inject repository if not provided by user
             ...(repository && !params.context?.repository ? { repository } : {}),
-            // Inject GitHub token in context.github.token (container expects it here)
+            // Inject GitHub token in context.github.token (for handlers that expect it here)
             ...(githubToken ? {
               github: {
                 ...(params.context?.github || {}),
@@ -209,8 +226,13 @@ export class ACPBridgeService implements IACPBridgeService {
         hasRepository: !!repository || !!params.context?.repository,
         repository: repository || params.context?.repository || 'none',
         paramsKeys: Object.keys(params || {}),
+        hasOpenRouterApiKey: !!openrouterApiKey,
+        openrouterApiKeyLength: openrouterApiKey?.length || 0,
         containerId: containerId.toString(),
       });
+
+      // Debug: Log what we're actually sending
+      console.log(`[ACP-BRIDGE] JSON-RPC request params keys:`, Object.keys(jsonRpcRequest.params));
 
       // Route to container ACP server via HTTP
       const containerResponse = await container.fetch(
@@ -270,6 +292,20 @@ export class ACPBridgeService implements IACPBridgeService {
       }
 
       console.log(`[ACP-BRIDGE] Successfully routed ${method} to container`);
+      console.log(`[ACP-BRIDGE] Returning result with keys:`, Object.keys(containerResult || {}));
+      console.log(`[ACP-BRIDGE] Result structure:`, {
+        hasJsonrpc: !!containerResult?.jsonrpc,
+        hasId: !!containerResult?.id,
+        hasResult: !!containerResult?.result,
+        hasError: !!containerResult?.error,
+        resultType: typeof containerResult?.result,
+      });
+      
+      // Log a sample of the actual response being returned
+      if (containerResult?.result) {
+        console.log(`[ACP-BRIDGE] Result sample:`, JSON.stringify(containerResult).substring(0, 300));
+      }
+      
       return containerResult;
     } catch (error) {
       console.error(`[ACP-BRIDGE] Router error for ${method}:`, error);
@@ -403,6 +439,149 @@ export class ACPBridgeService implements IACPBridgeService {
   }
 
   /**
+   * Route an ACP method asynchronously (returns immediately with jobId)
+   * Actual processing happens in background via Durable Object
+   */
+  async routeACPMethodAsync(method: string, params: any, env: any): Promise<{
+    jobId: string;
+    status: string;
+  }> {
+    try {
+      // Validate userId
+      const userId = params?.userId;
+      if (!userId) {
+        throw new Error('userId is required for multi-tenant security');
+      }
+
+      // Create async job in AsyncJobDO
+      const asyncJobDO = this.getAsyncJobDO(env);
+      const createResponse = await asyncJobDO.fetch(
+        new Request('http://localhost/job', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method, params }),
+        }),
+      );
+
+      if (!createResponse.ok) {
+        throw new Error(`Failed to create async job: ${createResponse.statusText}`);
+      }
+
+      const jobData = await createResponse.json() as any;
+
+      // Start background processing (fire-and-forget)
+      // Use ctx.waitUntil if available, or just fire the promise
+      const processingPromise = this.processAsyncJob(jobData.jobId, method, params, env);
+      
+      // In Cloudflare Workers, we can use event.waitUntil to keep processing after response
+      // For now, just fire-and-forget (container will continue processing)
+      processingPromise.catch((error) => {
+        console.error(`[ACP-BRIDGE] Background job ${jobData.jobId} failed:`, error);
+      });
+
+      console.log(`[ACP-BRIDGE] Created async job: ${jobData.jobId} for method: ${method}`);
+
+      return {
+        jobId: jobData.jobId,
+        status: jobData.status,
+      };
+    } catch (error) {
+      console.error('[ACP-BRIDGE] Failed to create async job:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process async job in background
+   */
+  private async processAsyncJob(jobId: string, method: string, params: any, env: any): Promise<void> {
+    try {
+      console.log(`[ACP-BRIDGE] Starting background processing for job: ${jobId}`);
+
+      // Update job status to processing
+      const asyncJobDO = this.getAsyncJobDO(env);
+      await asyncJobDO.fetch(
+        new Request(`http://localhost/job/${jobId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'processing' }),
+        }),
+      );
+
+      // Execute the actual ACP method (this can take a long time)
+      const result = await this.routeACPMethod(method, params, env);
+
+      // Update job with result
+      await asyncJobDO.fetch(
+        new Request(`http://localhost/job/${jobId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed', result }),
+        }),
+      );
+
+      console.log(`[ACP-BRIDGE] Job ${jobId} completed successfully`);
+    } catch (error) {
+      console.error(`[ACP-BRIDGE] Job ${jobId} failed:`, error);
+
+      // Update job with error
+      const asyncJobDO = this.getAsyncJobDO(env);
+      await asyncJobDO.fetch(
+        new Request(`http://localhost/job/${jobId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'failed',
+            error: {
+              code: 'PROCESSING_ERROR',
+              message: error instanceof Error ? error.message : String(error),
+            },
+          }),
+        }),
+      ).catch((e: any) => {
+        console.error(`[ACP-BRIDGE] Failed to update job ${jobId} with error:`, e);
+      });
+    }
+  }
+
+  /**
+   * Get async job status
+   */
+  async getAsyncJobStatus(jobId: string, env: any): Promise<any> {
+    try {
+      const asyncJobDO = this.getAsyncJobDO(env);
+      const response = await asyncJobDO.fetch(
+        new Request(`http://localhost/job/${jobId}`, {
+          method: 'GET',
+        }),
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return {
+            error: 'Job not found',
+            code: 'JOB_NOT_FOUND',
+          };
+        }
+        throw new Error(`Failed to get job status: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`[ACP-BRIDGE] Failed to get job status for ${jobId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get AsyncJobDO instance
+   */
+  private getAsyncJobDO(env: any): any {
+    const id = env.ASYNC_JOB.idFromName('async-jobs');
+    return env.ASYNC_JOB.get(id);
+  }
+
+  /**
    * Fetch user configuration by userId from UserConfigDO
    */
   private async fetchUserConfig(env: any, userId: string): Promise<any> {
@@ -526,13 +705,24 @@ export class ACPBridgeService implements IACPBridgeService {
     try {
       const id = namespace.idFromName(sessionId);
       const stub = namespace.get(id);
-      await stub.fetch(
+
+      // Fire-and-forget with timeout to prevent blocking HTTP response
+      const auditPromise = stub.fetch(
         new Request(`https://acp-session/${encodeURIComponent(sessionId)}/audit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(record),
         }),
       );
+
+      // Race between audit call and 1-second timeout
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Audit timeout')), 1000)
+      );
+
+      await Promise.race([auditPromise, timeoutPromise]).catch(error => {
+        console.warn('[ACP-BRIDGE] Session audit timed out or failed:', error.message);
+      });
     } catch (error) {
       console.warn('[ACP-BRIDGE] Failed to append session audit', error);
     }

@@ -20,7 +20,7 @@ export function parseRegisterUserDto(
 ): RegisterUserDto {
   const userId = sanitizeOptional(body.userId ?? context.defaultUserId);
   const installationId = sanitize(body.installationId ?? context.defaultInstallationId, 'installationId');
-  const anthropicApiKey = sanitize(body.anthropicApiKey, 'anthropicApiKey');
+  const anthropicApiKey = sanitizeOptional(body.anthropicApiKey); // Optional - worker uses its own key
   const projectLabel = sanitizeOptional(body.projectLabel);
   const repositoryAccess = Array.isArray(body.repositoryAccess)
     ? body.repositoryAccess.map((repo) => repo.trim()).filter(Boolean)
@@ -31,7 +31,11 @@ export function parseRegisterUserDto(
   }
 
   validateInstallationId(installationId);
-  validateApiKey(anthropicApiKey);
+
+  // Only validate API key if provided (optional now)
+  if (anthropicApiKey) {
+    validateApiKey(anthropicApiKey);
+  }
 
   return {
     userId: userId ?? createDefaultUserId(installationId),

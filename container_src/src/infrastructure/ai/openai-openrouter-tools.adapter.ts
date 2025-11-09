@@ -54,7 +54,7 @@ export interface OpenAIOpenRouterToolsConfig {
 
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'anthropic/claude-sonnet-4',
+  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5',
   httpReferer: process.env.OPENROUTER_HTTP_REFERER || 'https://github.com/DefikitTeam/claude-code-container',
   siteName: process.env.OPENROUTER_SITE_NAME || 'Claude Code Container',
   timeout: Number(process.env.OPENROUTER_TIMEOUT || 180000),
@@ -176,23 +176,26 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
       while (loopCount < maxToolLoops) {
         loopCount++;
-        
+
         // Check abort signal
         if (abortSignal.aborted) {
           throw new Error('aborted');
         }
 
-        logger.debug(`tool loop iteration ${loopCount}`, {
+        logger.info(`🔄 Tool loop iteration ${loopCount}/${maxToolLoops}`, {
           messagesCount: conversationMessages.length,
+          lastMessageRole: conversationMessages[conversationMessages.length - 1]?.role,
         });
 
         // Create streaming completion
+        logger.info(`📡 Making API call to OpenRouter (iteration ${loopCount})...`);
         const stream = await client.chat.completions.create({
           model,
           messages: conversationMessages,
           tools: tools as any,
           stream: true,
         });
+        logger.info(`✅ API call started successfully (iteration ${loopCount})`);
 
         let currentMessage = '';
         let currentToolCalls: any[] = [];
@@ -259,7 +262,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
         // If we have tool calls, execute them
         if (currentToolCalls.length > 0) {
-          logger.info('executing tool calls', { count: currentToolCalls.length });
+          logger.info(`🔧 Model requested ${currentToolCalls.length} tool calls`, {
+            tools: currentToolCalls.map(tc => tc.function.name),
+          });
 
           // Add assistant message with tool calls to conversation
           conversationMessages.push({
@@ -319,6 +324,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               });
             }
           }
+
+          logger.info(`✅ All ${currentToolCalls.length} tools executed, continuing loop to send results back to model...`);
 
           // Continue loop to get model's response after tool execution
           continue;
