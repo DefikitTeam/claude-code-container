@@ -93,13 +93,14 @@ export class ACPController {
       console.log('[ACP-CONTROLLER] About to return response to client');
       
       // Return with explicit headers to ensure proper streaming
-      return new Response(jsonString, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': jsonString.length.toString(),
-        },
-      });
+      // return new Response(jsonString, {
+      //   status: 200,
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //     'Content-Length': jsonString.length.toString(),
+      //   },
+      // });
+      return c.json(result);
     } catch (err: any) {
       const duration = Date.now() - startTime;
       console.error(`[ACP-CONTROLLER] sessionPrompt - ERROR after ${duration}ms:`, err.message);
