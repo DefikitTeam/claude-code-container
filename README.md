@@ -4,7 +4,7 @@
 
 - **Node.js 22+** (for Wrangler CLI and container compatibility)
 - **Cloudflare Account** (free tier works)
-- **Anthropic API Key** (for Claude integration)
+- **OpenRouter API Key** (for Claude/OpenRouter integration) — currently the project supports the OpenRouter provider; other providers (Anthropic, etc.) will be supported in the near future.
 - **GitHub Repository** (for automation)
 
 ---
@@ -19,28 +19,16 @@
 cannot be deployed via simple deploy buttons. GitHub Actions provides reliable
 deployment with 95%+ success rate.
 
-**Steps:**
+**Steps:**x
 
 1. **[Fork this repository](https://github.com/DefikitTeam/claude-code-container/fork)**
    ← Click here
 2. **Add 4 secrets** in your fork: Settings → Secrets and variables → Actions
-   - `CLOUDFLARE_API_TOKEN` (from Cloudflare dashboard)
-   - `CLOUDFLARE_ACCOUNT_ID` (from Cloudflare dashboard)
-   - `ANTHROPIC_API_KEY` (from Anthropic console)
-   - `ENCRYPTION_KEY` (generate with: `openssl rand -hex 32`)
+  - `CLOUDFLARE_API_TOKEN` (from Cloudflare dashboard)
+  - `CLOUDFLARE_ACCOUNT_ID` (from Cloudflare dashboard)
+  - `OPENROUTER_API_KEY` (OpenRouter API key for Claude/OpenRouter integration). Note: currently only the OpenRouter provider is supported; additional providers (Anthropic, etc.) will be supported soon.
+  - `ENCRYPTION_KEY` (generate with: `openssl rand -hex 32`)
 3. **Push any change** to trigger automatic deployment
-
-### Method 2: Deploy Button (Limited Support)
-
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button?repository=https://github.com/DefikitTeam/claude-code-container)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
-
-> ⚠️ **Known Issues**: Deploy button has ~20% success rate for complex projects.
-> Use Fork method above for reliable deployment.ter">
-
-**⚠️ Deploy Button Notice**: The direct deploy button has known authorization
-issues. [See status](./DEPLOY_BUTTON_STATUS.md) • Use **Fork + GitHub Actions**
-for reliable deployment.
-
 [� Reliable Deployment Guide](./DEPLOYMENT_GUIDE.md) •
 [🔧 Quick Start](#quick-start-fork--github-actions) • [💡 Features](#-features)
 
@@ -61,14 +49,14 @@ In your forked repo, go to **Settings** → **Secrets** → **Actions** and add:
 - `CLOUDFLARE_API_TOKEN` -
   [Get here](https://dash.cloudflare.com/profile/api-tokens)
 - `CLOUDFLARE_ACCOUNT_ID` - Found in Cloudflare dashboard
-- `ANTHROPIC_API_KEY` - [Get here](https://console.anthropic.com/)
+- `OPENROUTER_API_KEY` - OpenRouter API key for Claude/OpenRouter integration. Get one at [https://openrouter.ai/](https://openrouter.ai/). Note: currently only the OpenRouter provider is supported; additional providers (Anthropic, etc.) will be supported soon.
 
 ### 3. Deploy
 
 1. Go to **Actions** tab in your fork
-2. Click **"Deploy to Cloudflare Workers"**
-3. Click **"Run workflow"**
-4. Select `production` and run!
+2. Run the **Deploy to Cloudflare Workers** workflow in the Actions tab
+3. Click **Run workflow**, choose the environment (e.g. `production`) and confirm
+4. Wait for the workflow to complete — deployment typically finishes in a few minutes
 
 ### 4. Complete Setup
 
@@ -145,17 +133,16 @@ GitHub Webhooks → Worker (Hono Router) → Container (Node.js + Claude Code) �
 
 </div>
 
-### Option 1: One-Click Deploy (Recommended) ⚡
+### Option 1: Fork + GitHub Actions (Recommended) ⚡
 
-The fastest way to get your own Claude Code Container system up and running:
+The recommended and most reliable way to deploy the system is to fork the repo and use the included GitHub Actions workflow:
 
-1. **Click the deploy button above** ☝️
-2. **Fork the repository** to your GitHub account (automatic)
-3. **Connect your Cloudflare account** (guided setup)
-4. **Add your Anthropic API key** (secure form)
-5. **Deploy!** System will be live in ~5 minutes
+1. **Fork the repository** to your GitHub account (use the "Fork" button at the top of the repo page)
+2. **Connect your Cloudflare account** when prompted by the workflow (guided setup)
+3. **Add your OpenRouter API key** (secure form). Note: the current deployment flow uses OpenRouter as the provider; support for other providers (Anthropic, etc.) is planned.
+4. **Run the Deploy workflow** under the Actions tab — deployment typically completes in ~5 minutes
 
-**Perfect for:** Quick testing, personal projects, getting started immediately
+**Perfect for:** Quick testing, personal projects, and production-ready deployments via CI
 
 ### Option 2: Use as Template 📋
 
@@ -164,7 +151,7 @@ Create your own repository from this template for customization:
 1. **Click "Use this template"** at the top of this repository
 2. **Create your new repository**
 3. **Follow the setup guide** in your new repo's README
-4. **Deploy using the button** in your repository
+4. **Deploy using the included GitHub Actions workflow** (see Actions tab in your repo)
 
 **Perfect for:** Custom modifications, team projects, production deployments
 
@@ -177,7 +164,7 @@ Full control over the deployment process:
 - [Node.js](https://nodejs.org/) 22+ and npm
 - [Cloudflare account](https://dash.cloudflare.com/sign-up) with Workers enabled
 - [GitHub App](https://github.com/settings/developers) created and installed
-- [Anthropic API key](https://console.anthropic.com/) for Claude Code
+- [OpenRouter API key](https://openrouter.ai/) for Claude/OpenRouter integration. Currently OpenRouter is the supported provider; support for other providers (Anthropic, etc.) will be added later.
 
 #### 1. Clone and Install
 
@@ -199,7 +186,7 @@ cd ..
 cp .dev.vars.example .dev.vars
 
 # Edit .dev.vars with your credentials
-# Required: ANTHROPIC_API_KEY
+# Required: OPENROUTER_API_KEY (OpenRouter). Currently the project uses OpenRouter as the provider; support for other providers (Anthropic, ...) is planned.
 ```
 
 #### 3. Build Container
@@ -246,7 +233,7 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/config \
 
 | Variable                | Required | Description                                        |
 | ----------------------- | -------- | -------------------------------------------------- |
-| `ANTHROPIC_API_KEY`     | ✅       | Your Anthropic API key for Claude Code             |
+| `OPENROUTER_API_KEY`    | ✅       | Your OpenRouter API key for Claude/OpenRouter integration. Currently only the OpenRouter provider is supported; other providers (Anthropic, etc.) will be supported soon. |
 | `GITHUB_APP_ID`         | ⚠️       | GitHub App ID (can be set via `/config` endpoint)  |
 | `GITHUB_WEBHOOK_SECRET` | ⚠️       | Webhook secret (can be set via `/config` endpoint) |
 | `ENVIRONMENT`           | ❌       | Environment name (default: `development`)          |
@@ -589,6 +576,12 @@ curl https://your-worker.your-subdomain.workers.dev/container/health
 **Claude Code API errors**
 
 - Verify `ANTHROPIC_API_KEY` is set correctly
+- Check API key has sufficient credits
+- Review container logs for detailed error messages
+
+**Claude Code API errors**
+
+- Verify `OPENROUTER_API_KEY` (or configured provider API key) is set correctly
 - Check API key has sufficient credits
 - Review container logs for detailed error messages
 
