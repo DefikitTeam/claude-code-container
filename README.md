@@ -347,10 +347,27 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/process-prompt \
 }
 ```
 
-> ℹ️ **Repository endpoints**: supply either `installationId` or `userId` as a
-> query parameter. If both are provided, `userId` takes precedence. Optional
-> pagination parameters `perPage` (1-100) and `page` (default 1) are
-> supported. Branch listings also accept `protectedOnly=true` to filter results.
+> ℹ️ **Repository endpoints**: always supply `installationId` and include
+> `userId` when an installation has multiple registrations. If you omit
+> `userId` and the installation has more than one project, the Worker returns a
+> `409 Conflict` with a `registrations` array so you can disambiguate. Optional
+> pagination parameters `perPage` (1-100) and `page` (default 1) are supported.
+> Branch listings also accept `protectedOnly=true` to filter results.
+
+### 🔁 Multi-Registration Support
+
+- A single GitHub installation can now power multiple LumiLink projects. Use
+  `POST /register-user` to add a new registration; responses include an
+  `existingRegistrations` list so you can confirm active aliases.
+- GitHub helper endpoints (e.g. `/github/repositories` and the branches API)
+  require `installationId` and will surface a clear conflict response if a
+  specific `userId` is needed.
+- Tokens are cached per `(installationId, userId)` pair with automatic cleanup
+  when you remove a registration. This keeps separate Anthropic credentials and
+  container registry tokens isolated per project.
+- See [`docs/MULTI_REGISTRATION.md`](docs/MULTI_REGISTRATION.md) for cURL
+  examples, conflict payloads, and migration tips when converting from the
+  legacy single-registration flow.
 
 ### 🚀 Deployment API Usage
 

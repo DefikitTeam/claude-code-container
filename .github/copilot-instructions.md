@@ -1,107 +1,246 @@
-## Claude Code Containers – Focused AI Working Guide
+# AI Coding Agent Instructions
 
-Purpose: Equip an AI agent to extend or modify this multi-tenant Cloudflare
-Worker + Container automation system safely and fast. Always cite concrete
-files; never invent endpoints or config fields.
+## Project Overview
 
-### 1. Runtime Data Flow
+**Claude Code Containers** is a dual-tier AI-powered GitHub automation system:
+- **Worker Layer** (`src/`): Cloudflare Worker with Clean Architecture handling HTTP requests, webhooks, and orchestration
+- **Container Layer** (`container_src/`): Node.js container running Claude Code SDK with ACP (Agent Client Protocol) support
 
-Issue / Prompt → `src/index.ts` (Hono router) → Durable Objects
-(`GitHubAppConfigDO`, `UserConfigDO`, `MyContainer`) → Ephemeral container
-(`container_src/src/*`) → GitHub (PR / comments). Secrets never persist inside
-container code; only decrypted runtime subset passed.
+**Critical Architecture Pattern**: Two-package monorepo with separate dependency trees:
+- Root `package.json` → Worker builds/deploys
+- `container_src/package.json` → Container image builds independently
 
-### 2. Dual Package Boundary
+## Clean Architecture Structure (Worker Layer)
 
-Root `package.json`: Worker (TypeScript). `container_src/package.json`:
-execution environment (Claude SDK, git, Octokit). Install deps in the right
-layer or runtime will 404 modules.
+```
+src/
+├── core/          # Business logic (entities, use-cases, interfaces)
+├── infrastructure/ # External integrations (Durable Objects, services)
+├── api/           # HTTP layer (Hono routes, controllers, DTOs)
+└── shared/        # Cross-layer utilities
+```
 
-### 3. Security & Credentials
+**Key Pattern**: Dependency Injection via factory functions in `src/index.ts`:
+```typescript
+// Services implement core/interfaces, injected into use-cases
+const cryptoService = new CryptoServiceImpl();
+const registerUserUseCase = new RegisterUserUseCase(userRepository, githubService, cryptoService);
+const userController = new UserController(registerUserUseCase, ...);
+```
 
-Encryption: AES-256-GCM (`src/crypto.ts`). To add a secret: extend
-`GitHubAppConfig` + DO encrypt/decrypt logic; keep GET views redacted. Webhook
-signature (`X-Hub-Signature-256`) verified before processing. Anthropic API key
-passed per request (do not store).
+**DO NOT** import infrastructure directly into core. Always use interfaces from `core/interfaces/`.
 
-### 4. Multi-Tenant Rules
+## Container Architecture (ACP Layer)
 
-Every new feature threads `installationId` (and `userId` if user-scoped) from
-request → DO lookup → container payload. No silent fallbacks—explicit structured
-errors like existing patterns in `token-manager.ts`.
+**Entry Point**: `container_src/src/index.ts` supports multiple modes:
+- `--http-server`: HTTP server on port 8080 (default, used by Worker)
+- `--http-bridge`: HTTP-to-stdio bridge for OpenHands integration
+- (no flags): stdio ACP mode for direct agent communication
 
-### 5. Core File Map
+**Routing Stack**: Clean architecture in `container_src/src/api/http/`:
+- `router.ts`: Main JSON-RPC dispatcher
+- `routes/`: Handler registration (`session.routes.ts`, `cancel.routes.ts`, etc.)
+- `middleware/`: Request validation, error handling
+- `server.ts`: HTTP server bootstrap
 
-`src/index.ts` routes; add new endpoint + update `src/types.ts`.  
-`src/durable-objects.ts` container lifecycle/env wiring.  
-`src/token-manager.ts` GitHub installation token refresh (reuse).  
-`container_src/src/http-server.ts` / `main.ts` dispatch on `type`.  
-`container_src/src/github_client.ts` PR/branch ops abstraction.  
-`container_src/src/tools.ts` adds AI tool surface.
+**Critical**: The legacy HTTP server was removed. Always use the clean-architecture stack under `api/http/`.
 
-### 6. Container Contract
+## Durable Objects Bindings
 
-Inbound: `{ type:string; payload:{...}; config:DecryptedGitHubConfig }`.
-Outbound:
-`{ success:boolean; message:string; pullRequestUrl?; logs?:string[] }`. Additive
-changes only—append optional fields; never rename existing keys.
+**Wrangler exports vs. DI naming**:
+```typescript
+// wrangler.jsonc bindings (UPPERCASE_SNAKE)
+"bindings": [
+  { "class_name": "MyContainer", "name": "MY_CONTAINER" },
+  { "class_name": "UserConfigDO", "name": "USER_CONFIG" }
+]
 
-### 7. Specs & Automation
+// DI code uses binding names from wrangler
+const containerService = new ContainerServiceImpl(env.MY_CONTAINER);
+const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG);
+```
 
-Workflow generation driven by `.github/prompts/*.prompt.md` +
-`.specify/scripts/*`. New automation should follow: script emits JSON paths →
-prompt consumes → writes artifact with absolute paths (no relative assumptions).
+**Exported class names must match wrangler.jsonc** (e.g., `export { ContainerDO as MyContainer }`).
 
-### 8. Canonical Commands
+## Build & Deploy Commands
 
-Dev: `npm run dev`. Container watch: `cd container_src && npm run dev`. Deploy:
-`npm run deploy`. Types after routing/DO changes: `npm run cf-typegen`. Health:
-`curl http://localhost:8787/health` & `/container/health`. Logs:
-`wrangler tail`.
+```bash
+# Local development (Worker + Container)
+npm run dev              # Starts wrangler dev server on :8787
 
-### 9. Common Pitfalls
+# Build container independently
+cd container_src && pnpm build  # Compiles TS to dist/
 
-Wrong dependency layer; duplicating token logic (use `token-manager.ts`);
-forgetting type updates; leaking secrets to container logs; silent catch
-returning success; cloning without `--depth 1` (performance regression).
+# Full build (called by wrangler)
+npm run build:all       # Installs container deps + builds container
 
-### 10. Adding a New Processing Type (Template)
+# Deploy
+npm run deploy          # Production deployment
+wrangler deploy --env production
+```
 
-1 Add union entry in `src/types.ts`. 2 Route or hook trigger in `src/index.ts`.
-3 Pass through DO spawn call. 4 Implement switch case in container server. 5
-Reuse git/PR helpers. 6 Add integration test under `test/` mirroring existing
-cancellation or prompt tests.
+**Container Dockerfile**: Multi-stage build installs deps, compiles TypeScript, runs as non-root user (`appuser`). Memory limit: 1GB (`--max-old-space-size=1024`) for AI SDK operations.
 
-### 11. Testing Notes
+## Testing Strategy
 
-Prefer deterministic offline tests; mock GitHub calls at client boundary.
-Cancellation & error classification tests in `container_src/test` show expected
-structure.
+**Location**: `src/test/` (Worker), `container_src/test/` (Container)
 
-### 12. Performance Practices
+**Vitest patterns**:
+```typescript
+import { describe, it, expect, vi } from 'vitest';
 
-Shallow clone (`--depth 1`), workspace path `/tmp/workspaces/{uuid}`; always
-cleanup (success & error). Stream incremental diagnostic lines into `logs`
-array—avoid dumping large diffs.
+describe('ServiceName', () => {
+  it('should handle specific scenario', () => {
+    const mock = vi.fn().mockResolvedValue(result);
+    // Test implementation
+  });
+});
+```
 
-### 13. Extending Config
+**Run tests**:
+```bash
+npm test           # Run all tests
+npm run test:watch # Watch mode
+```
 
-Backward compatible: treat new field as optional; migration path = feature
-detection (undefined → default). Document new field inline in types + README if
-externally surfaced.
+**Test categories**:
+- `*.test.ts`: Unit tests (services, use-cases)
+- `*.e2e.test.ts`: End-to-end flows (deployment, GitHub webhooks)
+- `*.integration.test.ts`: Cross-layer integration
 
-### 14. Style & Rules
+## Environment Variables
 
-Worker: strict TS. Container: TS or JS with JSDoc (match existing). No
-speculative fallbacks (explicitly disallowed). Maintain precise, user-actionable
-error messages.
+**Worker** (`.dev.vars`, git-ignored):
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+ENCRYPTION_KEY=<32-byte hex from: openssl rand -hex 32>
+GITHUB_APP_ID=123456
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----..."
+```
 
-### 15. Pre-Commit Sanity
+**Container**: Inherits from Worker via `env` parameter in container spawn requests.
 
-Types updated? Secret handling unchanged? Handler reachable? Response shape
-stable? Tests pass? No cross-layer dependency bleed? Clone still shallow?
+**wrangler.jsonc vars** (non-secret config):
+```jsonc
+"vars": {
+  "ENVIRONMENT": "development",
+  "ENABLE_DEEP_REASONING": "false"
+}
+```
 
----
+## GitHub Integration Flow
 
-When uncertain, search for an analogous `type:` implementation and mirror
-structure; consistency > novelty.
+1. **Webhook** → `POST /api/github/webhook` → `GitHubController.handleWebhook()`
+2. **Use Case** → `ProcessWebhookUseCase` validates signature, extracts issue data
+3. **Container Spawn** → `ContainerServiceImpl` creates container instance via Durable Object stub
+4. **HTTP Request** → Worker sends JSON-RPC to container `:8080/api/acp/session/prompt`
+5. **Claude Processing** → Container runs `ClaudeClient.sendMessage()` with workspace context
+6. **Git Operations** → Container commits changes, creates branch
+7. **PR Creation** → `GitHubAutomationService` creates pull request via Octokit
+
+**Critical Files**:
+- `src/api/routes/github.routes.ts`: Webhook endpoint registration
+- `container_src/src/handlers/session-prompt-handler.ts`: Prompt processing logic
+- `container_src/src/services/github/github-automation.service.ts`: PR creation
+
+## Common Patterns
+
+### Adding a New Use Case
+
+1. Create entity in `src/core/entities/` (if needed)
+2. Define interface in `src/core/interfaces/services/`
+3. Implement use case in `src/core/use-cases/<domain>/`
+4. Create implementation in `src/infrastructure/services/`
+5. Wire in DI: `src/index.ts` → `setupDI()`
+6. Create controller in `src/api/controllers/`
+7. Define routes in `src/api/routes/`
+8. Add tests in `src/test/`
+
+### Adding Container Endpoint
+
+1. Create handler in `container_src/src/handlers/`
+2. Register route in `container_src/src/api/http/routes/`
+3. Update `router.ts` to include route registration
+4. Add types to `container_src/src/api/http/types.ts`
+5. Test via `curl localhost:8080/api/<endpoint>`
+
+### Error Handling Pattern
+
+```typescript
+// Use core/errors for domain errors
+import { ValidationError, NotFoundError } from '@/core/errors';
+
+// Infrastructure wraps external errors
+try {
+  await externalService.call();
+} catch (error) {
+  throw new InfrastructureError('Service failed', { cause: error });
+}
+```
+
+**Container error classification**: `container_src/src/core/errors/error-classifier.ts` categorizes errors (retryable vs. terminal).
+
+## Security Notes
+
+- **All GitHub credentials encrypted** using `CryptoServiceImpl` (AES-256-GCM)
+- **Webhook signatures verified** via HMAC-SHA256 before processing
+- **Installation tokens cached** with 55-minute expiry (GitHub tokens last 60 min)
+- **Container runs as non-root** (`USER appuser` in Dockerfile)
+
+## Migration Status
+
+**Old structure removed**: References to `src-new/` in comments are outdated. Current structure is `src/` (Clean Architecture, production-ready).
+
+**IMPORTANT**: Do NOT create new code in non-existent directories like `src-new/`. All development happens in `src/` and `container_src/`.
+
+## Debugging Tips
+
+```bash
+# Watch Worker logs
+wrangler tail
+
+# Container logs (when running locally)
+docker logs <container-id>
+
+# Test GitHub webhook locally
+curl -X POST http://localhost:8787/api/github/webhook \
+  -H "X-GitHub-Event: issues" \
+  -H "X-Hub-Signature-256: sha256=..." \
+  -d @webhook-payload.json
+
+# Test container HTTP endpoint
+curl http://localhost:8080/health
+```
+
+**Common issues**:
+- `Error: Cannot find module '@/core/...'`: Check `tsconfig.json` paths config matches Clean Architecture
+- `Durable Object not found`: Verify exports in `src/index.ts` match wrangler.jsonc class names
+- Container OOM (exit 137): Increase `--max-old-space-size` in Dockerfile CMD
+
+## Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `src/index.ts` | Worker entry, DI setup, Hono app initialization |
+| `wrangler.jsonc` | Cloudflare config (bindings, migrations, build) |
+| `container_src/src/index.ts` | Container entry, mode detection |
+| `container_src/src/api/http/router.ts` | JSON-RPC request dispatcher |
+| `Dockerfile` | Container image definition (Node 22 Alpine) |
+| `src/core/use-cases/` | Business logic implementation |
+| `src/infrastructure/durable-objects/` | Persistent state management |
+
+## Do's and Don'ts
+
+✅ **DO**:
+- Follow Clean Architecture layers (core → infrastructure → api)
+- Use dependency injection for all services
+- Write tests alongside new features
+- Keep container handlers under 200 LOC (enforced by `check:lines`)
+- Update wrangler migrations when adding Durable Objects
+
+❌ **DON'T**:
+- Import infrastructure into core layer
+- Hardcode secrets (use env vars)
+- Skip webhook signature validation
+- Create legacy HTTP server code (removed in cleanup)
+- Reference `src-new/` directory (doesn't exist)

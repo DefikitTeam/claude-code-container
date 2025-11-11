@@ -32,6 +32,10 @@
         "class_name": "ACPSessionDO",
         "name": "ACP_SESSION",
       },
+      {
+        "class_name": "AsyncJobDO",
+        "name": "ASYNC_JOB",
+      },
     ],
   },
   "migrations": [
@@ -46,6 +50,10 @@
     {
       "new_sqlite_classes": ["ACPSessionDO"],
       "tag": "v3",
+    },
+    {
+      "new_sqlite_classes": ["AsyncJobDO"],
+      "tag": "v4",
     },
   ],
   "build": {
@@ -87,6 +95,10 @@
             "class_name": "ACPSessionDO",
             "name": "ACP_SESSION",
           },
+          {
+            "class_name": "AsyncJobDO",
+            "name": "ASYNC_JOB",
+          },
         ],
       },
     },
@@ -121,6 +133,10 @@
             "class_name": "ACPSessionDO",
             "name": "ACP_SESSION",
           },
+          {
+            "class_name": "AsyncJobDO",
+            "name": "ASYNC_JOB",
+          },
         ],
       },
     },
@@ -154,6 +170,10 @@
           {
             "class_name": "ACPSessionDO",
             "name": "ACP_SESSION",
+          },
+          {
+            "class_name": "AsyncJobDO",
+            "name": "ASYNC_JOB",
           },
         ],
       },

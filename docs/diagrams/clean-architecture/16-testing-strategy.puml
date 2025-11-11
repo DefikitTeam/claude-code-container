@@ -1,0 +1,507 @@
+@startuml Testing Strategy
+!include ../_style-common.puml
+
+title Testing Strategy Per Layer
+
+package "Testing Pyramid" {
+  
+  rectangle "E2E Tests\n(10%)" #e74c3c {
+    note
+      **End-to-End Tests**
+      - Full user flows
+      - Real HTTP requests
+      - Real Cloudflare Workers
+      - Real Durable Objects
+      
+      **Tools:**
+      - Miniflare (local)
+      - Playwright/Puppeteer
+      
+      **Coverage:**
+      - User registration flow
+      - GitHub webhook flow
+      - Container spawn flow
+      - Deployment flow
+    end note
+  }
+  
+  rectangle "Integration Tests\n(30%)" #f39c12 {
+    note
+      **Integration Tests**
+      - Multiple layers
+      - Mock external APIs
+      - Real DOs (in-memory)
+      - Real dependencies
+      
+      **Tools:**
+      - Vitest
+      - Miniflare
+      - MSW (API mocking)
+      
+      **Coverage:**
+      - Controller + Use Case + Repository
+      - Use Case + Multiple Services
+      - Complete module flows
+    end note
+  }
+  
+  rectangle "Unit Tests\n(60%)" #2ecc71 {
+    note
+      **Unit Tests**
+      - Single function/class
+      - All dependencies mocked
+      - Fast execution
+      - High coverage
+      
+      **Tools:**
+      - Vitest
+      - Mock interfaces
+      
+      **Coverage:**
+      - Use Cases (mocked repos/services)
+      - Entities (validation)
+      - DTOs (validation)
+      - Utils (pure functions)
+    end note
+  }
+}
+
+package "Layer-Specific Testing" {
+  
+  |#3498db|Core Layer Testing|
+  
+  card "Entity Tests" as EntityTests {
+    :Test user.entity.ts;
+    note right
+      **Test Cases:**
+      - ✅ Validation success
+      - ❌ Validation failure
+      - ✅ Business rules
+      - ✅ State transitions
+      
+      **Example:**
+      ```typescript
+      describe('UserEntity', () => {
+        it('should validate valid user', () => {
+          const user = new UserEntity({
+            userId: 'user_123',
+            installationId: '12345',
+            ...
+          });
+          
+          expect(user.validate().isValid).toBe(true);
+        });
+        
+        it('should reject invalid installation ID', () => {
+          const user = new UserEntity({
+            userId: 'user_123',
+            installationId: 'invalid',
+          });
+          
+          expect(user.validate().isValid).toBe(false);
+        });
+      });
+      ```
+      
+      **LOC:** ~100 per entity
+    end note
+  }
+  
+  card "Use Case Tests" as UseCaseTests {
+    :Test register-user.use-case.ts;
+    note right
+      **Test Cases:**
+      - ✅ Successful registration
+      - ❌ Invalid installation
+      - ❌ Duplicate user
+      - ❌ Service unavailable
+      
+      **Example:**
+      ```typescript
+      describe('RegisterUserUseCase', () => {
+        let useCase: RegisterUserUseCase;
+        let mockUserRepo: MockUserRepository;
+        let mockGitHubService: MockGitHubService;
+        
+        beforeEach(() => {
+          mockUserRepo = new MockUserRepository();
+          mockGitHubService = new MockGitHubService();
+          useCase = new RegisterUserUseCase(
+            mockUserRepo,
+            mockGitHubService,
+            ...
+          );
+        });
+        
+        it('should register user successfully', async () => {
+          mockGitHubService.validateInstallation
+            .mockResolvedValue(true);
+          
+          const result = await useCase.execute({
+            userId: 'user_123',
+            installationId: '12345',
+            ...
+          });
+          
+          expect(result).toBeInstanceOf(UserEntity);
+          expect(mockUserRepo.save).toHaveBeenCalledWith(
+            expect.any(UserEntity)
+          );
+        });
+        
+        it('should throw when installation invalid', async () => {
+          mockGitHubService.validateInstallation
+            .mockResolvedValue(false);
+          
+          await expect(useCase.execute({...}))
+            .rejects
+            .toThrow(ValidationError);
+        });
+      });
+      ```
+      
+      **LOC:** ~150-200 per use case
+    end note
+  }
+  
+  card "Interface Tests" as InterfaceTests {
+    :Test repository/service contracts;
+    note right
+      **Test Cases:**
+      - ✅ Interface compliance
+      - ✅ Mock implementations
+      
+      **Example:**
+      ```typescript
+      // Mock implementation for testing
+      class MockUserRepository implements IUserRepository {
+        save = vi.fn();
+        findById = vi.fn();
+        findByInstallationId = vi.fn();
+        delete = vi.fn();
+      }
+      
+      // Verify interface compliance
+      describe('IUserRepository', () => {
+        it('should have all required methods', () => {
+          const repo = new MockUserRepository();
+          
+          expect(repo.save).toBeDefined();
+          expect(repo.findById).toBeDefined();
+          expect(repo.findByInstallationId).toBeDefined();
+          expect(repo.delete).toBeDefined();
+        });
+      });
+      ```
+      
+      **LOC:** ~50 per interface
+    end note
+  }
+  
+  |#2ecc71|Infrastructure Testing|
+  
+  card "Durable Object Tests" as DOTests {
+    :Test user-config.do.ts;
+    note right
+      **Test Cases:**
+      - ✅ CRUD operations
+      - ✅ Encryption/Decryption
+      - ✅ Error handling
+      - ✅ State persistence
+      
+      **Example:**
+      ```typescript
+      describe('UserConfigDO', () => {
+        let env: Env;
+        let ctx: DurableObjectState;
+        let userDO: UserConfigDO;
+        
+        beforeEach(() => {
+          env = getMiniflareBindings();
+          ctx = await env.USER_CONFIG.get(
+            env.USER_CONFIG.idFromName('test')
+          );
+          userDO = new UserConfigDO(ctx, env);
+        });
+        
+        it('should save and retrieve user', async () => {
+          const user = new UserEntity({...});
+          
+          await userDO.save(user);
+          const retrieved = await userDO.findById(user.id);
+          
+          expect(retrieved).toEqual(user);
+        });
+        
+        it('should encrypt sensitive data', async () => {
+          const user = new UserEntity({
+            anthropicApiKey: 'secret-key-123'
+          });
+          
+          await userDO.save(user);
+          
+          // Check storage directly
+          const stored = await ctx.storage.get('user:...');
+          expect(stored.anthropicApiKey).not.toBe('secret-key-123');
+          expect(stored.anthropicApiKey).toMatch(/^encrypted:/);
+        });
+      });
+      ```
+      
+      **LOC:** ~200-300 per DO
+    end note
+  }
+  
+  card "Service Implementation Tests" as ServiceTests {
+    :Test github.service.impl.ts;
+    note right
+      **Test Cases:**
+      - ✅ External API calls (mocked)
+      - ✅ Token refresh
+      - ✅ Rate limiting
+      - ✅ Error transformation
+      
+      **Example:**
+      ```typescript
+      describe('GitHubServiceImpl', () => {
+        let service: GitHubServiceImpl;
+        let mockTokenManager: MockTokenManager;
+        
+        beforeEach(() => {
+          mockTokenManager = new MockTokenManager();
+          service = new GitHubServiceImpl(mockTokenManager);
+          
+          // Mock GitHub API
+          server.use(
+            rest.get('https://api.github.com/installation/repositories',
+              (req, res, ctx) => {
+                return res(ctx.json({
+                  repositories: [...]
+                }));
+              }
+            )
+          );
+        });
+        
+        it('should fetch repositories', async () => {
+          const repos = await service.getRepositories('12345');
+          
+          expect(repos).toHaveLength(5);
+          expect(repos[0]).toHaveProperty('name');
+        });
+        
+        it('should handle rate limiting', async () => {
+          server.use(
+            rest.get('https://api.github.com/...',
+              (req, res, ctx) => {
+                return res(
+                  ctx.status(429),
+                  ctx.set('Retry-After', '60')
+                );
+              }
+            )
+          );
+          
+          await expect(service.getRepositories('12345'))
+            .rejects
+            .toThrow(ExternalServiceError);
+        });
+      });
+      ```
+      
+      **LOC:** ~250-350 per service
+    end note
+  }
+  
+  |#f39c12|API Layer Testing|
+  
+  card "Controller Tests" as ControllerTests {
+    :Test user.controller.ts;
+    note right
+      **Test Cases:**
+      - ✅ Request parsing
+      - ✅ Use case invocation
+      - ✅ Response formatting
+      - ✅ Error handling
+      
+      **Example:**
+      ```typescript
+      describe('UserController', () => {
+        let controller: UserController;
+        let mockRegisterUseCase: MockRegisterUserUseCase;
+        
+        beforeEach(() => {
+          mockRegisterUseCase = new MockRegisterUserUseCase();
+          controller = new UserController(mockRegisterUseCase, ...);
+        });
+        
+        it('should register user', async () => {
+          const mockContext = createMockContext({
+            body: {
+              userId: 'user_123',
+              installationId: '12345',
+              ...
+            }
+          });
+          
+          mockRegisterUseCase.execute.mockResolvedValue(
+            new UserEntity({...})
+          );
+          
+          const response = await controller.register(mockContext);
+          
+          expect(response.status).toBe(201);
+          expect(await response.json()).toMatchObject({
+            success: true,
+            data: expect.objectContaining({
+              userId: 'user_123'
+            })
+          });
+        });
+      });
+      ```
+      
+      **LOC:** ~150-200 per controller
+    end note
+  }
+  
+  card "Middleware Tests" as MiddlewareTests {
+    :Test auth.middleware.ts;
+    note right
+      **Test Cases:**
+      - ✅ Valid authentication
+      - ❌ Missing token
+      - ❌ Invalid token
+      - ❌ Expired token
+      
+      **Example:**
+      ```typescript
+      describe('AuthMiddleware', () => {
+        let middleware: AuthMiddleware;
+        
+        beforeEach(() => {
+          middleware = new AuthMiddleware();
+        });
+        
+        it('should pass valid token', async () => {
+          const mockContext = createMockContext({
+            headers: {
+              'Authorization': 'Bearer valid-token'
+            }
+          });
+          const next = vi.fn();
+          
+          await middleware.validate(mockContext, next);
+          
+          expect(next).toHaveBeenCalled();
+        });
+        
+        it('should reject missing token', async () => {
+          const mockContext = createMockContext({});
+          const next = vi.fn();
+          
+          await expect(
+            middleware.validate(mockContext, next)
+          ).rejects.toThrow(UnauthorizedError);
+          
+          expect(next).not.toHaveBeenCalled();
+        });
+      });
+      ```
+      
+      **LOC:** ~100-150 per middleware
+    end note
+  }
+  
+  card "Integration Tests" as IntegrationTests {
+    :Test complete flows;
+    note right
+      **Test Cases:**
+      - ✅ User registration flow
+      - ✅ Webhook processing flow
+      - ✅ Container spawn flow
+      
+      **Example:**
+      ```typescript
+      describe('User Registration Integration', () => {
+        let app: Hono;
+        let env: Env;
+        
+        beforeEach(async () => {
+          env = getMiniflareBindings();
+          app = createApp(env);
+        });
+        
+        it('should register user end-to-end', async () => {
+          // 1. Call API
+          const response = await app.request('/user/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: 'user_123',
+              installationId: '12345',
+              anthropicApiKey: 'sk-ant-...'
+            })
+          });
+          
+          // 2. Verify response
+          expect(response.status).toBe(201);
+          const data = await response.json();
+          expect(data.success).toBe(true);
+          
+          // 3. Verify persistence
+          const userDO = env.USER_CONFIG.get(
+            env.USER_CONFIG.idFromName('user_123')
+          );
+          const storedUser = await userDO.findById('user_123');
+          expect(storedUser).toBeDefined();
+        });
+      });
+      ```
+      
+      **LOC:** ~300-500 per integration test
+    end note
+  }
+}
+
+note bottom
+  **Testing Summary:**
+  
+  | Layer | Unit Tests | Integration | E2E | Total LOC |
+  |-------|-----------|-------------|-----|-----------|
+  | Core | 1,200 | - | - | 1,200 |
+  | Infrastructure | 1,000 | 500 | - | 1,500 |
+  | API | 800 | 400 | - | 1,200 |
+  | Full Flows | - | - | 300 | 300 |
+  | **Total** | **3,000** | **900** | **300** | **4,200 LOC** |
+  
+  **Coverage Goals:**
+  - Core Layer: 90%+ (critical business logic)
+  - Infrastructure: 80%+ (implementations)
+  - API Layer: 85%+ (controllers + middleware)
+  - Overall: 80%+ (minimum)
+  
+  **Testing Tools:**
+  - **Vitest**: Unit & integration tests
+  - **Miniflare**: Local Cloudflare Workers
+  - **MSW**: API mocking
+  - **Playwright**: E2E tests
+  
+  **CI/CD Pipeline:**
+  1. Lint & Type check
+  2. Unit tests (parallel)
+  3. Integration tests
+  4. E2E tests (staging)
+  5. Deploy
+  
+  **Benefits:**
+  - Fast feedback loop
+  - High confidence in changes
+  - Easy to refactor
+  - Regression prevention
+  - Documentation through tests
+end note
+
+@enduml

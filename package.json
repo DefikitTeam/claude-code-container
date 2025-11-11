@@ -7,19 +7,20 @@
     "deploy:prod": "wrangler deploy --env production",
     "deploy:safe": "./deploy-with-auth-check.sh",
     "deploy:button": "./deploy-button.sh",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
+    "dev": "wrangler dev --port 8788",
+    "start": "wrangler dev --port 8788",
     "cf-typegen": "wrangler types",
-    "build": "npm run build:container",
-    "build:all": "npm install && npm run build:container",
-    "build:container": "cd container_src && npm install && npm run build",
-    "install:all": "npm install && cd container_src && npm install",
+    "build": "pnpm run build:container",
+    "build:all": "pnpm install --silent && pnpm run build:container",
+    "build:container": "cd container_src && pnpm install --silent && pnpm run build",
+    "install:all": "pnpm install && cd container_src && pnpm install",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postinstall": "echo '📦 Installing container dependencies...' && cd container_src && npm install || echo '⚠️  Container dependencies installation failed'"
+    "postinstall": "echo '📦 Installing container dependencies...' && cd container_src && pnpm install --silent || echo '⚠️  Container dependencies installation failed'"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "dotenv-vault": "^1.27.0",
     "prettier": "3.6.2",
     "typescript": "5.8.3",
     "vitest": "^2.1.9",
@@ -29,8 +30,11 @@
     "@anthropic-ai/claude-code": "^1.0.27",
     "@cloudflare/containers": "^0.0.19",
     "@octokit/rest": "^22.0.0",
+    "@openrouter/ai-sdk-provider": "^1.2.0",
+    "ai": "^5.0.81",
     "hono": "4.8.2",
-    "simple-git": "^3.28.0"
+    "simple-git": "^3.28.0",
+    "zod": "^4.1.12"
   },
   "cloudflare": {
     "label": "Containers Starter",

@@ -225,7 +225,9 @@ export class GitService implements IGitService {
     from?: string,
   ): Promise<void> {
     if (from) {
-      await this.runGit(repoPath, ['checkout', '-b', branchName, from]);
+      // Create branch from base without checking out base first (preserves uncommitted changes)
+      await this.runGit(repoPath, ['branch', branchName, from]);
+      await this.runGit(repoPath, ['checkout', branchName]);
     } else {
       await this.runGit(repoPath, ['checkout', '-b', branchName]);
     }
@@ -241,8 +243,31 @@ export class GitService implements IGitService {
   }
 
   async commit(repoPath: string, message: string): Promise<void> {
+    // Ensure git user is configured before committing
+    await this.ensureGitUserConfigured(repoPath);
+
     // allow empty commit messages to be rejected by git
     await this.runGit(repoPath, ['commit', '-m', message]);
+  }
+
+  async ensureGitUserConfigured(repoPath: string): Promise<void> {
+    try {
+      // Check if user.name is configured
+      await this.runGit(repoPath, ['config', 'user.name']);
+    } catch {
+      // Not configured, set default
+      await this.runGit(repoPath, ['config', 'user.name', 'Claude Code Bot']);
+      console.error('[GitService] Set git user.name to "Claude Code Bot"');
+    }
+
+    try {
+      // Check if user.email is configured
+      await this.runGit(repoPath, ['config', 'user.email']);
+    } catch {
+      // Not configured, set default
+      await this.runGit(repoPath, ['config', 'user.email', 'noreply@anthropic.com']);
+      console.error('[GitService] Set git user.email to "noreply@anthropic.com"');
+    }
   }
 
   async push(

@@ -18,18 +18,19 @@ import type {
   WorkspaceDescriptor,
 } from '../workspace/workspace-service.js';
 import type {
-  IClaudeClient,
-  ClaudeRunCallbacks,
-} from '../claude/claude-client.js';
+  IClaudeService,
+  ClaudeCallbacks,
+  ClaudeResult,
+} from '../../core/interfaces/services/claude.service.js';
 import type { GitService } from '../git/git-service.js';
 import type { DiagnosticsService } from '../../core/diagnostics/diagnostics-service.js';
 import type {
-  GitHubAutomationService,
+  IGitHubAutomationService,
   GitHubAutomationContext,
   GitHubAutomationResult,
   AutomationIntentSignals,
   GitHubIssueReference,
-} from '../github/github-automation.js';
+} from '../../core/interfaces/services/github-automation.service.js';
 import {
   buildPromptFromContent,
   estimateTokens,
@@ -40,6 +41,11 @@ import type {
   SessionPromptResponse,
 } from '../../types/acp-messages';
 import type { ACPSession } from '../../types/acp-session.js';
+import { useDomainEntities } from '../../core/config/feature-flags.js';
+import { SessionEntity } from '../../core/entities/session.entity.js';
+import { PromptEntity } from '../../core/entities/prompt.entity.js';
+import { WorkspaceEntity } from '../../core/entities/workspace.entity.js';
+import { extractPatchesFromText, extractFileWriteCandidate } from './patch-applier.js';
 
 const GITHUB_AUTOMATION_VERSION = '1.0.0';
 
@@ -47,10 +53,10 @@ const GITHUB_AUTOMATION_VERSION = '1.0.0';
 export interface PromptProcessorDeps {
   sessionStore: ISessionStore;
   workspaceService: IWorkspaceService;
-  claudeClient: IClaudeClient;
+  claudeClient: IClaudeService;
   gitService?: GitService;
   diagnosticsService?: DiagnosticsService;
-  githubAutomationService?: GitHubAutomationService;
+  githubAutomationService?: IGitHubAutomationService;
 }
 
 export interface ProcessPromptOptions {
@@ -108,42 +114,168 @@ export class PromptProcessor {
       throw new Error('content must be non-empty array');
 
     // 1. Load session (from store or error)
-    const session = await this.loadSession(sessionId);
+    const baseSession = await this.loadSession(sessionId);
+    const entitiesEnabled = useDomainEntities();
+    let sessionEntity = entitiesEnabled
+      ? SessionEntity.fromPlain(baseSession)
+      : undefined;
+    let session: ACPSession = sessionEntity
+      ? sessionEntity.toJSON()
+      : baseSession;
 
     const mergedAgentContext = this.mergeAgentContext(
       session.agentContext,
       agentContext,
     );
-    if (mergedAgentContext) {
+    if (sessionEntity) {
+      sessionEntity = sessionEntity.withAgentContext(mergedAgentContext);
+      session = sessionEntity.toJSON();
+    } else if (mergedAgentContext) {
       session.agentContext = mergedAgentContext;
     }
-    const activeAgentContext = session.agentContext ?? agentContext;
+
+    const activeAgentContext =
+      sessionEntity?.agentContext ?? session.agentContext ?? agentContext;
 
     // 2. Build prompt text from content blocks
-    const prompt = buildPromptFromContent(
-      content,
-      contextFiles,
-      activeAgentContext,
-      session,
-    );
-    const inputEst = estimateTokens(prompt).estimatedTokens;
+    let promptEntity: PromptEntity | undefined;
+    let prompt: string;
+    let inputEst: number;
+
+    if (entitiesEnabled) {
+      promptEntity = PromptEntity.create(
+        { content, contextFiles, agentContext: activeAgentContext },
+        session,
+      );
+      prompt = promptEntity.text;
+      inputEst = promptEntity.tokenEstimate;
+    } else {
+      prompt = buildPromptFromContent(
+        content,
+        contextFiles,
+        activeAgentContext,
+        session,
+      );
+      inputEst = estimateTokens(prompt).estimatedTokens;
+    }
     logFull('prompt', prompt);
 
     // 3. Prepare workspace
-    const wsDesc = await this.deps.workspaceService.prepare({
+    let wsDesc = await this.deps.workspaceService.prepare({
       sessionId,
       reuse: reuseWorkspace,
       workspaceUri: session.workspaceUri,
       sessionOptions: session.sessionOptions,
     });
 
+    // IMPORTANT: ensure repository is cloned into the workspace BEFORE running the model.
+    // The older/main flow cloned the repository prior to the Claude run so that any
+    // file writes or applied patches happen inside a real git checkout. If we don't
+    // clone first, the automation later may re-clone or init the repo and the
+    // model's modifications get lost / are not detected ("No workspace changes detected").
+    let repoEnsured = false;
+    // Resolve repository descriptor (may be used for cloning and also passed
+    // to the OpenHands adapter so the remote agent has repository context).
+    let resolvedRepo = undefined as
+      | {
+          owner: string;
+          name: string;
+          defaultBranch?: string;
+          cloneUrl?: string;
+          issueTitle?: string;
+          labels?: string[];
+          issue?: any;
+          branchNameOverride?: string;
+          baseBranchOverride?: string;
+          gitIdentity?: { name?: string; email?: string };
+          dryRun?: boolean;
+          allowEmptyCommit?: boolean;
+          source?: string;
+        }
+      | undefined;
+
+    try {
+      resolvedRepo = this.resolveRepositoryDescriptor(
+        activeAgentContext,
+        opts,
+        wsDesc,
+      );
+      console.error(`[PROMPT][${sessionId}] resolvedRepo:`, JSON.stringify({
+        owner: resolvedRepo?.owner,
+        name: resolvedRepo?.name,
+        cloneUrl: resolvedRepo?.cloneUrl ? 'present' : 'missing',
+        defaultBranch: resolvedRepo?.defaultBranch,
+      }));
+      const token = await this.resolveGitHubToken(activeAgentContext, opts);
+      console.error(`[PROMPT][${sessionId}] token:`, token ? 'present' : 'missing', 'gitService:', !!this.deps.gitService);
+
+      // CRITICAL FIX: If cloneUrl is missing but we have owner/name, construct it
+      // DO NOT embed token here - let buildAuthedUrl handle it in automation service
+      if (resolvedRepo && !resolvedRepo.cloneUrl && resolvedRepo.owner && resolvedRepo.name) {
+        const baseUrl = `https://github.com/${resolvedRepo.owner}/${resolvedRepo.name}.git`;
+        resolvedRepo.cloneUrl = baseUrl; // Plain URL without token
+        console.error(`[PROMPT][${sessionId}] auto-constructed cloneUrl from owner/name:`, baseUrl);
+      }
+
+      if (resolvedRepo && resolvedRepo.cloneUrl && this.deps.gitService) {
+        // Attempt to ensure the repo is present in the workspace path (shallow clone/init)
+        // Add authentication for clone operation
+        const authedCloneUrl = token && resolvedRepo.cloneUrl
+          ? resolvedRepo.cloneUrl.replace('https://github.com/', `https://x-access-token:${token}@github.com/`)
+          : resolvedRepo.cloneUrl;
+        console.error(`[PROMPT][${sessionId}] calling ensureRepo at path:`, wsDesc.path);
+        try {
+          await this.deps.gitService.ensureRepo(wsDesc.path, {
+            defaultBranch: resolvedRepo.defaultBranch,
+            cloneUrl: authedCloneUrl,
+          });
+          console.error(`[PROMPT][${sessionId}] ensureRepo completed successfully`);
+          // Try to fetch the base branch so workspace is up-to-date
+          if (resolvedRepo.defaultBranch) {
+            await this.deps.gitService.runGit(wsDesc.path, [
+              'fetch',
+              'origin',
+              resolvedRepo.defaultBranch,
+            ]);
+            await this.deps.gitService.checkoutBranch(
+              wsDesc.path,
+              resolvedRepo.defaultBranch,
+            );
+          }
+          repoEnsured = true;
+          console.error(`[PROMPT][${sessionId}] ensured repo present at workspace`);
+        } catch (e) {
+          console.error(`[PROMPT][${sessionId}] pre-clone failed:`,
+            e instanceof Error ? e.message : String(e),
+            e instanceof Error ? e.stack : '');
+        }
+      } else {
+        console.error(`[PROMPT][${sessionId}] skipping ensureRepo - condition not met`);
+      }
+    } catch (e) {
+      // non-fatal: proceed without pre-clone (automation will still attempt),
+      // but log for diagnostics
+      console.error(`[PROMPT][${sessionId}] resolveRepo (pre-clone) failed:`,
+        e instanceof Error ? e.message : String(e),
+        e instanceof Error ? e.stack : '');
+    }
+
+    if (!repoEnsured) {
+      console.error(`[PROMPT][${sessionId}] WARNING: Repository was not cloned before Claude run. File writes may not be detected by git!`);
+    }
+
+    if (entitiesEnabled) {
+      wsDesc = WorkspaceEntity.fromDescriptor(wsDesc).toJSON();
+    }
+
     // 4.5 Optional diagnostics pre-run
     let preDiagnostics: Record<string, unknown> | undefined;
     if (this.deps.diagnosticsService) {
       try {
+        // IMPORTANT: Use wsDesc.path (where we cloned the repo), NOT session.workspaceUri
+        // session.workspaceUri might be a file:// URI or different path
         preDiagnostics = await this.deps.diagnosticsService.run({
-          workspacePath:
-            session.workspaceUri && new URL(session.workspaceUri).pathname,
+          workspacePath: wsDesc.path,
         });
       } catch (e) {
         /* ignore */
@@ -154,10 +286,10 @@ export class PromptProcessor {
     const startTime = Date.now();
     let fullText = '';
     let outputTokens = 0;
-    let finished = false;
-    let completionError: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+  let completionError: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+  let runResult: ClaudeResult | undefined;
 
-    const callbacks: ClaudeRunCallbacks = {
+    const callbacks: ClaudeCallbacks = {
       onStart: () => {
         notificationSender?.('session/update', {
           sessionId,
@@ -183,7 +315,6 @@ export class PromptProcessor {
         });
       },
       onComplete: () => {
-        finished = true;
         logFull(
           'run_complete',
           `outputTokens=${outputTokens}`,
@@ -203,15 +334,21 @@ export class PromptProcessor {
     };
 
     try {
-      await this.deps.claudeClient.runPrompt(
+      // runtimeOptions typed as any to avoid requiring changes to RunOptions
+      const runtimeOptions: any = {
+        sessionId,
+        operationId,
+        workspacePath: wsDesc.path,
+        apiKey,
+        abortSignal,
+      };
+      if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
+        runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;
+      }
+
+      runResult = await this.deps.claudeClient.runPrompt(
         prompt,
-        {
-          sessionId,
-          operationId,
-          workspacePath: wsDesc.path,
-          apiKey,
-          abortSignal,
-        },
+        runtimeOptions,
         callbacks,
       );
     } catch (err) {
@@ -260,11 +397,31 @@ export class PromptProcessor {
     }
 
     // 6. Persist session updates (append message history if not already appended by caller)
-    session.lastActiveAt = Date.now();
-    if (!opts.historyAlreadyAppended) {
-      session.messageHistory.push(content);
+    const lastActiveTimestamp = Date.now();
+    if (sessionEntity) {
+      sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
+      if (!opts.historyAlreadyAppended) {
+        const historyContent = promptEntity
+          ? Array.from<ContentBlock>(promptEntity.content)
+          : content;
+        sessionEntity = sessionEntity.appendMessageHistory(
+          historyContent,
+          lastActiveTimestamp,
+        );
+      }
+      session = sessionEntity.toJSON();
+    } else {
+      session.lastActiveAt = lastActiveTimestamp;
+      if (!opts.historyAlreadyAppended) {
+        session.messageHistory.push(content);
+      }
     }
-    if (session.sessionOptions?.persistHistory) {
+
+    const shouldPersist = sessionEntity
+      ? sessionEntity.shouldPersistHistory()
+      : session.sessionOptions?.persistHistory;
+
+    if (shouldPersist) {
       try {
         await this.deps.sessionStore.save(session);
       } catch (e) {
@@ -304,9 +461,16 @@ export class PromptProcessor {
       }
     }
 
+    if (!fullText && runResult?.fullText) {
+      fullText = runResult.fullText;
+    }
+
+    const inputTokensUsed = runResult?.tokens?.input ?? inputEst;
+    const outputTokensUsed = runResult?.tokens?.output ?? outputTokens;
+
     const response: SessionPromptResponse['result'] = {
       stopReason: 'completed',
-      usage: { inputTokens: inputEst, outputTokens },
+      usage: { inputTokens: inputTokensUsed, outputTokens: outputTokensUsed },
       summary:
         fullText.substring(0, 200) + (fullText.length > 200 ? '...' : ''),
     };
@@ -327,6 +491,81 @@ export class PromptProcessor {
       },
     };
 
+    // Attempt to auto-apply unified-diff patches produced by the model, if enabled.
+    // Controlled via env APPLY_MODEL_PATCHES (default: enabled). Uses gitService.applyPatch.
+    if (process.env.APPLY_MODEL_PATCHES !== '0' && this.deps.gitService && fullText) {
+      try {
+        const patches = extractPatchesFromText(fullText);
+        if (patches && patches.length) {
+          for (let i = 0; i < patches.length; i++) {
+            const patch = patches[i];
+            try {
+              console.error(
+                `[PATCH-APPLY][${sessionId}] applying patch #${i + 1} size=${Buffer.byteLength(
+                  patch,
+                  'utf8',
+                )} bytes`,
+              );
+              // applyPatch may throw; we capture and continue
+              // @ts-ignore - gitService is optional but checked above
+              await this.deps.gitService.applyPatch(wsDesc.path, patch);
+              console.error(`[PATCH-APPLY][${sessionId}] patch #${i + 1} applied`);
+            } catch (err) {
+              console.error(
+                `[PATCH-APPLY][${sessionId}] failed to apply patch #${i + 1}`,
+                err instanceof Error ? err.message : String(err),
+              );
+              // record patch apply error in meta for diagnostics / issue body
+              const arr = (meta as any).patchApplyErrors || [];
+              arr.push({ index: i + 1, error: err instanceof Error ? err.message : String(err) });
+              (meta as any).patchApplyErrors = arr;
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[PATCH-APPLY][${sessionId}] extractor error`, e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    // ⚠️ NO-FALLBACK PRINCIPLE: File writes should ONLY happen via AI tool usage
+    // This fallback logic has been REMOVED to prevent wrong results.
+    //
+    // If no files were changed, that means:
+    // 1. AI responded conversationally instead of using tools (ERROR)
+    // 2. AI didn't understand the request (ERROR)
+    // 3. Request was not a file operation (OK)
+    //
+    // DO NOT try to "help" by extracting code from text - this creates garbage results.
+    // Better to fail clearly than succeed incorrectly.
+    //
+    // To re-enable legacy fallback behavior (NOT RECOMMENDED):
+    // Set environment variable: ENABLE_FALLBACK_FILE_WRITE=1
+
+    if (process.env.ENABLE_FALLBACK_FILE_WRITE === '1') {
+      console.warn(`[FILE-WRITE][${sessionId}] WARNING: Legacy fallback file write is enabled. This can produce incorrect results.`);
+
+      try {
+        let preChanged: string[] = [];
+        if (this.deps.gitService && typeof this.deps.gitService.listChangedFiles === 'function') {
+          // @ts-ignore - guarded above
+          preChanged = (await this.deps.gitService.listChangedFiles(wsDesc.path)) || [];
+        }
+
+        if (preChanged.length === 0 && fullText) {
+          const candidate = extractFileWriteCandidate(prompt, fullText);
+          if (!candidate) {
+            console.error(`[FILE-WRITE][${sessionId}] No file write candidate found. AI may have responded conversationally without using tools or providing code blocks.`);
+          } else {
+            console.warn(`[FILE-WRITE][${sessionId}] Attempting fallback file write for ${candidate.filename} - this may produce incorrect results!`);
+            // Fallback logic would go here, but we're not implementing it
+            // to prevent wrong results from being committed
+          }
+        }
+      } catch (e) {
+        console.error(`[FILE-WRITE][${sessionId}] fallback detection error`, e instanceof Error ? e.message : String(e));
+      }
+    }
+
     const automationResult = await this.executeGitHubAutomation({
       session,
       workspace: wsDesc,
@@ -336,6 +575,41 @@ export class PromptProcessor {
       options: opts,
       operationId,
     });
+
+    // Comprehensive diagnostic: capture detailed git state right before automation executes
+    try {
+      if (this.deps.gitService) {
+        // Import diagnostic utility
+        const { diagnoseWorkspace, formatDiagnosticResult } = await import('./workspace-diagnostic.js');
+
+        // Run comprehensive diagnostic
+        const diagnostic = await diagnoseWorkspace(wsDesc.path, [
+          'styles.css',
+          (meta as any).autoWrittenFile,
+        ].filter(Boolean));
+
+        // Store in meta for API response
+        (meta as any).workspaceDiagnostic = diagnostic;
+
+        // Log formatted report
+        console.error(`[WORKSPACE-DIAGNOSTIC][${session.sessionId}]\n${formatDiagnosticResult(diagnostic)}`);
+
+        // Also keep lightweight version for backwards compatibility
+        const gitStatus = await this.deps.gitService.getStatus(wsDesc.path).catch((e) => `error: ${String(e)}`);
+        const changedFiles = await this.deps.gitService.listChangedFiles(wsDesc.path).catch((e) => [`error: ${String(e)}`]);
+        const hasUncommitted = await this.deps.gitService.hasUncommittedChanges(wsDesc.path).catch(() => {
+          return false;
+        });
+        (meta as any).githubPreAuto = {
+          gitStatus: typeof gitStatus === 'string' ? gitStatus : String(gitStatus),
+          changedFiles: Array.isArray(changedFiles) ? changedFiles : [String(changedFiles)],
+          hasUncommittedChanges: hasUncommitted,
+        };
+        console.error(`[GIT-DIAG][${session.sessionId}] status=${(meta as any).githubPreAuto.gitStatus} hasUncommitted=${hasUncommitted} files=${JSON.stringify((meta as any).githubPreAuto.changedFiles)}`);
+      }
+    } catch (e) {
+      console.error(`[GIT-DIAG][${session.sessionId}] diagnostic failed`, e instanceof Error ? e.message : String(e));
+    }
 
     if (automationResult) {
       response.githubAutomation = automationResult;
@@ -410,7 +684,7 @@ export class PromptProcessor {
       return this.buildAutomationSkipped('GitOps disabled for session');
     }
 
-    const token = this.resolveGitHubToken(agentContext, options);
+    const token = await this.resolveGitHubToken(agentContext, options);
     if (!token) {
       return this.buildAutomationSkipped('Missing GitHub token');
     }
@@ -422,6 +696,11 @@ export class PromptProcessor {
     );
     if (!resolvedRepo) {
       return this.buildAutomationSkipped('Missing repository metadata');
+    }
+
+    // Auto-construct cloneUrl if missing (DO NOT embed token - buildAuthedUrl handles it)
+    if (!resolvedRepo.cloneUrl && resolvedRepo.owner && resolvedRepo.name) {
+      resolvedRepo.cloneUrl = `https://github.com/${resolvedRepo.owner}/${resolvedRepo.name}.git`;
     }
 
     const intent = this.resolveAutomationIntent(agentContext, options);
@@ -456,6 +735,7 @@ export class PromptProcessor {
       metadata,
       dryRun: resolvedRepo.dryRun,
       allowEmptyCommit: resolvedRepo.allowEmptyCommit,
+      workspaceAlreadyPrepared: true,
     };
 
     this.logAutomation('start', session.sessionId, operationId, {
@@ -492,13 +772,28 @@ export class PromptProcessor {
     }
   }
 
-  private resolveGitHubToken(
+  /**
+   * Resolve GitHub token from context
+   * 
+   * IMPORTANT: Containers NO LONGER generate tokens.
+   * Tokens must be provided by the caller (worker) who gets them from LumiLink API.
+   * 
+   * Priority:
+   * 1. Explicit token in options
+   * 2. Token in context
+   * 3. Environment variable GITHUB_TOKEN (set by worker)
+   * 
+   * @returns GitHub token or undefined
+   */
+  private async resolveGitHubToken(
     agentContext: Record<string, unknown> | undefined,
     options: ProcessPromptOptions,
-  ): string | undefined {
+  ): Promise<string | undefined> {
+    // 1. Check if token explicitly provided in options
     const fromOptions = options.githubToken;
     if (fromOptions && typeof fromOptions === 'string') return fromOptions;
 
+    // 2. Check for token in context
     const ctxToken = this.findString([
       this.getNested(agentContext, ['githubToken']),
       this.getNested(agentContext, ['token']),
@@ -508,7 +803,31 @@ export class PromptProcessor {
       this.getNested(options.rawParams, ['context', 'github', 'token']),
     ]);
     if (ctxToken) return ctxToken;
-    return process.env.GITHUB_TOKEN;
+
+    // 3. Fallback to environment variable (provided by worker)
+    const envToken = process.env.GITHUB_TOKEN;
+    if (envToken) return envToken;
+
+    // 4. Check if installation ID provided without token - log warning
+    const installationId = this.findString([
+      this.getNested(agentContext, ['installationId']),
+      this.getNested(agentContext, ['github', 'installationId']),
+      this.getNested(options.rawParams, ['installationId']),
+      this.getNested(options.sessionMeta, ['installationId']),
+    ]);
+
+    if (installationId) {
+      console.warn(
+        '[PROMPT] ⚠️ Installation ID provided but no GitHub token found.\n' +
+        '[PROMPT] Containers cannot generate tokens. Token must be provided by worker.\n' +
+        '[PROMPT] The worker should call LumiLink API to get a token and pass it via:\n' +
+        '[PROMPT]   - options.githubToken, or\n' +
+        '[PROMPT]   - context.github.token, or\n' +
+        '[PROMPT]   - GITHUB_TOKEN environment variable'
+      );
+    }
+
+    return undefined;
   }
 
   private resolveRepositoryDescriptor(

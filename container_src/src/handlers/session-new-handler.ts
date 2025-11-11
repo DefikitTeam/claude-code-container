@@ -8,7 +8,7 @@ import type { ACPSession, SessionMode } from '../types/acp-session.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { RequestContext } from '../services/stdio-jsonrpc.js';
-import { SessionStore } from '../services/session/session-store.js';
+import { getRuntimeServices } from '../config/runtime-services.js';
 
 function generateSessionId(): string {
   return `session-${uuidv4()}`;
@@ -49,7 +49,7 @@ export async function sessionNewHandler(
   }
 
   const sessionId = generateSessionId();
-  const sessionStore = new SessionStore();
+  const { sessionStore } = getRuntimeServices();
   const now = Date.now();
   const session: ACPSession = {
     sessionId,

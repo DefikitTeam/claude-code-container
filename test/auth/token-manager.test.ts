@@ -25,12 +25,13 @@ describe('TokenManager', () => {
 
     // Mock environment
     mockEnv = {
-      MY_CONTAINER: {} as DurableObjectNamespace,
-      GITHUB_APP_CONFIG: {} as DurableObjectNamespace,
+      MY_CONTAINER: {} as any,
+      GITHUB_APP_CONFIG: {} as any,
       USER_CONFIG: {
         idFromName: vi.fn(() => 'mock-id'),
         get: vi.fn(() => mockDurableObject),
       } as any,
+      ACP_SESSION: {} as any,
       ANTHROPIC_API_KEY: 'test-key',
     };
 
@@ -123,6 +124,30 @@ describe('TokenManager', () => {
       );
     });
 
+    it('should generate new token when cached token endpoint reports expiration', async () => {
+      mockDurableObject.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 410,
+        json: () => Promise.resolve({ error: 'Token expired' }),
+      });
+
+      mockDurableObject.fetch.mockResolvedValueOnce({
+        ok: true,
+      });
+
+      (generateInstallationToken as Mock).mockResolvedValue(
+        'new-token-expired',
+      );
+
+      const result = await tokenManager.getInstallationToken(mockUserConfig);
+
+      expect(result).toBe('new-token-expired');
+      expect(generateInstallationToken).toHaveBeenCalledWith(
+        mockUserConfig,
+        mockEnv,
+      );
+    });
+
     it('should return null when token generation fails', async () => {
       // Mock no cached token
       mockDurableObject.fetch.mockResolvedValueOnce({
@@ -181,12 +206,12 @@ describe('TokenManager', () => {
         ok: true,
       });
 
-      await tokenManager.invalidateToken('12345');
+      await tokenManager.invalidateToken('12345', 'test-user-123');
 
       expect(mockDurableObject.fetch).toHaveBeenCalledWith(
         expect.objectContaining({
           method: 'DELETE',
-          url: 'http://localhost/installation-token?installationId=12345',
+          url: 'http://localhost/installation-token?installationId=12345&userId=test-user-123',
         }),
       );
     });
@@ -196,7 +221,7 @@ describe('TokenManager', () => {
 
       // Should not throw
       await expect(
-        tokenManager.invalidateToken('12345'),
+        tokenManager.invalidateToken('12345', 'test-user-123'),
       ).resolves.not.toThrow();
     });
   });
@@ -220,7 +245,7 @@ describe('TokenManager', () => {
 
       // Verify caching call
       const cacheCall = mockDurableObject.fetch.mock.calls.find(
-        (call) =>
+        (call: any[]) =>
           call[0]?.method === 'POST' &&
           call[0]?.url === 'http://localhost/installation-token',
       );

@@ -73,6 +73,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          # ✅ LumiLink Integration (NEW - recommended)
+          # These enable centralized token management via LumiLink platform
+          LUMILINK_API_URL: ${{ secrets.LUMILINK_API_URL || 'https://api.lumilink.ai' }}
+          LUMILINK_API_KEY: ${{ secrets.LUMILINK_API_KEY }}
+          USER_ID: ${{ secrets.USER_ID }}
+          # ⚠️ DEPRECATED: GitHub App credentials (for backward compatibility only)
+          # New deployments should use LumiLink integration above
+          # TODO: Remove these after migrating all users to LumiLink
+          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
 
       - name: Output deployment URL
         run: |
