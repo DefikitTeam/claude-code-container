@@ -60,6 +60,46 @@ jobs:
             echo "worker_name=claude-code-containers-dev" >> $GITHUB_OUTPUT
           fi
 
+      - name: Set Cloudflare Worker Secrets
+        run: |
+          ENV="${{ steps.env.outputs.environment || github.event.inputs.environment || 'production' }}"
+          
+          echo "🔐 Setting secrets for environment: $ENV"
+          
+          # Set ENCRYPTION_KEY (required for encrypting user data)
+          if [ -n "${{ secrets.ENCRYPTION_KEY }}" ]; then
+            echo "${{ secrets.ENCRYPTION_KEY }}" | pnpm wrangler secret put ENCRYPTION_KEY --env "$ENV"
+            echo "✅ ENCRYPTION_KEY set"
+          else
+            echo "⚠️  ENCRYPTION_KEY not found in GitHub secrets"
+          fi
+          
+          # Set OPENROUTER_API_KEY (for Claude API)
+          if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
+            echo "${{ secrets.OPENROUTER_API_KEY }}" | pnpm wrangler secret put OPENROUTER_API_KEY --env "$ENV"
+            echo "✅ OPENROUTER_API_KEY set"
+          else
+            echo "⚠️  OPENROUTER_API_KEY not found in GitHub secrets"
+          fi
+          
+          # Set LUMILINK_API_URL
+          if [ -n "${{ secrets.LUMILINK_API_URL }}" ]; then
+            echo "${{ secrets.LUMILINK_API_URL }}" | pnpm wrangler secret put LUMILINK_API_URL --env "$ENV"
+            echo "✅ LUMILINK_API_URL set"
+          else
+            echo "⚠️  LUMILINK_API_URL not found in GitHub secrets"
+          fi
+          
+          # Set LumiLink JWT token (if using LumiLink integration)
+          if [ -n "${{ secrets.LUMILINK_JWT_TOKEN }}" ]; then
+            echo "${{ secrets.LUMILINK_JWT_TOKEN }}" | pnpm wrangler secret put LUMILINK_JWT_TOKEN --env "$ENV"
+            echo "✅ LUMILINK_JWT_TOKEN set"
+          fi
+          
+          echo "🔐 Secrets configuration completed"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -73,21 +113,6 @@ jobs:
           command:
             deploy --env ${{ steps.env.outputs.environment ||
             github.event.inputs.environment || 'production' }}
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-          # ✅ LumiLink Integration (NEW - recommended)
-          # These enable centralized token management via LumiLink platform
-          LUMILINK_API_URL: ${{ secrets.LUMILINK_API_URL || 'https://api.lumilink.ai' }}
-          LUMILINK_API_KEY: ${{ secrets.LUMILINK_API_KEY }}
-          USER_ID: ${{ secrets.USER_ID }}
-          # ⚠️ DEPRECATED: GitHub App credentials (for backward compatibility only)
-          # New deployments should use LumiLink integration above
-          # TODO: Remove these after migrating all users to LumiLink
-          GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
 
       - name: Output deployment URL
         run: |
