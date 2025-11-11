@@ -15,8 +15,7 @@
     "build:container": "cd container_src && pnpm install --silent && pnpm run build",
     "install:all": "pnpm install && cd container_src && pnpm install",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "postinstall": "echo '📦 Installing container dependencies...' && cd container_src && pnpm install --silent || echo '⚠️  Container dependencies installation failed'"
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
