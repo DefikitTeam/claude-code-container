@@ -60,6 +60,9 @@ jobs:
             echo "worker_name=claude-code-containers-dev" >> $GITHUB_OUTPUT
           fi
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Set Cloudflare Worker Secrets
         run: |
           ENV="${{ steps.env.outputs.environment || github.event.inputs.environment || 'production' }}"
@@ -108,7 +111,6 @@ jobs:
           wranglerVersion: '4.34.0'
           configPath: wrangler.jsonc
           preCommands: |
-            pnpm install --frozen-lockfile
             cd container_src && pnpm install --frozen-lockfile && pnpm run build && cd ..
           command:
             deploy --env ${{ steps.env.outputs.environment ||
