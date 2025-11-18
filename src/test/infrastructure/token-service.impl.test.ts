@@ -3,10 +3,15 @@ import { TokenServiceImpl } from '../../infrastructure/services/token.service.im
 import { ValidationError } from '../../shared/errors/validation.error';
 
 describe('TokenServiceImpl', () => {
-  let generator: ReturnType<typeof vi.fn>;
+  let mockExternalProvider: { getToken: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    generator = vi.fn(async (installationId: string) => `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`);
+    mockExternalProvider = {
+      getToken: vi.fn(async (installationId: string) => ({
+        token: `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`,
+        expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour from now
+      })),
+    };
   });
 
   afterEach(() => {
@@ -14,34 +19,34 @@ describe('TokenServiceImpl', () => {
   });
 
   it('generates and caches installation tokens', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl(mockExternalProvider as any);
 
     const first = await service.getInstallationToken('inst-1');
     const second = await service.getInstallationToken('inst-1');
 
     expect(first.token).toBeDefined();
     expect(second.token).toBe(first.token);
-    expect(generator).toHaveBeenCalledTimes(1);
+    expect(mockExternalProvider.getToken).toHaveBeenCalledTimes(1);
   });
 
   it('validates installation identifiers before generating tokens', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl(mockExternalProvider as any);
     await expect(service.getInstallationToken('')).rejects.toThrow(ValidationError);
   });
 
   it('invalidates cached tokens explicitly', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl(mockExternalProvider as any);
     await service.getInstallationToken('inst-2');
 
-    expect(generator).toHaveBeenCalledTimes(1);
+    expect(mockExternalProvider.getToken).toHaveBeenCalledTimes(1);
     await service.invalidateToken('inst-2');
     await service.getInstallationToken('inst-2');
 
-    expect(generator).toHaveBeenCalledTimes(2);
+    expect(mockExternalProvider.getToken).toHaveBeenCalledTimes(2);
   });
 
   it('detects tokens nearing expiration via buffer logic', () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl(mockExternalProvider as any);
     const nowSpy = vi.spyOn(Date, 'now');
 
     nowSpy.mockReturnValue(0);
@@ -54,7 +59,7 @@ describe('TokenServiceImpl', () => {
   });
 
   it('refreshes expired tokens and clears cache', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl(mockExternalProvider as any);
     const nowSpy = vi.spyOn(Date, 'now');
 
     nowSpy.mockReturnValue(0);

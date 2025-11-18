@@ -51,6 +51,9 @@ describe('OpenAIOpenRouterAdapter', () => {
       const originalKey = process.env.OPENROUTER_API_KEY;
       process.env.OPENROUTER_API_KEY = 'test-env-key';
 
+      // Create adapter AFTER setting environment variable
+      const testAdapter = new OpenAIOpenRouterAdapter();
+
       const context: ClaudeRuntimeContext = {
         apiKey: '',
         runningAsRoot: false,
@@ -60,7 +63,7 @@ describe('OpenAIOpenRouterAdapter', () => {
         env: {},
       };
 
-      expect(adapter.canHandle(context)).toBe(true);
+      expect(testAdapter.canHandle(context)).toBe(true);
 
       // Cleanup
       if (originalKey) {
@@ -74,6 +77,9 @@ describe('OpenAIOpenRouterAdapter', () => {
       const originalKey = process.env.OPENROUTER_API_KEY;
       delete process.env.OPENROUTER_API_KEY;
 
+      // Create adapter AFTER deleting environment variable
+      const testAdapter = new OpenAIOpenRouterAdapter();
+
       const context: ClaudeRuntimeContext = {
         apiKey: '',
         runningAsRoot: false,
@@ -83,7 +89,7 @@ describe('OpenAIOpenRouterAdapter', () => {
         env: {},
       };
 
-      expect(adapter.canHandle(context)).toBe(false);
+      expect(testAdapter.canHandle(context)).toBe(false);
 
       // Cleanup
       if (originalKey) {

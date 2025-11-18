@@ -174,8 +174,7 @@ export class PromptProcessor {
     // clone first, the automation later may re-clone or init the repo and the
     // model's modifications get lost / are not detected ("No workspace changes detected").
     let repoEnsured = false;
-    // Resolve repository descriptor (may be used for cloning and also passed
-    // to the OpenHands adapter so the remote agent has repository context).
+    // Resolve repository descriptor for cloning and automation.
     let resolvedRepo = undefined as
       | {
           owner: string;
