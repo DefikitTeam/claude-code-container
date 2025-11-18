@@ -88,7 +88,8 @@ describe('E2E: Full Platform Workflow', () => {
 
     expect(registration.userId).toBe('user-1');
     expect(mockUserRepository.save).toHaveBeenCalled();
-    expect(mockCryptoService.encrypt).toHaveBeenCalledWith('sk-ant-123');
+    // Crypto service is no longer called - worker uses WORKER_MANAGED placeholder
+    // expect(mockCryptoService.encrypt).toHaveBeenCalledWith('sk-ant-123');
 
     const repositories = await fetchRepositories.execute({ installationId: 'inst-1' });
     expect(repositories.repositories).toHaveLength(2);

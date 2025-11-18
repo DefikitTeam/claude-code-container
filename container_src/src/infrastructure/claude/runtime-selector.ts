@@ -9,7 +9,6 @@ import type {
 import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
 import { HTTPAPIClientAdapter } from './http-api-client.adapter.js';
 import { VercelOpenRouterAdapter } from '../ai/vercel-openrouter.adapter.js';
-import { OpenHandsAdapter } from '../ai/openhands.adapter.js';
 import { OpenAIOpenRouterAdapter } from '../ai/openai-openrouter.adapter.js';
 import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adapter.js';
 
@@ -35,15 +34,15 @@ export class ClaudeRuntimeSelector implements IClaudeService {
   constructor(options: ClaudeRuntimeSelectorOptions = {}) {
     // Clean architecture: Modern adapters with cascade priority
     // Priority order (highest to lowest):
-    // 1. VercelOpenRouterAdapter - Primary (Vercel AI SDK + OpenRouter) - Full tool support (writeFile, readFile, executeBash)
+    // 1. OpenAIOpenRouterToolsAdapter - Primary (OpenAI SDK + OpenRouter) - Full tool support (writeFile, readFile, executeBash)
     // 2. OpenAIOpenRouterAdapter - Secondary (OpenAI SDK + OpenRouter) - Simple streaming (NO tool support yet)
-    // 3. OpenHandsAdapter - Tertiary (OpenHands cloud service) - WebSocket-based, complex
+    // 3. VercelOpenRouterAdapter - Tertiary (Vercel AI SDK + OpenRouter) - Alternative with tool support
     // 4. HTTPAPIClientAdapter - Fallback (Direct Anthropic HTTP API) - Last resort for reliability
     this.adapters = options.adapters ?? [
-      new OpenAIOpenRouterToolsAdapter(),   // � Primary: Vercel AI SDK with FULL TOOL SUPPORT
-      new OpenAIOpenRouterAdapter(),  // Secondary: OpenAI SDK (text-only, no tools)
-      new OpenHandsAdapter(),          // Tertiary: OpenHands (complex, WebSocket-based)
-      new HTTPAPIClientAdapter(),      // Fallback: Direct Anthropic API
+      new OpenAIOpenRouterToolsAdapter(),   // Primary: OpenAI SDK with FULL TOOL SUPPORT
+      new OpenAIOpenRouterAdapter(),        // Secondary: OpenAI SDK (text-only, no tools)
+      new VercelOpenRouterAdapter(),        // Tertiary: Vercel AI SDK (alternative tool support)
+      new HTTPAPIClientAdapter(),           // Fallback: Direct Anthropic API
     ];
     this.defaultModel = options.defaultModel || DEFAULT_MODEL;
   }
@@ -278,7 +277,6 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       hasApiKeyEnv: Boolean(process.env.ANTHROPIC_API_KEY),
       hasOpenRouterKeyEnv: Boolean(process.env.OPENROUTER_API_KEY),
       adapters: this.adapters.map(a => ({ name: a.name, id: (a as any).adapterId ?? null })),
-      hasOpenHandsKey: Boolean(process.env.OPENHANDS_API_KEY),
     };
   }
 }
