@@ -15,7 +15,8 @@
     "build:container": "cd container_src && pnpm install --silent && pnpm run build",
     "install:all": "pnpm install && cd container_src && pnpm install",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "start:mock-broker": "cd test/mocks/stream-broker && npm install && npm start"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

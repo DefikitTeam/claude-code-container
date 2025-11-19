@@ -109,6 +109,7 @@
         "ENABLE_DEEP_REASONING": "false",
         "STREAM_BROKER_URL": "http://localhost:3000",
         "STREAM_BROKER_KEY": "dev-stream-key",
+        "STREAM_BROKER_ENABLED": "1",
       },
       "containers": [
         {

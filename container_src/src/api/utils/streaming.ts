@@ -49,8 +49,8 @@ export async function postToBroker(
   postToBrokerMetrics.totalPosts += 1;
 
   while (attempt <= maxRetries) {
+    const start = Date.now();
     try {
-      const start = Date.now();
       attempt += 1;
       // Fire the fetch and return on success
       const res = await fetch(url, {
@@ -62,18 +62,19 @@ export async function postToBroker(
         const dur = Date.now() - start;
         postToBrokerMetrics.success += 1;
         postToBrokerMetrics.totalDurationMs += dur;
-        console.error(`[postToBroker] success sessionId=${sessionId} attempt=${attempt} durationMs=${dur}`);
+        console.error(
+          `[postToBroker] success sessionId=${sessionId} attempt=${attempt} durationMs=${dur}`,
+        );
         return;
       }
       // Non-OK response - throw to trigger retry
       const text = await res.text();
-      console.error(
-        `[postToBroker] failed attempt ${attempt} status=${res.status} url=${url} body=${text}`,
-      );
       const dur = Date.now() - start;
       postToBrokerMetrics.failure += 1;
       postToBrokerMetrics.totalDurationMs += dur;
-      console.error(`[postToBroker] failed attempt ${attempt} status=${res.status} url=${url} body=${text} durationMs=${dur}`);
+      console.error(
+        `[postToBroker] failed attempt ${attempt} status=${res.status} url=${url} body=${text} durationMs=${dur}`,
+      );
       if (attempt > maxRetries) {
         console.error('[postToBroker] max retries exceeded');
         return;

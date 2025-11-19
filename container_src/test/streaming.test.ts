@@ -6,6 +6,7 @@ describe('postToBroker', () => {
     vi.resetAllMocks();
     delete process.env.STREAM_BROKER_URL;
     delete process.env.STREAM_BROKER_KEY;
+    delete process.env.STREAM_BROKER_ENABLED;
   });
 
   afterEach(() => {
@@ -18,18 +19,30 @@ describe('postToBroker', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it('should no-op when explicitly disabled even if URL is present', async () => {
+    process.env.STREAM_BROKER_URL = 'http://localhost:3000';
+    process.env.STREAM_BROKER_ENABLED = '0';
+    global.fetch = vi.fn();
+    await postToBroker('sess-xxx', { foo: 'bar' });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('should POST to broker using STREAM_BROKER_KEY when configured', async () => {
     process.env.STREAM_BROKER_URL = 'http://localhost:3000';
     process.env.STREAM_BROKER_KEY = 'dev-stream-key';
 
-    (global.fetch as any) = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    (global.fetch as any) = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200 });
 
     const envelope = { foo: 'bar' };
     await postToBroker('sess-1', envelope);
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, opts] = (global.fetch as any).mock.calls[0];
-    expect(url).toBe('http://localhost:3000/api/streams/sessions/sess-1/events');
+    expect(url).toBe(
+      'http://localhost:3000/api/streams/sessions/sess-1/events',
+    );
     expect(opts.method).toBe('POST');
     expect(opts.headers.Authorization).toBe('Bearer dev-stream-key');
     expect(opts.headers['X-Stream-Key']).toBe('dev-stream-key');
@@ -39,10 +52,14 @@ describe('postToBroker', () => {
   it('should update metrics on success', async () => {
     process.env.STREAM_BROKER_URL = 'http://localhost:3000';
     process.env.STREAM_BROKER_KEY = 'dev-stream-key';
-    (global.fetch as any) = vi.fn().mockResolvedValue({ ok: true, status: 200 });
-    const initial = (await import('../src/api/utils/streaming.js')).postToBrokerMetrics.totalPosts;
+    (global.fetch as any) = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200 });
+    const initial = (await import('../src/api/utils/streaming.js'))
+      .postToBrokerMetrics.totalPosts;
     await postToBroker('sess-metrics', { foo: 'bar' });
-    const m = (await import('../src/api/utils/streaming.js')).postToBrokerMetrics;
+    const m = (await import('../src/api/utils/streaming.js'))
+      .postToBrokerMetrics;
     expect(m.totalPosts).toBeGreaterThan(initial);
     expect(m.success).toBeGreaterThan(0);
   });
@@ -51,7 +68,9 @@ describe('postToBroker', () => {
     process.env.STREAM_BROKER_URL = 'http://localhost:3000';
     process.env.STREAM_BROKER_KEY = 'dev-stream-key';
 
-    (global.fetch as any) = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    (global.fetch as any) = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200 });
 
     const envelope = { foo: 'bar' };
     await postToBroker('sess-2', envelope, 'ephemeral-token');
@@ -70,7 +89,11 @@ describe('postToBroker', () => {
     const mockFetch = vi
       .fn()
       .mockRejectedValueOnce(new Error('Network error'))
-      .mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'server error' })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => 'server error',
+      })
       .mockResolvedValueOnce({ ok: true, status: 200 });
 
     (global.fetch as any) = mockFetch;
