@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import postToBroker from '../api/utils/streaming.js';
 import {
   JSONRPCRequest,
   JSONRPCResponse,
@@ -278,6 +279,25 @@ export class StdioJSONRPCServer extends EventEmitter {
       params,
     };
     this.sendResponse(notification);
+
+    // Optionally POST session.* notifications to configured Stream Broker (non-blocking)
+    try {
+      const isSessionNotification = typeof method === 'string' && method.startsWith('session/');
+      const envSet = !!process.env.STREAM_BROKER_URL;
+      const requestedStream = params && params.stream === true;
+      if (isSessionNotification && (envSet || requestedStream)) {
+        const sessionId = params?.sessionId || params?.session?.sessionId;
+        if (sessionId) {
+          // Fire-and-forget: do not await to avoid blocking stdout behavior
+          void postToBroker(sessionId, { method, params }, params?.streamToken);
+        } else {
+          console.warn('[postToBroker] Missing sessionId for session notification; skipping broker post');
+        }
+      }
+    } catch (err) {
+      // Protect notification path from broker errors; log and continue
+      console.error('[postToBroker] unexpected error in sendNotification', err);
+    }
   }
 
   /**
