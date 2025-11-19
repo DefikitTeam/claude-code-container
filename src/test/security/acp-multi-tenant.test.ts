@@ -388,5 +388,71 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
         'sk-ant-user1-secret-key',
       );
     });
+
+    it('should forward stream flag and inject streamKey when configured', async () => {
+      let capturedBody: any;
+
+      // Disable NO_CONTAINERS to capture forwarded container request
+      delete mockEnv.NO_CONTAINERS;
+      // Ensure worker OpenRouter API key is present to proceed
+      mockEnv.OPENROUTER_API_KEY = 'sk-openroute-test';
+      // Set worker stream key
+      mockEnv.LUMILINK_BE_STREAM_KEY = 'stream-key-123';
+
+      mockEnv.MY_CONTAINER = {
+        idFromName: () => ({ toString: () => 'mock-container' }),
+        get: () => ({
+          fetch: async (req: Request) => {
+            const bodyText = await req.text();
+            capturedBody = JSON.parse(bodyText);
+            return new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 },
+            );
+          },
+        }),
+      };
+
+      await acpBridge.routeACPMethod(
+        'session/prompt',
+        { userId: 'user_1', stream: true, configuration: {} },
+        mockEnv,
+      );
+
+      expect(capturedBody).toBeDefined();
+      expect(capturedBody.params.stream).toBe(true);
+      expect(capturedBody.params.streamKey).toBe('stream-key-123');
+    });
+
+    it('should not inject streamKey when stream is not requested', async () => {
+      let capturedBody: any;
+      delete mockEnv.NO_CONTAINERS;
+      mockEnv.OPENROUTER_API_KEY = 'sk-openroute-test';
+      mockEnv.LUMILINK_BE_STREAM_KEY = 'stream-key-123';
+
+      mockEnv.MY_CONTAINER = {
+        idFromName: () => ({ toString: () => 'mock-container' }),
+        get: () => ({
+          fetch: async (req: Request) => {
+            const bodyText = await req.text();
+            capturedBody = JSON.parse(bodyText);
+            return new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 },
+            );
+          },
+        }),
+      };
+
+      await acpBridge.routeACPMethod(
+        'session/prompt',
+        { userId: 'user_1', configuration: {} },
+        mockEnv,
+      );
+
+      expect(capturedBody).toBeDefined();
+      expect(capturedBody.params.stream).toBeUndefined();
+      expect(capturedBody.params.streamKey).toBeUndefined();
+    });
   });
 });

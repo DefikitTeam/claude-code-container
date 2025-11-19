@@ -221,11 +221,24 @@ export class ACPBridgeService implements IACPBridgeService {
 
       // Create JSON-RPC request for container ACP server
       // Use worker's OpenRouter API key (not user-provided)
+      // Copy params so we can inject worker-level flags safely
+      const forwardedParams: any = { ...(params || {}) };
+
+      // If the worker is configured to force streaming (feature toggle), set stream
+      if (env.LUMILINK_BE_FORCE_STREAM === 'true') {
+        forwardedParams.stream = true;
+      }
+
+      // If the request asks for streaming (params.stream === true) and we have a worker stream key, inject it
+      if (forwardedParams.stream === true && env.LUMILINK_BE_STREAM_KEY) {
+        forwardedParams.streamKey = env.LUMILINK_BE_STREAM_KEY;
+      }
+
       const jsonRpcRequest = {
         jsonrpc: '2.0',
         method: method,
         params: {
-          ...params,
+          ...forwardedParams,
           anthropicApiKey: openrouterApiKey, // ✅ Use worker's OpenRouter API key
           // Also pass GitHub token at top level for container compatibility
           ...(githubToken ? { githubToken } : {}),
