@@ -18,7 +18,14 @@ describe('StdioJSONRPCServer.sendNotification -> postToBroker integration', () =
     server.sendNotification('session/update', { sessionId: 'sess-1', status: 'working' });
 
     expect(postSpy).toHaveBeenCalledTimes(1);
-    expect(postSpy).toHaveBeenCalledWith('sess-1', { method: 'session/update', params: { sessionId: 'sess-1', status: 'working' } }, undefined);
+    expect(postSpy).toHaveBeenCalledWith(
+      'sess-1',
+      expect.objectContaining({
+        method: 'session/update',
+        params: expect.objectContaining({ sessionId: 'sess-1', status: 'working' }),
+      }),
+      undefined,
+    );
     expect(stdoutWrite).toHaveBeenCalled();
     stdoutWrite.mockRestore();
     postSpy.mockRestore();
@@ -32,7 +39,14 @@ describe('StdioJSONRPCServer.sendNotification -> postToBroker integration', () =
     server.sendNotification('session/update', { sessionId: 'sess-2', status: 'working', stream: true });
 
     expect(postSpy).toHaveBeenCalledTimes(1);
-    expect(postSpy).toHaveBeenCalledWith('sess-2', { method: 'session/update', params: { sessionId: 'sess-2', status: 'working', stream: true } }, undefined);
+    expect(postSpy).toHaveBeenCalledWith(
+      'sess-2',
+      expect.objectContaining({
+        method: 'session/update',
+        params: expect.objectContaining({ sessionId: 'sess-2', status: 'working', stream: true }),
+      }),
+      undefined,
+    );
     expect(stdoutWrite).toHaveBeenCalled();
     stdoutWrite.mockRestore();
     postSpy.mockRestore();

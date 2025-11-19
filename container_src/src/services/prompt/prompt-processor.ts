@@ -79,6 +79,30 @@ export interface ProcessPromptOptions {
 }
 
 export class PromptProcessor {
+  // In-memory sequence number counters for session notifications
+  private seqCounters = new Map<string, number>();
+
+  private nextSeqNo(sessionId: string): number {
+    const last = this.seqCounters.get(sessionId) ?? 0;
+    const next = last + 1;
+    this.seqCounters.set(sessionId, next);
+    return next;
+  }
+
+  private emitSessionUpdate(
+    notificationSender: ((method: string, params: any) => void) | undefined,
+    params: any,
+  ): void {
+    if (!notificationSender) return;
+    const sessionId = params?.sessionId || params?.session?.sessionId;
+    const now = Date.now();
+    if (!params.timestamp) params.timestamp = now;
+    if (sessionId && params.seqNo === undefined) {
+      params.seqNo = this.nextSeqNo(sessionId);
+    }
+    notificationSender('session/update', params);
+  }
+
   constructor(private deps: PromptProcessorDeps) {}
 
   async processPrompt(
@@ -291,7 +315,7 @@ export class PromptProcessor {
 
     const callbacks: ClaudeCallbacks = {
       onStart: () => {
-        notificationSender?.('session/update', {
+        this.emitSessionUpdate(notificationSender, {
           sessionId,
           status: 'working',
           message: 'Processing with Claude...',
@@ -303,7 +327,7 @@ export class PromptProcessor {
         if (delta.text) fullText += delta.text;
         if (delta.tokens) outputTokens += delta.tokens;
         if (delta.text) logFull('delta', delta.text);
-        notificationSender?.('session/update', {
+        this.emitSessionUpdate(notificationSender, {
           sessionId,
           status: 'working',
           message: 'Claude streaming...',
@@ -321,7 +345,7 @@ export class PromptProcessor {
           'full_text',
           fullText,
         );
-        notificationSender?.('session/update', {
+        this.emitSessionUpdate(notificationSender, {
           sessionId,
           status: 'completed',
           message: 'Completed',

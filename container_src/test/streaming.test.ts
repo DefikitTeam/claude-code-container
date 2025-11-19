@@ -36,6 +36,17 @@ describe('postToBroker', () => {
     expect(JSON.parse(opts.body)).toEqual(envelope);
   });
 
+  it('should update metrics on success', async () => {
+    process.env.STREAM_BROKER_URL = 'http://localhost:3000';
+    process.env.STREAM_BROKER_KEY = 'dev-stream-key';
+    (global.fetch as any) = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    const initial = (await import('../src/api/utils/streaming.js')).postToBrokerMetrics.totalPosts;
+    await postToBroker('sess-metrics', { foo: 'bar' });
+    const m = (await import('../src/api/utils/streaming.js')).postToBrokerMetrics;
+    expect(m.totalPosts).toBeGreaterThan(initial);
+    expect(m.success).toBeGreaterThan(0);
+  });
+
   it('should prefer provided token over config key', async () => {
     process.env.STREAM_BROKER_URL = 'http://localhost:3000';
     process.env.STREAM_BROKER_KEY = 'dev-stream-key';

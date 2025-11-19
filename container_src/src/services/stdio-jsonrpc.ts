@@ -28,6 +28,7 @@ export class StdioJSONRPCServer extends EventEmitter {
   private handlers = new Map<string, JSONRPCHandler['handler']>();
   private isRunning = false;
   private buffer = '';
+  private seqCounters = new Map<string, number>();
 
   constructor() {
     super();
@@ -273,6 +274,18 @@ export class StdioJSONRPCServer extends EventEmitter {
    * Send a notification to the client
    */
   sendNotification(method: string, params: any): void {
+    // ensure timestamp and seqNo are present for session notifications
+    if (typeof method === 'string' && method.startsWith('session/')) {
+      const sessionId = params?.sessionId || params?.session?.sessionId;
+      if (!params.timestamp) params.timestamp = Date.now();
+      if (sessionId && params.seqNo === undefined) {
+        const last = this.seqCounters.get(sessionId) ?? 0;
+        const next = last + 1;
+        this.seqCounters.set(sessionId, next);
+        params.seqNo = next;
+      }
+    }
+
     const notification: JSONRPCNotification = {
       jsonrpc: '2.0',
       method,
