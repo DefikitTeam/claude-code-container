@@ -53,7 +53,12 @@ export class TokenServiceImpl implements ITokenService {
   /**
    * @param externalProvider - External token provider (e.g., LumiLink API client)
    */
-  constructor(private externalProvider?: ExternalTokenProvider) {}
+  // Accept either an ExternalTokenProvider object or a function that returns a token
+  constructor(
+    private externalProvider?:
+      | ExternalTokenProvider
+      | ((installationId: string) => Promise<{ token: string; expiresAt: number }>),
+  ) {}
 
   /**
    * Get or refresh installation token
@@ -88,8 +93,20 @@ export class TokenServiceImpl implements ITokenService {
       throw new ValidationError('External token provider not configured');
     }
 
-    const { token, expiresAt } =
-      await this.externalProvider.getToken(installationId);
+    let tokenResponse: { token: string; expiresAt: number };
+    if (typeof this.externalProvider === 'function') {
+      const maybeToken = await this.externalProvider(installationId);
+      if (typeof maybeToken === 'string') {
+        // Backward-compat: provider returned only token string
+        tokenResponse = { token: maybeToken, expiresAt: Date.now() + 60 * 60 * 1000 };
+      } else {
+        tokenResponse = maybeToken;
+      }
+    } else {
+      tokenResponse = await this.externalProvider.getToken(installationId);
+    }
+
+    const { token, expiresAt } = tokenResponse;
 
     // Cache the token
     this.tokenCache.set(installationId, {

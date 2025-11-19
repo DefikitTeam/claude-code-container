@@ -103,6 +103,8 @@ export class ACPBridgeService implements IACPBridgeService {
         };
       }
 
+      // NO_CONTAINERS bypass will be handled after fetching user config
+
       // Use worker's own OpenRouter API key (from environment/secrets)
       const openrouterApiKey = env.OPENROUTER_API_KEY;
 
@@ -144,17 +146,19 @@ export class ACPBridgeService implements IACPBridgeService {
         };
       }
 
-      console.log(
-        `[ACP-BRIDGE] Using worker OpenRouter API key for user: ${userId} (installation: ${userConfig.installationId})`,
-      );
-
-      // Optional bypass when containers disabled locally (AFTER validation!)
+      // Optional bypass when containers disabled locally (AFTER validation and config fetch)
       if (env.NO_CONTAINERS === 'true') {
         console.log(
           `[ACP-BRIDGE] NO_CONTAINERS flag set - returning mock response for ${method}`,
         );
         return this.getMockResponse(method);
       }
+
+      console.log(
+        `[ACP-BRIDGE] Using worker OpenRouter API key for user: ${userId} (installation: ${userConfig.installationId})`,
+      );
+
+      // (NO_CONTAINERS handled earlier)
 
       console.log(`[ACP-BRIDGE] Routing method: ${method}`);
 

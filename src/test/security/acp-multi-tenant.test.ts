@@ -454,5 +454,70 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       expect(capturedBody.params.stream).toBeUndefined();
       expect(capturedBody.params.streamKey).toBeUndefined();
     });
+
+    it('should inject stream flag when worker forces streaming via env var', async () => {
+      let capturedBody: any;
+      delete mockEnv.NO_CONTAINERS;
+      mockEnv.OPENROUTER_API_KEY = 'sk-openroute-test';
+      // Ensure worker force stream flag is set
+      mockEnv.LUMILINK_BE_FORCE_STREAM = 'true';
+      mockEnv.LUMILINK_BE_STREAM_KEY = 'stream-key-123';
+
+      mockEnv.MY_CONTAINER = {
+        idFromName: () => ({ toString: () => 'mock-container' }),
+        get: () => ({
+          fetch: async (req: Request) => {
+            const bodyText = await req.text();
+            capturedBody = JSON.parse(bodyText);
+            return new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 },
+            );
+          },
+        }),
+      };
+
+      await acpBridge.routeACPMethod(
+        'session/prompt',
+        { userId: 'user_1', configuration: {} },
+        mockEnv,
+      );
+
+      expect(capturedBody).toBeDefined();
+      expect(capturedBody.params.stream).toBe(true);
+      // When forced streaming and worker stream key exists, injection must occur
+      expect(capturedBody.params.streamKey).toBe('stream-key-123');
+    });
+
+    it('should not inject streamKey when LUMILINK_BE_STREAM_KEY is not set', async () => {
+      let capturedBody: any;
+      delete mockEnv.NO_CONTAINERS;
+      mockEnv.OPENROUTER_API_KEY = 'sk-openroute-test';
+      delete mockEnv.LUMILINK_BE_STREAM_KEY;
+
+      mockEnv.MY_CONTAINER = {
+        idFromName: () => ({ toString: () => 'mock-container' }),
+        get: () => ({
+          fetch: async (req: Request) => {
+            const bodyText = await req.text();
+            capturedBody = JSON.parse(bodyText);
+            return new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 },
+            );
+          },
+        }),
+      };
+
+      await acpBridge.routeACPMethod(
+        'session/prompt',
+        { userId: 'user_1', stream: true, configuration: {} },
+        mockEnv,
+      );
+
+      expect(capturedBody).toBeDefined();
+      expect(capturedBody.params.stream).toBe(true);
+      expect(capturedBody.params.streamKey).toBeUndefined();
+    });
   });
 });
