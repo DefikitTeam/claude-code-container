@@ -22,7 +22,7 @@ export interface UpdateUserResult {
 export class UpdateUserUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
-    private readonly cryptoService: ICryptoService
+    private readonly cryptoService: ICryptoService,
   ) {}
 
   async execute(dto: UpdateUserDto): Promise<UpdateUserResult> {

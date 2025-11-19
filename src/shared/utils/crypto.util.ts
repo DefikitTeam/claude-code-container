@@ -19,7 +19,7 @@ export async function generateRandomKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     true, // extractable
-    ['encrypt', 'decrypt']
+    ['encrypt', 'decrypt'],
   );
 }
 
@@ -106,7 +106,10 @@ export function isValidApiKeyFormat(apiKey: string): boolean {
 /**
  * Mask sensitive data for logging
  */
-export function maskSensitiveData(data: string, visibleChars: number = 4): string {
+export function maskSensitiveData(
+  data: string,
+  visibleChars: number = 4,
+): string {
   if (data.length <= visibleChars) {
     return '*'.repeat(data.length);
   }

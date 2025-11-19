@@ -6,10 +6,7 @@ import type {
   ClaudeResult,
   RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
-import type {
-  ClaudeAdapter,
-  ClaudeRuntimeContext,
-} from './adapter.js';
+import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
 import { resolveClaudeCli } from './cli-resolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -115,7 +112,10 @@ export class CLIClientAdapter implements ClaudeAdapter {
         try {
           child.kill('SIGINT');
         } catch (error) {
-          console.warn('[cli-client.adapter] Failed to abort CLI process', error);
+          console.warn(
+            '[cli-client.adapter] Failed to abort CLI process',
+            error,
+          );
         }
       },
       { once: true },

@@ -165,7 +165,10 @@ export class WranglerWrapper {
    * @param args - Command arguments
    * @returns Command result
    */
-  async executeCommand(command: string, args?: string[]): Promise<WranglerCommandResult> {
+  async executeCommand(
+    command: string,
+    args?: string[],
+  ): Promise<WranglerCommandResult> {
     if (!command || typeof command !== 'string') {
       throw new ValidationError('command must be a non-empty string');
     }
@@ -173,7 +176,9 @@ export class WranglerWrapper {
     // Note: This would execute: wrangler {command} {args}
     // Parse the output and return result
 
-    console.log(`Would execute: ${this.wranglerPath} ${command} ${args?.join(' ') || ''}`);
+    console.log(
+      `Would execute: ${this.wranglerPath} ${command} ${args?.join(' ') || ''}`,
+    );
 
     return {
       success: true,

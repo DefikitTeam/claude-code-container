@@ -37,12 +37,22 @@ export class InstallationEntity {
       throw new ValidationError('appId must be a non-empty string');
     }
 
-    if (!props.encryptedPrivateKey?.encryptedData || !props.encryptedPrivateKey?.iv) {
-      throw new ValidationError('encryptedPrivateKey must contain encryptedData and iv');
+    if (
+      !props.encryptedPrivateKey?.encryptedData ||
+      !props.encryptedPrivateKey?.iv
+    ) {
+      throw new ValidationError(
+        'encryptedPrivateKey must contain encryptedData and iv',
+      );
     }
 
-    if (!props.encryptedWebhookSecret?.encryptedData || !props.encryptedWebhookSecret?.iv) {
-      throw new ValidationError('encryptedWebhookSecret must contain encryptedData and iv');
+    if (
+      !props.encryptedWebhookSecret?.encryptedData ||
+      !props.encryptedWebhookSecret?.iv
+    ) {
+      throw new ValidationError(
+        'encryptedWebhookSecret must contain encryptedData and iv',
+      );
     }
 
     if (typeof props.created !== 'number' || props.created <= 0) {
@@ -59,13 +69,27 @@ export class InstallationEntity {
   }
 
   // Getters
-  get installationId(): string { return this.props.installationId; }
-  get appId(): string { return this.props.appId; }
-  get encryptedPrivateKey() { return this.props.encryptedPrivateKey; }
-  get encryptedWebhookSecret() { return this.props.encryptedWebhookSecret; }
-  get created(): number { return this.props.created; }
-  get updated(): number { return this.props.updated; }
-  get isActive(): boolean { return this.props.isActive; }
+  get installationId(): string {
+    return this.props.installationId;
+  }
+  get appId(): string {
+    return this.props.appId;
+  }
+  get encryptedPrivateKey() {
+    return this.props.encryptedPrivateKey;
+  }
+  get encryptedWebhookSecret() {
+    return this.props.encryptedWebhookSecret;
+  }
+  get created(): number {
+    return this.props.created;
+  }
+  get updated(): number {
+    return this.props.updated;
+  }
+  get isActive(): boolean {
+    return this.props.isActive;
+  }
 
   /**
    * Create a new installation
@@ -74,7 +98,7 @@ export class InstallationEntity {
     installationId: string,
     appId: string,
     encryptedPrivateKey: { encryptedData: Uint8Array; iv: Uint8Array },
-    encryptedWebhookSecret: { encryptedData: Uint8Array; iv: Uint8Array }
+    encryptedWebhookSecret: { encryptedData: Uint8Array; iv: Uint8Array },
   ): InstallationEntity {
     const now = Date.now();
     return new InstallationEntity({

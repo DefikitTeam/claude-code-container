@@ -365,7 +365,12 @@ export class GitHubAutomationService {
       }
       await this.git.runGit(workspacePath, ['fetch', 'origin', baseBranch]);
       await this.git.checkoutBranch(workspacePath, baseBranch);
-      await this.git.runGit(workspacePath, ['pull', '--ff-only', 'origin', baseBranch]);
+      await this.git.runGit(workspacePath, [
+        'pull',
+        '--ff-only',
+        'origin',
+        baseBranch,
+      ]);
     } else {
       this.log(logs, 'git.workspaceAlreadyPrepared', {
         path: workspacePath,
@@ -826,7 +831,9 @@ function buildAuthedUrl(
   const sanitized = sanitizeRemote(url);
   // CRITICAL FIX: Strip trailing slashes that cause git push to fail
   // Error: "URL rejected: Port number was not a decimal number between 0 and 65535"
-  const withoutProtocol = sanitized.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const withoutProtocol = sanitized
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '');
   return `https://x-access-token:${token}@${withoutProtocol}`;
 }
 

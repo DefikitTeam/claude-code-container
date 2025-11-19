@@ -40,9 +40,11 @@ export class GitHubController {
     try {
       const installationId = c.req.header('x-installation-id')!;
 
-  const result = await this.fetchRepositoriesUseCase.execute({ installationId });
+      const result = await this.fetchRepositoriesUseCase.execute({
+        installationId,
+      });
 
-  return successResponse(c, result, 200);
+      return successResponse(c, result, 200);
     } catch (err: any) {
       return errorResponse(c, err);
     }

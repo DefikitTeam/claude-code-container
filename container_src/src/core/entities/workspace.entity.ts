@@ -32,7 +32,7 @@ export class WorkspaceEntity {
       ...parsed,
       gitInfo: parsed.gitInfo
         ? { ...parsed.gitInfo }
-        : parsed.gitInfo ?? null,
+        : (parsed.gitInfo ?? null),
     });
   }
 
@@ -53,7 +53,9 @@ export class WorkspaceEntity {
   }
 
   get gitInfo(): WorkspaceSchema['gitInfo'] {
-    return this.props.gitInfo ? { ...this.props.gitInfo } : this.props.gitInfo ?? null;
+    return this.props.gitInfo
+      ? { ...this.props.gitInfo }
+      : (this.props.gitInfo ?? null);
   }
 
   hasChanges(): boolean {
@@ -70,7 +72,9 @@ export class WorkspaceEntity {
       path: this.props.path,
       isEphemeral: this.props.isEphemeral,
       createdAt: this.props.createdAt,
-      gitInfo: this.props.gitInfo ? { ...this.props.gitInfo } : this.props.gitInfo ?? null,
+      gitInfo: this.props.gitInfo
+        ? { ...this.props.gitInfo }
+        : (this.props.gitInfo ?? null),
     };
   }
 }

@@ -27,7 +27,9 @@ export function rateLimit(options: RateLimitOptions = {}): MiddlewareHandler {
     if (state && state.expiresAt > now) {
       if (state.count >= maxRequests) {
         const retryAfter = Math.ceil((state.expiresAt - now) / 1000);
-        throw UnauthorizedError.forbidden(`Rate limit exceeded. Retry after ${retryAfter}s`);
+        throw UnauthorizedError.forbidden(
+          `Rate limit exceeded. Retry after ${retryAfter}s`,
+        );
       }
       state.count += 1;
     } else {
@@ -39,7 +41,8 @@ export function rateLimit(options: RateLimitOptions = {}): MiddlewareHandler {
 }
 
 function getClientKey(c: Parameters<MiddlewareHandler>[0]): string {
-  const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
+  const ip =
+    c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for');
   if (ip) {
     return ip;
   }

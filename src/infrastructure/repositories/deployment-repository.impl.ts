@@ -46,7 +46,8 @@ export class DeploymentRepositoryImpl implements IDeploymentRepository {
       this.storage.deployments.set(deploymentId, deployment);
 
       // Update installation index
-      const currentIndex = this.storage.installationIndex.get(installationId) || [];
+      const currentIndex =
+        this.storage.installationIndex.get(installationId) || [];
       if (!currentIndex.includes(deploymentId)) {
         currentIndex.push(deploymentId);
         this.storage.installationIndex.set(installationId, currentIndex);
@@ -86,13 +87,16 @@ export class DeploymentRepositoryImpl implements IDeploymentRepository {
    * @param installationId - Installation ID
    * @returns Latest DeploymentEntity or null if no deployments
    */
-  async findLatestByInstallation(installationId: string): Promise<DeploymentEntity | null> {
+  async findLatestByInstallation(
+    installationId: string,
+  ): Promise<DeploymentEntity | null> {
     if (!installationId || typeof installationId !== 'string') {
       throw new ValidationError('installationId must be a non-empty string');
     }
 
     try {
-      const deploymentIds = this.storage.installationIndex.get(installationId) || [];
+      const deploymentIds =
+        this.storage.installationIndex.get(installationId) || [];
 
       if (deploymentIds.length === 0) {
         return null;
@@ -115,7 +119,10 @@ export class DeploymentRepositoryImpl implements IDeploymentRepository {
    * @param limit - Maximum number of deployments to return (default: 50)
    * @returns Array of DeploymentEntity objects, most recent first
    */
-  async listByInstallation(installationId: string, limit: number = 50): Promise<DeploymentEntity[]> {
+  async listByInstallation(
+    installationId: string,
+    limit: number = 50,
+  ): Promise<DeploymentEntity[]> {
     if (!installationId || typeof installationId !== 'string') {
       throw new ValidationError('installationId must be a non-empty string');
     }
@@ -125,7 +132,8 @@ export class DeploymentRepositoryImpl implements IDeploymentRepository {
     }
 
     try {
-      const deploymentIds = this.storage.installationIndex.get(installationId) || [];
+      const deploymentIds =
+        this.storage.installationIndex.get(installationId) || [];
 
       // Sort in reverse order (most recent first)
       const recentIds = deploymentIds.slice(-limit).reverse();
@@ -156,7 +164,8 @@ export class DeploymentRepositoryImpl implements IDeploymentRepository {
     }
 
     try {
-      const deploymentIds = this.storage.installationIndex.get(installationId) || [];
+      const deploymentIds =
+        this.storage.installationIndex.get(installationId) || [];
 
       for (const deploymentId of deploymentIds) {
         this.storage.deployments.delete(deploymentId);
@@ -164,7 +173,9 @@ export class DeploymentRepositoryImpl implements IDeploymentRepository {
 
       this.storage.installationIndex.delete(installationId);
     } catch (error) {
-      throw new Error(`Failed to delete deployments for installation ${installationId}`);
+      throw new Error(
+        `Failed to delete deployments for installation ${installationId}`,
+      );
     }
   }
 

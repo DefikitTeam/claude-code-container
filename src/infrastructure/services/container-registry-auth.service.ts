@@ -40,13 +40,18 @@ export interface IContainerRegistryAuthService {
   getDeploymentAuth(userConfig: any): Promise<ContainerAuthResult>;
   refreshAuth(userConfig: any): Promise<ContainerAuthResult>;
   preValidateAuth(userConfig: any): Promise<ContainerAuthResult>;
-  handleDeploymentAuthFailure(userConfig: any, error: any): Promise<ContainerAuthResult>;
+  handleDeploymentAuthFailure(
+    userConfig: any,
+    error: any,
+  ): Promise<ContainerAuthResult>;
 }
 
 /**
  * Container Registry Authentication Service Implementation
  */
-export class ContainerRegistryAuthService implements IContainerRegistryAuthService {
+export class ContainerRegistryAuthService
+  implements IContainerRegistryAuthService
+{
   constructor(
     private readonly env: any,
     private readonly tokenService: any,
@@ -91,13 +96,18 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
         deploymentHeaders,
       };
 
-      console.log(`✅ Deployment auth successful for user ${userConfig.userId}`);
+      console.log(
+        `✅ Deployment auth successful for user ${userConfig.userId}`,
+      );
       return {
         success: true,
         auth: deploymentAuth,
       };
     } catch (error) {
-      console.error(`Container deployment auth error for user ${userConfig.userId}:`, error);
+      console.error(
+        `Container deployment auth error for user ${userConfig.userId}:`,
+        error,
+      );
 
       return {
         success: false,
@@ -111,7 +121,9 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
   /**
    * Get container registry auth token (simulated for now)
    */
-  private async getContainerRegistryAuth(userConfig: any): Promise<ContainerRegistryAuth | null> {
+  private async getContainerRegistryAuth(
+    userConfig: any,
+  ): Promise<ContainerRegistryAuth | null> {
     try {
       // In a real implementation, this would call Cloudflare API to get registry token
       // For now, return a simulated token structure
@@ -129,7 +141,9 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
   /**
    * Validate registry authentication by testing access
    */
-  private async validateRegistryAuth(registryAuth: ContainerRegistryAuth): Promise<boolean> {
+  private async validateRegistryAuth(
+    registryAuth: ContainerRegistryAuth,
+  ): Promise<boolean> {
     try {
       // For Cloudflare registry, we can test authentication by attempting to list repositories
       const testUrl = `https://${registryAuth.registry_url || 'registry.cloudflare.com'}/v2/`;
@@ -147,10 +161,14 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
         console.log('✅ Registry authentication validated successfully');
         return true;
       } else if (response.status === 401) {
-        console.log('❌ Registry authentication validation failed - unauthorized');
+        console.log(
+          '❌ Registry authentication validation failed - unauthorized',
+        );
         return false;
       } else {
-        console.log(`⚠️  Registry validation inconclusive - status: ${response.status}`);
+        console.log(
+          `⚠️  Registry validation inconclusive - status: ${response.status}`,
+        );
         // For non-200/401 responses, assume auth is OK but registry might be having issues
         return true;
       }
@@ -164,7 +182,9 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
   /**
    * Create deployment headers for Cloudflare container deployment
    */
-  private createDeploymentHeaders(registryAuth: ContainerRegistryAuth): Record<string, string> {
+  private createDeploymentHeaders(
+    registryAuth: ContainerRegistryAuth,
+  ): Record<string, string> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${registryAuth.token}`,
       'Content-Type': 'application/json',
@@ -246,7 +266,9 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
    * Pre-validate authentication before deployment
    */
   async preValidateAuth(userConfig: any): Promise<ContainerAuthResult> {
-    console.log(`🔍 Pre-validating container auth for user ${userConfig.userId}`);
+    console.log(
+      `🔍 Pre-validating container auth for user ${userConfig.userId}`,
+    );
 
     // First check if we can get auth
     const authResult = await this.getDeploymentAuth(userConfig);
@@ -263,7 +285,9 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
     const tenMinutes = 10 * 60 * 1000;
 
     if (expiresAt - now < tenMinutes) {
-      console.log(`⚠️  Auth token expires soon for user ${userConfig.userId}, refreshing`);
+      console.log(
+        `⚠️  Auth token expires soon for user ${userConfig.userId}, refreshing`,
+      );
       return await this.refreshAuth(userConfig);
     }
 
@@ -274,8 +298,14 @@ export class ContainerRegistryAuthService implements IContainerRegistryAuthServi
   /**
    * Handle authentication failure during deployment
    */
-  async handleDeploymentAuthFailure(userConfig: any, error: any): Promise<ContainerAuthResult> {
-    console.log(`🚨 Handling deployment auth failure for user ${userConfig.userId}:`, error);
+  async handleDeploymentAuthFailure(
+    userConfig: any,
+    error: any,
+  ): Promise<ContainerAuthResult> {
+    console.log(
+      `🚨 Handling deployment auth failure for user ${userConfig.userId}:`,
+      error,
+    );
 
     const errorType = this.categorizeError(error);
 

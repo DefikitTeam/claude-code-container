@@ -6,7 +6,10 @@ export interface ProcessPromptDTO {
   context?: Record<string, any>;
 }
 
-export function parseProcessPromptDTO(body: any, containerId: string): ProcessPromptDTO {
+export function parseProcessPromptDTO(
+  body: any,
+  containerId: string,
+): ProcessPromptDTO {
   if (!body || typeof body !== 'object') {
     throw new ValidationError('Invalid prompt data: body must be an object');
   }

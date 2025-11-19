@@ -24,23 +24,37 @@ export interface DeployWorkerResult {
 export class DeployWorkerUseCase {
   constructor(
     private readonly deploymentRepository: IDeploymentRepository,
-    private readonly deploymentService: IDeploymentService
+    private readonly deploymentService: IDeploymentService,
   ) {}
 
   async execute(dto: DeployWorkerDto): Promise<DeployWorkerResult> {
-    if (!dto.version || !dto.configHash || !dto.installationId || !dto.workerCode) {
-      throw new ValidationError('version, configHash, installationId, and workerCode are required');
+    if (
+      !dto.version ||
+      !dto.configHash ||
+      !dto.installationId ||
+      !dto.workerCode
+    ) {
+      throw new ValidationError(
+        'version, configHash, installationId, and workerCode are required',
+      );
     }
 
     // Validate worker code
     const validation = await this.deploymentService.validate(dto.workerCode);
     if (!validation.valid) {
-      throw new ValidationError(`Invalid worker code: ${validation.errors?.join(', ')}`);
+      throw new ValidationError(
+        `Invalid worker code: ${validation.errors?.join(', ')}`,
+      );
     }
 
     // Create deployment entity
     const deploymentId = `deploy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const deployment = DeploymentEntity.create(deploymentId, dto.installationId, dto.version, dto.configHash);
+    const deployment = DeploymentEntity.create(
+      deploymentId,
+      dto.installationId,
+      dto.version,
+      dto.configHash,
+    );
 
     // Save deployment
     await this.deploymentRepository.save(deployment);

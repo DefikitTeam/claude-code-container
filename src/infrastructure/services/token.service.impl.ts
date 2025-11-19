@@ -3,7 +3,7 @@
  * Manages GitHub installation tokens with caching and validation
  *
  * Implements: ITokenService
- * 
+ *
  * IMPORTANT: This service NO LONGER generates tokens using GitHub App credentials.
  * Instead, it calls an external token provider API (e.g., LumiLink backend) which
  * securely manages GitHub App credentials and generates tokens server-side.
@@ -28,7 +28,9 @@ export interface ExternalTokenProvider {
    * @param installationId - GitHub installation ID
    * @returns Token and expiration timestamp
    */
-  getToken(installationId: string): Promise<{ token: string; expiresAt: number }>;
+  getToken(
+    installationId: string,
+  ): Promise<{ token: string; expiresAt: number }>;
 }
 
 /**
@@ -61,9 +63,7 @@ export class TokenServiceImpl implements ITokenService {
    * @returns Token and expiration time
    * @throws ValidationError if installationId is invalid or provider not configured
    */
-  async getInstallationToken(
-    installationId: string,
-  ): Promise<{
+  async getInstallationToken(installationId: string): Promise<{
     token: string;
     expiresAt: number;
   }> {
@@ -73,7 +73,10 @@ export class TokenServiceImpl implements ITokenService {
 
     // Try to get cached token
     const cachedToken = this.tokenCache.get(installationId);
-    if (cachedToken && this.isTokenValid(installationId, cachedToken.expiresAt)) {
+    if (
+      cachedToken &&
+      this.isTokenValid(installationId, cachedToken.expiresAt)
+    ) {
       return {
         token: cachedToken.token,
         expiresAt: cachedToken.expiresAt,
@@ -85,7 +88,8 @@ export class TokenServiceImpl implements ITokenService {
       throw new ValidationError('External token provider not configured');
     }
 
-    const { token, expiresAt } = await this.externalProvider.getToken(installationId);
+    const { token, expiresAt } =
+      await this.externalProvider.getToken(installationId);
 
     // Cache the token
     this.tokenCache.set(installationId, {
@@ -167,7 +171,10 @@ export class TokenServiceImpl implements ITokenService {
           await this.invalidateToken(installationId);
           refreshed++;
         } catch (error) {
-          console.error(`Failed to refresh token for installation ${installationId}:`, error);
+          console.error(
+            `Failed to refresh token for installation ${installationId}:`,
+            error,
+          );
         }
       }
     }

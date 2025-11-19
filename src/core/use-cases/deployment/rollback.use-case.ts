@@ -21,21 +21,28 @@ export interface RollbackResult {
 export class RollbackUseCase {
   constructor(
     private readonly deploymentRepository: IDeploymentRepository,
-    private readonly deploymentService: IDeploymentService
+    private readonly deploymentService: IDeploymentService,
   ) {}
 
   async execute(dto: RollbackDto): Promise<RollbackResult> {
     if (!dto.deploymentId || !dto.previousVersion) {
-      throw new ValidationError('deploymentId and previousVersion are required');
+      throw new ValidationError(
+        'deploymentId and previousVersion are required',
+      );
     }
 
-    const deployment = await this.deploymentRepository.findById(dto.deploymentId);
+    const deployment = await this.deploymentRepository.findById(
+      dto.deploymentId,
+    );
     if (!deployment) {
       throw new NotFoundError(`Deployment ${dto.deploymentId} not found`);
     }
 
     // Perform rollback
-    const result = await this.deploymentService.rollback(dto.deploymentId, dto.previousVersion);
+    const result = await this.deploymentService.rollback(
+      dto.deploymentId,
+      dto.previousVersion,
+    );
 
     if (!result.success) {
       throw new Error('Rollback failed');

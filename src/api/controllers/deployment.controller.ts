@@ -4,7 +4,10 @@ import { GetStatusUseCase } from '../../core/use-cases/deployment/get-status.use
 import { RollbackUseCase } from '../../core/use-cases/deployment/rollback.use-case';
 import { ValidateConfigUseCase } from '../../core/use-cases/deployment/validate-config.use-case';
 import { parseDeployWorkerDTO } from '../dto/deploy-worker.dto';
-import { successResponse, createdResponse } from '../responses/success.response';
+import {
+  successResponse,
+  createdResponse,
+} from '../responses/success.response';
 import { errorResponse } from '../responses/error.response';
 
 export class DeploymentController {

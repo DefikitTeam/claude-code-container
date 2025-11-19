@@ -22,10 +22,7 @@ export async function sessionPromptHandler(
   notificationSender?: (method: string, params: any) => void, // eslint-disable-line @typescript-eslint/no-explicit-any
 ): Promise<SessionPromptResponse['result']> {
   acpState.ensureInitialized();
-  const {
-    sessionStore,
-    promptProcessor,
-  } = getRuntimeServices();
+  const { sessionStore, promptProcessor } = getRuntimeServices();
   if (!params || !params.sessionId || !params.content) {
     throw Object.assign(
       new Error('Invalid params: sessionId & content required'),

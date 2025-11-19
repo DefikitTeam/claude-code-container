@@ -1,17 +1,20 @@
 /**
  * Unit tests for OpenAI OpenRouter Adapter
- * 
+ *
  * Tests the OpenAI SDK integration with OpenRouter API
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { OpenAIOpenRouterAdapter } from '../src/infrastructure/ai/openai-openrouter.adapter.js';
 import type { ClaudeRuntimeContext } from '../src/infrastructure/claude/adapter.js';
-import type { RunOptions, ClaudeCallbacks } from '../src/core/interfaces/services/claude.service.js';
+import type {
+  RunOptions,
+  ClaudeCallbacks,
+} from '../src/core/interfaces/services/claude.service.js';
 
 describe('OpenAIOpenRouterAdapter', () => {
   let adapter: OpenAIOpenRouterAdapter;
-  
+
   beforeEach(() => {
     adapter = new OpenAIOpenRouterAdapter();
   });
@@ -27,7 +30,7 @@ describe('OpenAIOpenRouterAdapter', () => {
         baseURL: 'https://custom.url',
         defaultModel: 'custom-model',
       });
-      
+
       expect(customAdapter.name).toBe('http-api');
       expect(customAdapter.adapterId).toBe('openai-openrouter');
     });
@@ -92,7 +95,8 @@ describe('OpenAIOpenRouterAdapter', () => {
     });
 
     it('should return false when explicitly disabled', () => {
-      const originalDisable = process.env.CLAUDE_CLIENT_DISABLE_OPENAI_OPENROUTER;
+      const originalDisable =
+        process.env.CLAUDE_CLIENT_DISABLE_OPENAI_OPENROUTER;
       process.env.CLAUDE_CLIENT_DISABLE_OPENAI_OPENROUTER = '1';
 
       const context: ClaudeRuntimeContext = {
@@ -137,7 +141,7 @@ describe('OpenAIOpenRouterAdapter', () => {
       const abortSignal = new AbortController().signal;
 
       await expect(
-        adapter.run('test prompt', runOptions, context, callbacks, abortSignal)
+        adapter.run('test prompt', runOptions, context, callbacks, abortSignal),
       ).rejects.toThrow('missing API key');
 
       // Cleanup
@@ -165,7 +169,13 @@ describe('OpenAIOpenRouterAdapter', () => {
       abortController.abort(); // Abort immediately
 
       await expect(
-        adapter.run('test prompt', runOptions, context, callbacks, abortController.signal)
+        adapter.run(
+          'test prompt',
+          runOptions,
+          context,
+          callbacks,
+          abortController.signal,
+        ),
       ).rejects.toThrow('aborted');
     });
   });
@@ -174,7 +184,7 @@ describe('OpenAIOpenRouterAdapter', () => {
     it.skip('should successfully complete a real request', async () => {
       // This test requires a real OPENROUTER_API_KEY
       // Run with: OPENROUTER_API_KEY=xxx pnpm test -- openai-openrouter.adapter.test.ts
-      
+
       if (!process.env.OPENROUTER_API_KEY) {
         console.log('Skipping integration test - no OPENROUTER_API_KEY');
         return;
@@ -220,7 +230,7 @@ describe('OpenAIOpenRouterAdapter', () => {
         runOptions,
         context,
         callbacks,
-        abortSignal
+        abortSignal,
       );
 
       expect(result.fullText).toContain('Hello');

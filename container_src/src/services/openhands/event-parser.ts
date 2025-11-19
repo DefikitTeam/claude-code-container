@@ -44,8 +44,10 @@ export type OpenHandsEventParsed = z.infer<typeof OpenHandsEventSchema>;
  * handle failures (log, classify, retry, etc.).
  */
 export function safeParseOpenHandsEvent(
-  input: unknown
-): { success: true; data: OpenHandsEventParsed } | { success: false; error: z.ZodError } {
+  input: unknown,
+):
+  | { success: true; data: OpenHandsEventParsed }
+  | { success: false; error: z.ZodError } {
   const result = OpenHandsEventSchema.safeParse(input);
   if (result.success) return { success: true, data: result.data };
   return { success: false, error: result.error };
@@ -151,4 +153,3 @@ export class EventParser {
     }
   }
 }
-

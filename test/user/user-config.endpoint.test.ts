@@ -67,9 +67,7 @@ describe('User configuration endpoints reflect multi-registration directory', ()
           success: true,
           removedUserId: 'user-b',
           installationId: 'install-1',
-          remainingRegistrations: [
-            { userId: 'user-a', projectLabel: 'Alpha' },
-          ],
+          remainingRegistrations: [{ userId: 'user-a', projectLabel: 'Alpha' }],
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
@@ -98,10 +96,10 @@ describe('User configuration endpoints reflect multi-registration directory', ()
 
   it('returns 404 when user configuration is missing', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ error: 'Not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      ),
+      new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
 
     const response = await app.request(

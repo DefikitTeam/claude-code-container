@@ -3,7 +3,7 @@
  * Provides Durable Object backed container lifecycle operations using real Cloudflare Containers
  *
  * Implements: IContainerService
- * 
+ *
  * This service communicates with ContainerDO which extends Container<any>
  * from @cloudflare/containers. The container runs an HTTP server (container_src)
  * that handles requests at /health, /process, and /acp endpoints.
@@ -20,7 +20,7 @@ export class ContainerServiceImpl implements IContainerService {
 
   /**
    * Spawn a new container with the given configuration
-   * 
+   *
    * For real Cloudflare Containers:
    * 1. Get the ContainerDO stub with a unique ID
    * 2. Make a request to the container to wake it up and initialize
@@ -32,7 +32,11 @@ export class ContainerServiceImpl implements IContainerService {
     userId: string;
     containerImage: string;
     environmentVariables: Record<string, string>;
-    resourceLimits: { cpuMillis: number; memoryMb: number; timeoutSeconds: number };
+    resourceLimits: {
+      cpuMillis: number;
+      memoryMb: number;
+      timeoutSeconds: number;
+    };
   }): Promise<{ containerId: string }> {
     this.validateSpawnParams(params);
 
@@ -41,30 +45,40 @@ export class ContainerServiceImpl implements IContainerService {
     // For real containers, we just need to check if they're alive
     // The container HTTP server expects GET /health to wake up and validate
     try {
-      const response = await this.doRequest('GET', '/health', undefined, containerId);
-      
+      const response = await this.doRequest(
+        'GET',
+        '/health',
+        undefined,
+        containerId,
+      );
+
       if (!response.ok) {
-        throw new Error(`Container health check failed: ${response.statusText}`);
+        throw new Error(
+          `Container health check failed: ${response.statusText}`,
+        );
       }
 
       // Container is alive and healthy
       return { containerId };
     } catch (error) {
       throw new Error(
-        `Failed to spawn container: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to spawn container: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
 
   /**
    * Execute a command/prompt in a container
-   * 
+   *
    * This uses the /process endpoint for generic processing
    * or /acp for ACP protocol interactions
    */
-  async execute(containerId: string, command: string): Promise<{ 
-    exitCode: number; 
-    stdout: string; 
+  async execute(
+    containerId: string,
+    command: string,
+  ): Promise<{
+    exitCode: number;
+    stdout: string;
     stderr: string;
   }> {
     if (!containerId || !command) {
@@ -76,13 +90,18 @@ export class ContainerServiceImpl implements IContainerService {
       command,
     };
 
-    const response = await this.doRequest('POST', '/process', body, containerId);
+    const response = await this.doRequest(
+      'POST',
+      '/process',
+      body,
+      containerId,
+    );
     if (!response.ok) {
       throw new Error(`Failed to execute command: ${response.statusText}`);
     }
 
-    const result = await response.json() as { 
-      success: boolean; 
+    const result = (await response.json()) as {
+      success: boolean;
       logs?: string[];
       message?: string;
     };
@@ -91,13 +110,13 @@ export class ContainerServiceImpl implements IContainerService {
     return {
       exitCode: result.success ? 0 : 1,
       stdout: result.logs?.join('\n') || result.message || '',
-      stderr: result.success ? '' : (result.message || 'Command failed'),
+      stderr: result.success ? '' : result.message || 'Command failed',
     };
   }
 
   /**
    * Retrieve container logs
-   * 
+   *
    * For real containers, logs are retrieved from the container's runtime
    * We use the /health endpoint response which includes diagnostic info
    */
@@ -106,14 +125,19 @@ export class ContainerServiceImpl implements IContainerService {
       throw new ValidationError('containerId is required');
     }
 
-    const response = await this.doRequest('GET', '/health', undefined, containerId);
+    const response = await this.doRequest(
+      'GET',
+      '/health',
+      undefined,
+      containerId,
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to retrieve logs: ${response.statusText}`);
     }
 
-    const health = await response.json() as { 
-      status: string; 
+    const health = (await response.json()) as {
+      status: string;
       message: string;
       timestamp: string;
     };
@@ -128,7 +152,7 @@ export class ContainerServiceImpl implements IContainerService {
 
   /**
    * Terminate a container
-   * 
+   *
    * For real Cloudflare Containers, termination happens automatically
    * after the sleepAfter timeout (5 minutes by default in ContainerDO)
    * We don't have explicit termination, so this is a no-op
@@ -140,28 +164,37 @@ export class ContainerServiceImpl implements IContainerService {
 
     // Real containers auto-terminate after sleepAfter timeout
     // This is a no-op for compliance with the interface
-    console.log(`Container ${containerId} will auto-terminate after inactivity`);
+    console.log(
+      `Container ${containerId} will auto-terminate after inactivity`,
+    );
   }
 
   /**
    * Check container status
-   * 
+   *
    * Checks if the container is responsive by hitting the /health endpoint
    */
-  async getStatus(containerId: string): Promise<'running' | 'stopped' | 'error'> {
+  async getStatus(
+    containerId: string,
+  ): Promise<'running' | 'stopped' | 'error'> {
     if (!containerId) {
       throw new ValidationError('containerId is required');
     }
 
     try {
-      const response = await this.doRequest('GET', '/health', undefined, containerId);
+      const response = await this.doRequest(
+        'GET',
+        '/health',
+        undefined,
+        containerId,
+      );
 
       if (!response.ok) {
         return 'error';
       }
 
-      const health = await response.json() as { status: string };
-      
+      const health = (await response.json()) as { status: string };
+
       // Map health status to container status
       if (health.status === 'healthy' || health.status === 'degraded') {
         return 'running';
@@ -180,9 +213,18 @@ export class ContainerServiceImpl implements IContainerService {
     userId: string;
     containerImage: string;
     environmentVariables: Record<string, string>;
-    resourceLimits: { cpuMillis: number; memoryMb: number; timeoutSeconds: number };
+    resourceLimits: {
+      cpuMillis: number;
+      memoryMb: number;
+      timeoutSeconds: number;
+    };
   }): void {
-    const required = ['configId', 'installationId', 'userId', 'containerImage'] as const;
+    const required = [
+      'configId',
+      'installationId',
+      'userId',
+      'containerImage',
+    ] as const;
     for (const key of required) {
       if (!(params as Record<string, unknown>)[key]) {
         throw new ValidationError(`${key} is required`);
@@ -191,7 +233,9 @@ export class ContainerServiceImpl implements IContainerService {
 
     const { cpuMillis, memoryMb, timeoutSeconds } = params.resourceLimits ?? {};
     if (!cpuMillis || !memoryMb || !timeoutSeconds) {
-      throw new ValidationError('resourceLimits must include cpuMillis, memoryMb, timeoutSeconds');
+      throw new ValidationError(
+        'resourceLimits must include cpuMillis, memoryMb, timeoutSeconds',
+      );
     }
   }
 
@@ -202,7 +246,7 @@ export class ContainerServiceImpl implements IContainerService {
 
   /**
    * Make a request to the container's HTTP server
-   * 
+   *
    * The container runs an HTTP server (container_src) that handles:
    * - GET /health - Health check
    * - POST /process - Generic processing

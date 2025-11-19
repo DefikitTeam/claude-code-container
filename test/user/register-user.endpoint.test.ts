@@ -112,7 +112,9 @@ describe('POST /register-user multi-registration support', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ anthropicApiKey: 'sk-anthropic-1234567890-example' }),
+        body: JSON.stringify({
+          anthropicApiKey: 'sk-anthropic-1234567890-example',
+        }),
       },
       env,
     );

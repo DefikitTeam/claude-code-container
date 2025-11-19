@@ -13,13 +13,20 @@ export interface IContainerService {
     userId: string;
     containerImage: string;
     environmentVariables: Record<string, string>;
-    resourceLimits: { cpuMillis: number; memoryMb: number; timeoutSeconds: number };
+    resourceLimits: {
+      cpuMillis: number;
+      memoryMb: number;
+      timeoutSeconds: number;
+    };
   }): Promise<{ containerId: string }>;
 
   /**
    * Execute command in container
    */
-  execute(containerId: string, command: string): Promise<{
+  execute(
+    containerId: string,
+    command: string,
+  ): Promise<{
     exitCode: number;
     stdout: string;
     stderr: string;

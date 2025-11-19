@@ -19,10 +19,14 @@ describe('API: GitHub Routes', () => {
   let app: Hono;
 
   beforeEach(() => {
-    processWebhookUseCase = { execute: vi.fn().mockResolvedValue({ handled: true }) };
+    processWebhookUseCase = {
+      execute: vi.fn().mockResolvedValue({ handled: true }),
+    };
     fetchRepositoriesUseCase = {
       execute: vi.fn().mockResolvedValue({
-        repositories: [{ id: 1, name: 'repo', fullName: 'org/repo', url: 'url' }],
+        repositories: [
+          { id: 1, name: 'repo', fullName: 'org/repo', url: 'url' },
+        ],
         count: 1,
       }),
     };
@@ -36,7 +40,9 @@ describe('API: GitHub Routes', () => {
       }),
     };
     createPullRequestUseCase = {
-      execute: vi.fn().mockResolvedValue({ url: 'https://github.com/org/repo/pull/1' }),
+      execute: vi
+        .fn()
+        .mockResolvedValue({ url: 'https://github.com/org/repo/pull/1' }),
     };
 
     const controller = new GitHubController(
@@ -82,8 +88,10 @@ describe('API: GitHub Routes', () => {
     expect(response.status).toBe(200);
     expect(json.success).toBe(true);
     expect(json.data.repositories).toHaveLength(1);
-  expect(json.data.count).toBe(1);
-    expect(fetchRepositoriesUseCase.execute).toHaveBeenCalledWith({ installationId: 'inst-123' });
+    expect(json.data.count).toBe(1);
+    expect(fetchRepositoriesUseCase.execute).toHaveBeenCalledWith({
+      installationId: 'inst-123',
+    });
   });
 
   it('rejects requests without installation header', async () => {
@@ -98,10 +106,13 @@ describe('API: GitHub Routes', () => {
   });
 
   it('returns validation error when repository param is malformed', async () => {
-    const response = await app.request('/api/github/repositories/invalid/branches', {
-      method: 'GET',
-      headers: INSTALLATION_HEADER,
-    });
+    const response = await app.request(
+      '/api/github/repositories/invalid/branches',
+      {
+        method: 'GET',
+        headers: INSTALLATION_HEADER,
+      },
+    );
 
     const json = await response.json();
     expect(response.status).toBe(400);
@@ -110,10 +121,13 @@ describe('API: GitHub Routes', () => {
   });
 
   it('fetches branches when repository path is valid', async () => {
-    const response = await app.request('/api/github/repositories/org%2Frepo/branches', {
-      method: 'GET',
-      headers: INSTALLATION_HEADER,
-    });
+    const response = await app.request(
+      '/api/github/repositories/org%2Frepo/branches',
+      {
+        method: 'GET',
+        headers: INSTALLATION_HEADER,
+      },
+    );
 
     const json = await response.json();
     expect(response.status).toBe(200);
@@ -149,8 +163,8 @@ describe('API: GitHub Routes', () => {
     expect(json.success).toBe(true);
     expect(json.data.pullRequest.url).toContain('/pull/1');
     expect(createPullRequestUseCase.execute).toHaveBeenCalledWith({
-  owner: 'org',
-  repo: 'repo',
+      owner: 'org',
+      repo: 'repo',
       title: 'Add feature',
       head: 'feature-branch',
       base: 'main',

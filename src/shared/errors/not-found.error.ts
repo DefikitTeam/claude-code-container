@@ -13,7 +13,7 @@ export class NotFoundError extends BaseError {
     resourceType: string,
     resourceId?: string | number,
     message?: string,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
     const defaultMessage =
       message ||
@@ -24,7 +24,7 @@ export class NotFoundError extends BaseError {
       'NOT_FOUND_ERROR',
       404,
       { resourceType, resourceId, ...details },
-      true // operational error - safe to expose
+      true, // operational error - safe to expose
     );
 
     this.resourceType = resourceType;

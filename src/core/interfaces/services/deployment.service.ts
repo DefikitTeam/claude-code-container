@@ -25,7 +25,10 @@ export interface IDeploymentService {
   /**
    * Rollback to previous version
    */
-  rollback(deploymentId: string, previousVersion: string): Promise<{ success: boolean }>;
+  rollback(
+    deploymentId: string,
+    previousVersion: string,
+  ): Promise<{ success: boolean }>;
 
   /**
    * Validate worker code before deployment

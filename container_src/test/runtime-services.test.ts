@@ -12,7 +12,9 @@ describe('runtime services integration', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.unstubAllEnvs();
-    const { resetContainer } = await import('../src/config/container.config.js');
+    const { resetContainer } = await import(
+      '../src/config/container.config.js'
+    );
     resetContainer();
   });
 

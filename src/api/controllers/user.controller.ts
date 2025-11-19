@@ -23,7 +23,10 @@ import {
   parseUpdateUserDto,
   type UpdateUserRequestBody,
 } from '../dto/update-user.dto';
-import { createdResponse, successResponse } from '../responses/success.response';
+import {
+  createdResponse,
+  successResponse,
+} from '../responses/success.response';
 
 export class UserController {
   constructor(

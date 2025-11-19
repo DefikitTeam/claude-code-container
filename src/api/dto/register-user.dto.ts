@@ -1,4 +1,9 @@
-import { validateApiKey, validateInstallationId, validateRequired, validateUserId } from '../../shared/utils/validation.util';
+import {
+  validateApiKey,
+  validateInstallationId,
+  validateRequired,
+  validateUserId,
+} from '../../shared/utils/validation.util';
 import type { RegisterUserDto } from '../../core/use-cases/user/register-user.use-case';
 
 export interface RegisterUserRequestBody {
@@ -19,7 +24,10 @@ export function parseRegisterUserDto(
   context: RegisterUserRequestContext = {},
 ): RegisterUserDto {
   const userId = sanitizeOptional(body.userId ?? context.defaultUserId);
-  const installationId = sanitize(body.installationId ?? context.defaultInstallationId, 'installationId');
+  const installationId = sanitize(
+    body.installationId ?? context.defaultInstallationId,
+    'installationId',
+  );
   const anthropicApiKey = sanitizeOptional(body.anthropicApiKey); // Optional - worker uses its own key
   const projectLabel = sanitizeOptional(body.projectLabel);
   const repositoryAccess = Array.isArray(body.repositoryAccess)

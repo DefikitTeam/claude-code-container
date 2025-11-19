@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import { GitHubController } from '../controllers/github.controller';
-import { requireInstallationHeaders, requireJsonBody } from '../middleware/validation.middleware';
+import {
+  requireInstallationHeaders,
+  requireJsonBody,
+} from '../middleware/validation.middleware';
 
 export function createGitHubRoutes(controller: GitHubController): Hono {
   const router = new Hono();
@@ -14,10 +17,8 @@ export function createGitHubRoutes(controller: GitHubController): Hono {
   );
 
   // GET /repositories - Fetch repositories for installation
-  router.get(
-    '/repositories',
-    requireInstallationHeaders(),
-    (c) => controller.fetchRepositories(c),
+  router.get('/repositories', requireInstallationHeaders(), (c) =>
+    controller.fetchRepositories(c),
   );
 
   // GET /repositories/:repository/branches - Fetch branches

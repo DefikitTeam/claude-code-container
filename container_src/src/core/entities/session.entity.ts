@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import type { ContentBlock } from '../../types/acp-messages.js';
-import type { ACPSession, SessionMode, SessionState } from '../../types/acp-session.js';
+import type {
+  ACPSession,
+  SessionMode,
+  SessionState,
+} from '../../types/acp-session.js';
 import { DEFAULT_SESSION_OPTIONS } from '../../types/acp-session.js';
 import { agentContextSchema, contentBlockArraySchema } from './schemas.js';
 
@@ -71,17 +75,14 @@ function normalizeSessionOptions(
   return {
     persistHistory:
       options?.persistHistory ?? SESSION_OPTION_FALLBACK.persistHistory,
-    enableGitOps:
-      options?.enableGitOps ?? SESSION_OPTION_FALLBACK.enableGitOps,
+    enableGitOps: options?.enableGitOps ?? SESSION_OPTION_FALLBACK.enableGitOps,
     contextFiles: options?.contextFiles
       ? [...options.contextFiles]
       : [...SESSION_OPTION_FALLBACK.contextFiles],
   };
 }
 
-function normalizeMessageHistory(
-  history: ContentBlock[][],
-): ContentBlock[][] {
+function normalizeMessageHistory(history: ContentBlock[][]): ContentBlock[][] {
   return history.map((exchange) => exchange.map((block) => clone(block)));
 }
 
@@ -143,7 +144,9 @@ export class SessionEntity {
       messageHistory: normalizeMessageHistory(parsed.messageHistory),
       workspaceState: normalizeWorkspaceState(parsed.workspaceState),
       sessionOptions: normalizeSessionOptions(parsed.sessionOptions),
-      agentContext: parsed.agentContext ? clone(parsed.agentContext) : undefined,
+      agentContext: parsed.agentContext
+        ? clone(parsed.agentContext)
+        : undefined,
     });
   }
 
@@ -168,7 +171,9 @@ export class SessionEntity {
   }
 
   get sessionOptions(): SessionOptions | undefined {
-    return this.props.sessionOptions ? { ...this.props.sessionOptions } : undefined;
+    return this.props.sessionOptions
+      ? { ...this.props.sessionOptions }
+      : undefined;
   }
 
   get agentContext(): Record<string, unknown> | undefined {
@@ -190,9 +195,7 @@ export class SessionEntity {
     });
   }
 
-  mergeAgentContext(
-    incoming?: Record<string, unknown>,
-  ): SessionEntity {
+  mergeAgentContext(incoming?: Record<string, unknown>): SessionEntity {
     const merged = mergeAgentContexts(this.props.agentContext, incoming);
     return new SessionEntity({
       ...this.props,

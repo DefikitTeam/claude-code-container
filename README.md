@@ -4,12 +4,14 @@
 
 - **Node.js 22+** (for Wrangler CLI and container compatibility)
 - **Cloudflare Account** (free tier works)
-- **OpenRouter API Key** (for Claude/OpenRouter integration) — currently the project supports the OpenRouter provider; other providers (Anthropic, etc.) will be supported in the near future.
+- **OpenRouter API Key** (for Claude/OpenRouter integration) — currently the
+  project supports the OpenRouter provider; other providers (Anthropic, etc.)
+  will be supported in the near future.
 - **GitHub Repository** (for automation)
 
 ---
 
-## �🚀 One-Click Deploy 
+## �🚀 One-Click Deploy
 
 ### Method 1: Fork + Auto-Deploy (Recommended)
 
@@ -24,13 +26,18 @@ deployment with 95%+ success rate.
 1. **[Fork this repository](https://github.com/DefikitTeam/claude-code-container/fork)**
    ← Click here
 2. **Add 4 secrets** in your fork: Settings → Secrets and variables → Actions
-  - `CLOUDFLARE_API_TOKEN` (from Cloudflare dashboard)
-  - `CLOUDFLARE_ACCOUNT_ID` (from Cloudflare dashboard)
-  - `OPENROUTER_API_KEY` (OpenRouter API key for Claude/OpenRouter integration). Note: currently only the OpenRouter provider is supported; additional providers (Anthropic, etc.) will be supported soon.
-  - `ENCRYPTION_KEY` (generate with: `openssl rand -hex 32`)
+
+- `CLOUDFLARE_API_TOKEN` (from Cloudflare dashboard)
+- `CLOUDFLARE_ACCOUNT_ID` (from Cloudflare dashboard)
+- `OPENROUTER_API_KEY` (OpenRouter API key for Claude/OpenRouter integration).
+  Note: currently only the OpenRouter provider is supported; additional
+  providers (Anthropic, etc.) will be supported soon.
+- `ENCRYPTION_KEY` (generate with: `openssl rand -hex 32`)
+
 3. **Push any change** to trigger automatic deployment
-[� Reliable Deployment Guide](./DEPLOYMENT_GUIDE.md) •
-[🔧 Quick Start](#quick-start-fork--github-actions) • [💡 Features](#-features)
+   [� Reliable Deployment Guide](./DEPLOYMENT_GUIDE.md) •
+   [🔧 Quick Start](#quick-start-fork--github-actions) •
+   [💡 Features](#-features)
 
 </div>
 
@@ -49,14 +56,19 @@ In your forked repo, go to **Settings** → **Secrets** → **Actions** and add:
 - `CLOUDFLARE_API_TOKEN` -
   [Get here](https://dash.cloudflare.com/profile/api-tokens)
 - `CLOUDFLARE_ACCOUNT_ID` - Found in Cloudflare dashboard
-- `OPENROUTER_API_KEY` - OpenRouter API key for Claude/OpenRouter integration. Get one at [https://openrouter.ai/](https://openrouter.ai/). Note: currently only the OpenRouter provider is supported; additional providers (Anthropic, etc.) will be supported soon.
+- `OPENROUTER_API_KEY` - OpenRouter API key for Claude/OpenRouter integration.
+  Get one at [https://openrouter.ai/](https://openrouter.ai/). Note: currently
+  only the OpenRouter provider is supported; additional providers (Anthropic,
+  etc.) will be supported soon.
 
 ### 3. Deploy
 
 1. Go to **Actions** tab in your fork
 2. Run the **Deploy to Cloudflare Workers** workflow in the Actions tab
-3. Click **Run workflow**, choose the environment (e.g. `production`) and confirm
-4. Wait for the workflow to complete — deployment typically finishes in a few minutes
+3. Click **Run workflow**, choose the environment (e.g. `production`) and
+   confirm
+4. Wait for the workflow to complete — deployment typically finishes in a few
+   minutes
 
 ### 4. Complete Setup
 
@@ -135,14 +147,21 @@ GitHub Webhooks → Worker (Hono Router) → Container (Node.js + Claude Code) �
 
 ### Option 1: Fork + GitHub Actions (Recommended) ⚡
 
-The recommended and most reliable way to deploy the system is to fork the repo and use the included GitHub Actions workflow:
+The recommended and most reliable way to deploy the system is to fork the repo
+and use the included GitHub Actions workflow:
 
-1. **Fork the repository** to your GitHub account (use the "Fork" button at the top of the repo page)
-2. **Connect your Cloudflare account** when prompted by the workflow (guided setup)
-3. **Add your OpenRouter API key** (secure form). Note: the current deployment flow uses OpenRouter as the provider; support for other providers (Anthropic, etc.) is planned.
-4. **Run the Deploy workflow** under the Actions tab — deployment typically completes in ~5 minutes
+1. **Fork the repository** to your GitHub account (use the "Fork" button at the
+   top of the repo page)
+2. **Connect your Cloudflare account** when prompted by the workflow (guided
+   setup)
+3. **Add your OpenRouter API key** (secure form). Note: the current deployment
+   flow uses OpenRouter as the provider; support for other providers (Anthropic,
+   etc.) is planned.
+4. **Run the Deploy workflow** under the Actions tab — deployment typically
+   completes in ~5 minutes
 
-**Perfect for:** Quick testing, personal projects, and production-ready deployments via CI
+**Perfect for:** Quick testing, personal projects, and production-ready
+deployments via CI
 
 ### Option 2: Use as Template 📋
 
@@ -151,7 +170,8 @@ Create your own repository from this template for customization:
 1. **Click "Use this template"** at the top of this repository
 2. **Create your new repository**
 3. **Follow the setup guide** in your new repo's README
-4. **Deploy using the included GitHub Actions workflow** (see Actions tab in your repo)
+4. **Deploy using the included GitHub Actions workflow** (see Actions tab in
+   your repo)
 
 **Perfect for:** Custom modifications, team projects, production deployments
 
@@ -164,7 +184,9 @@ Full control over the deployment process:
 - [Node.js](https://nodejs.org/) 22+ and npm
 - [Cloudflare account](https://dash.cloudflare.com/sign-up) with Workers enabled
 - [GitHub App](https://github.com/settings/developers) created and installed
-- [OpenRouter API key](https://openrouter.ai/) for Claude/OpenRouter integration. Currently OpenRouter is the supported provider; support for other providers (Anthropic, etc.) will be added later.
+- [OpenRouter API key](https://openrouter.ai/) for Claude/OpenRouter
+  integration. Currently OpenRouter is the supported provider; support for other
+  providers (Anthropic, etc.) will be added later.
 
 #### 1. Clone and Install
 
@@ -231,13 +253,13 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/config \
 
 ### Environment Variables
 
-| Variable                | Required | Description                                        |
-| ----------------------- | -------- | -------------------------------------------------- |
+| Variable                | Required | Description                                                                                                                                                               |
+| ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OPENROUTER_API_KEY`    | ✅       | Your OpenRouter API key for Claude/OpenRouter integration. Currently only the OpenRouter provider is supported; other providers (Anthropic, etc.) will be supported soon. |
-| `GITHUB_APP_ID`         | ⚠️       | GitHub App ID (can be set via `/config` endpoint)  |
-| `GITHUB_WEBHOOK_SECRET` | ⚠️       | Webhook secret (can be set via `/config` endpoint) |
-| `ENVIRONMENT`           | ❌       | Environment name (default: `development`)          |
-| `ENABLE_DEEP_REASONING` | ❌       | Enable advanced reasoning (default: `false`)       |
+| `GITHUB_APP_ID`         | ⚠️       | GitHub App ID (can be set via `/config` endpoint)                                                                                                                         |
+| `GITHUB_WEBHOOK_SECRET` | ⚠️       | Webhook secret (can be set via `/config` endpoint)                                                                                                                        |
+| `ENVIRONMENT`           | ❌       | Environment name (default: `development`)                                                                                                                                 |
+| `ENABLE_DEEP_REASONING` | ❌       | Enable advanced reasoning (default: `false`)                                                                                                                              |
 
 ## 📖 Usage
 
@@ -291,22 +313,22 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/process-prompt \
 
 ## 🔌 API Endpoints
 
-| Endpoint                 | Method   | Description                               |
-| ------------------------ | -------- | ----------------------------------------- |
-| `/`                      | GET      | System information                        |
-| `/health`                | GET      | Health check                              |
-| `/webhook/github`        | POST     | GitHub webhook endpoint                   |
-| `/process-prompt`        | POST     | Process prompt directly                   |
-| `/register-user`         | POST     | Register or update a user configuration (JSON or form-encoded) |
-| `/github/repositories`   | GET      | List installation repositories (requires `installationId` or `userId` query) |
-| `/github/repositories/:owner/:repo/branches` | GET | List branches for a repository (requires `installationId` or `userId` query) |
-| `/config`                | GET/POST | GitHub App configuration                  |
-| `/container/health`      | GET      | Container health check                    |
-| **🚀 Deployment API**    |          | **One-Click Deploy Features**             |
-| `/api/deploy/initiate`   | POST     | **New!** Initiate repository deployment   |
-| `/api/deploy/configure`  | POST     | **New!** Configure deployment credentials |
-| `/api/deploy/execute`    | POST     | **New!** Execute deployment process       |
-| `/api/deploy/status/:id` | GET      | **New!** Track deployment status          |
+| Endpoint                                     | Method   | Description                                                                  |
+| -------------------------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `/`                                          | GET      | System information                                                           |
+| `/health`                                    | GET      | Health check                                                                 |
+| `/webhook/github`                            | POST     | GitHub webhook endpoint                                                      |
+| `/process-prompt`                            | POST     | Process prompt directly                                                      |
+| `/register-user`                             | POST     | Register or update a user configuration (JSON or form-encoded)               |
+| `/github/repositories`                       | GET      | List installation repositories (requires `installationId` or `userId` query) |
+| `/github/repositories/:owner/:repo/branches` | GET      | List branches for a repository (requires `installationId` or `userId` query) |
+| `/config`                                    | GET/POST | GitHub App configuration                                                     |
+| `/container/health`                          | GET      | Container health check                                                       |
+| **🚀 Deployment API**                        |          | **One-Click Deploy Features**                                                |
+| `/api/deploy/initiate`                       | POST     | **New!** Initiate repository deployment                                      |
+| `/api/deploy/configure`                      | POST     | **New!** Configure deployment credentials                                    |
+| `/api/deploy/execute`                        | POST     | **New!** Execute deployment process                                          |
+| `/api/deploy/status/:id`                     | GET      | **New!** Track deployment status                                             |
 
 ### API Response Examples
 
@@ -335,8 +357,8 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/process-prompt \
 ```
 
 > ℹ️ **Repository endpoints**: always supply `installationId` and include
-> `userId` when an installation has multiple registrations. If you omit
-> `userId` and the installation has more than one project, the Worker returns a
+> `userId` when an installation has multiple registrations. If you omit `userId`
+> and the installation has more than one project, the Worker returns a
 > `409 Conflict` with a `registrations` array so you can disambiguate. Optional
 > pagination parameters `perPage` (1-100) and `page` (default 1) are supported.
 > Branch listings also accept `protectedOnly=true` to filter results.

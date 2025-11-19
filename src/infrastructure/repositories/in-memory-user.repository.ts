@@ -13,7 +13,9 @@ export class InMemoryUserRepository implements IUserRepository {
   }
 
   async findByInstallationId(installationId: string): Promise<UserEntity[]> {
-    return Array.from(this.users.values()).filter((user) => user.installationId === installationId);
+    return Array.from(this.users.values()).filter(
+      (user) => user.installationId === installationId,
+    );
   }
 
   async delete(userId: string): Promise<void> {
@@ -21,6 +23,8 @@ export class InMemoryUserRepository implements IUserRepository {
   }
 
   async listByInstallation(installationId: string): Promise<UserEntity[]> {
-    return (await this.findByInstallationId(installationId)).filter((user) => user.isActive);
+    return (await this.findByInstallationId(installationId)).filter(
+      (user) => user.isActive,
+    );
   }
 }

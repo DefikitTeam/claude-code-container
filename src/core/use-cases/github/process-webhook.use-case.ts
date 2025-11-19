@@ -29,12 +29,18 @@ export class ProcessWebhookUseCase {
       throw new ValidationError('installationId and eventType are required');
     }
 
-    console.log(`[WEBHOOK] Processing ${dto.eventType} event for installation ${dto.installationId}`);
+    console.log(
+      `[WEBHOOK] Processing ${dto.eventType} event for installation ${dto.installationId}`,
+    );
 
     // Validate installation
-    const isValid = await this.githubService.validateInstallation(dto.installationId);
+    const isValid = await this.githubService.validateInstallation(
+      dto.installationId,
+    );
     if (!isValid) {
-      throw new NotFoundError(`Installation ${dto.installationId} not found or inactive`);
+      throw new NotFoundError(
+        `Installation ${dto.installationId} not found or inactive`,
+      );
     }
 
     // Process based on event type
@@ -51,22 +57,32 @@ export class ProcessWebhookUseCase {
         return await this.handleInstallationEvent(dto);
       default:
         console.log(`[WEBHOOK] Unhandled event type: ${dto.eventType}`);
-        return { processed: false, message: `Event type '${dto.eventType}' not supported` };
+        return {
+          processed: false,
+          message: `Event type '${dto.eventType}' not supported`,
+        };
     }
   }
 
   /**
    * Handle GitHub issue events (opened, closed, etc.)
    */
-  private async handleIssueEvent(dto: ProcessWebhookDto): Promise<ProcessWebhookResult> {
+  private async handleIssueEvent(
+    dto: ProcessWebhookDto,
+  ): Promise<ProcessWebhookResult> {
     const { action, issue, repository, installation } = dto.payload;
 
-    console.log(`[WEBHOOK] Issue event: ${action} - #${issue.number} in ${repository.full_name}`);
+    console.log(
+      `[WEBHOOK] Issue event: ${action} - #${issue.number} in ${repository.full_name}`,
+    );
 
     // Only process opened issues
     if (action !== 'opened') {
       console.log(`[WEBHOOK] Ignoring issue action: ${action}`);
-      return { processed: false, message: `Issue action '${action}' not processed` };
+      return {
+        processed: false,
+        message: `Issue action '${action}' not processed`,
+      };
     }
 
     // Skip processing issues created by bots to avoid loops
@@ -78,7 +94,7 @@ export class ProcessWebhookUseCase {
     // Get user configuration for this installation
     if (!dto.userConfig) {
       throw new NotFoundError(
-        `No user configuration found for installation ${dto.installationId}. User must register first.`
+        `No user configuration found for installation ${dto.installationId}. User must register first.`,
       );
     }
 
@@ -114,11 +130,17 @@ export class ProcessWebhookUseCase {
       },
     );
 
-    console.log(`[WEBHOOK] Container response status: ${containerResponse.status}`);
+    console.log(
+      `[WEBHOOK] Container response status: ${containerResponse.status}`,
+    );
 
     if (containerResponse.status === 503) {
-      console.error('[WEBHOOK] Container unavailable (503) - provisioning may be in progress');
-      throw new Error('Container service temporarily unavailable. Please retry in a few moments.');
+      console.error(
+        '[WEBHOOK] Container unavailable (503) - provisioning may be in progress',
+      );
+      throw new Error(
+        'Container service temporarily unavailable. Please retry in a few moments.',
+      );
     }
 
     if (!containerResponse.ok) {
@@ -138,10 +160,14 @@ export class ProcessWebhookUseCase {
   /**
    * Handle GitHub pull request events
    */
-  private async handlePullRequestEvent(dto: ProcessWebhookDto): Promise<ProcessWebhookResult> {
+  private async handlePullRequestEvent(
+    dto: ProcessWebhookDto,
+  ): Promise<ProcessWebhookResult> {
     const { action, pull_request } = dto.payload;
 
-    console.log(`[WEBHOOK] Pull request event: ${action} - #${pull_request.number}`);
+    console.log(
+      `[WEBHOOK] Pull request event: ${action} - #${pull_request.number}`,
+    );
 
     // For now, just acknowledge the event
     // Full PR processing can be added later
@@ -154,10 +180,14 @@ export class ProcessWebhookUseCase {
   /**
    * Handle installation events (installed, uninstalled, etc.)
    */
-  private async handleInstallationEvent(dto: ProcessWebhookDto): Promise<ProcessWebhookResult> {
+  private async handleInstallationEvent(
+    dto: ProcessWebhookDto,
+  ): Promise<ProcessWebhookResult> {
     const { action, installation } = dto.payload;
 
-    console.log(`[WEBHOOK] Installation event: ${action} - ID ${installation.id}`);
+    console.log(
+      `[WEBHOOK] Installation event: ${action} - ID ${installation.id}`,
+    );
 
     // Log installation changes but don't process further
     // User registration/unregistration is handled via API endpoints

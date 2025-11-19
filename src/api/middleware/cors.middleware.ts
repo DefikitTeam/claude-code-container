@@ -9,7 +9,12 @@ export function registerCors(app: Hono, allowedOrigins?: string): void {
     cors({
       origin: origins.length > 0 ? origins : '*',
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Installation-ID', 'X-User-ID'],
+      allowHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Installation-ID',
+        'X-User-ID',
+      ],
       maxAge: 86400,
       credentials: true,
     }),

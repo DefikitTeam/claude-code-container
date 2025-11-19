@@ -65,7 +65,11 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       await this.ctx.storage.put(key, JSON.stringify(userData));
 
-      await this.updateInstallationIndex(user.installationId, user.userId, true);
+      await this.updateInstallationIndex(
+        user.installationId,
+        user.userId,
+        true,
+      );
     } catch (error) {
       throw new Error(
         `Failed to save user ${user.userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -82,7 +86,9 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
     }
 
     try {
-      const allEntries = await this.ctx.storage.list({ prefix: this.USERS_PREFIX });
+      const allEntries = await this.ctx.storage.list({
+        prefix: this.USERS_PREFIX,
+      });
 
       if (!allEntries || allEntries.size === 0) {
         return null;
@@ -100,7 +106,9 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       return null;
     } catch (error) {
-      throw new Error(`Failed to find user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to find user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -143,7 +151,9 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
     }
 
     try {
-      const allEntries = await this.ctx.storage.list({ prefix: this.USERS_PREFIX });
+      const allEntries = await this.ctx.storage.list({
+        prefix: this.USERS_PREFIX,
+      });
 
       if (allEntries) {
         for (const [key, value] of allEntries) {
@@ -154,12 +164,18 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
             const tokenKey = `${this.TOKENS_PREFIX}${userData.installationId}:${userId}`;
             await this.ctx.storage.delete(tokenKey);
 
-            await this.updateInstallationIndex(userData.installationId, userId, false);
+            await this.updateInstallationIndex(
+              userData.installationId,
+              userId,
+              false,
+            );
           }
         }
       }
     } catch (error) {
-      throw new Error(`Failed to delete user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to delete user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -174,7 +190,12 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
   /**
    * Cache an installation token
    */
-  async cacheToken(installationId: string, userId: string, token: string, expiresAt: number): Promise<void> {
+  async cacheToken(
+    installationId: string,
+    userId: string,
+    token: string,
+    expiresAt: number,
+  ): Promise<void> {
     try {
       const key = `${this.TOKENS_PREFIX}${installationId}:${userId}`;
       const ttlSeconds = this.calculateTtl(expiresAt);
@@ -189,14 +210,19 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       await this.ctx.storage.put(key, JSON.stringify(cachedToken));
     } catch (error) {
-      console.error(`Failed to cache token: ${error instanceof Error ? error.message : 'Unknown'}`);
+      console.error(
+        `Failed to cache token: ${error instanceof Error ? error.message : 'Unknown'}`,
+      );
     }
   }
 
   /**
    * Get a cached installation token
    */
-  async getCachedToken(installationId: string, userId: string): Promise<CachedToken | null> {
+  async getCachedToken(
+    installationId: string,
+    userId: string,
+  ): Promise<CachedToken | null> {
     try {
       const key = `${this.TOKENS_PREFIX}${installationId}:${userId}`;
       const value = await this.ctx.storage.get(key);
@@ -214,7 +240,9 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       return cached;
     } catch (error) {
-      console.error(`Failed to get cached token: ${error instanceof Error ? error.message : 'Unknown'}`);
+      console.error(
+        `Failed to get cached token: ${error instanceof Error ? error.message : 'Unknown'}`,
+      );
       return null;
     }
   }
@@ -222,12 +250,17 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
   /**
    * Delete a cached token
    */
-  async deleteCachedToken(installationId: string, userId: string): Promise<void> {
+  async deleteCachedToken(
+    installationId: string,
+    userId: string,
+  ): Promise<void> {
     try {
       const key = `${this.TOKENS_PREFIX}${installationId}:${userId}`;
       await this.ctx.storage.delete(key);
     } catch (error) {
-      console.error(`Failed to delete cached token: ${error instanceof Error ? error.message : 'Unknown'}`);
+      console.error(
+        `Failed to delete cached token: ${error instanceof Error ? error.message : 'Unknown'}`,
+      );
     }
   }
 
@@ -254,7 +287,9 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
 
       await this.ctx.storage.put(indexKey, JSON.stringify(users));
     } catch (error) {
-      console.error(`Failed to update installation index: ${error instanceof Error ? error.message : 'Unknown'}`);
+      console.error(
+        `Failed to update installation index: ${error instanceof Error ? error.message : 'Unknown'}`,
+      );
     }
   }
 
@@ -280,17 +315,21 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
         }
 
         if (url.pathname === '/token') {
-          const { installationId, userId, token, expiresAt } = await request.json<{
-            installationId: string;
-            userId: string;
-            token: string;
-            expiresAt: number;
-          }>();
+          const { installationId, userId, token, expiresAt } =
+            await request.json<{
+              installationId: string;
+              userId: string;
+              token: string;
+              expiresAt: number;
+            }>();
           await this.cacheToken(installationId, userId, token, expiresAt);
           return json({ success: true });
         }
       } catch (error) {
-        return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 400);
+        return json(
+          { error: error instanceof Error ? error.message : 'Unknown error' },
+          400,
+        );
       }
     }
 
@@ -317,7 +356,10 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
           return json(users.map((user) => user.getProps()));
         }
       } catch (error) {
-        return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 400);
+        return json(
+          { error: error instanceof Error ? error.message : 'Unknown error' },
+          400,
+        );
       }
     }
 
@@ -336,7 +378,10 @@ export class UserConfigDO extends DurableObject implements IUserRepository {
           return new Response(null, { status: 204 });
         }
       } catch (error) {
-        return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 400);
+        return json(
+          { error: error instanceof Error ? error.message : 'Unknown error' },
+          400,
+        );
       }
     }
 

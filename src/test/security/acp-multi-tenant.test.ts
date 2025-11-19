@@ -1,6 +1,6 @@
 /**
  * Security Test: ACP Multi-Tenant Authentication
- * 
+ *
  * Verifies that ACP endpoints properly enforce per-user API key isolation
  * and prevent unauthorized access to other users' credentials.
  */
@@ -32,7 +32,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
 
     // Mock environment with UserConfigDO
     const mockUserConfigs = new Map<string, any>();
-    
+
     // Mock User 1
     mockUserConfigs.set('user_1', {
       userId: 'user_1',
@@ -63,28 +63,29 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
           fetch: async (req: Request) => {
             const url = new URL(req.url);
             const userId = url.searchParams.get('userId');
-            
+
             if (!userId || !mockUserConfigs.has(userId)) {
-              return new Response(
-                JSON.stringify({ error: 'User not found' }),
-                { status: 404, headers: { 'Content-Type': 'application/json' } }
-              );
+              return new Response(JSON.stringify({ error: 'User not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' },
+              });
             }
 
-            return new Response(
-              JSON.stringify(mockUserConfigs.get(userId)),
-              { status: 200, headers: { 'Content-Type': 'application/json' } }
-            );
+            return new Response(JSON.stringify(mockUserConfigs.get(userId)), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            });
           },
         }),
       },
       MY_CONTAINER: {
         idFromName: () => ({ toString: () => 'mock-container' }),
         get: () => ({
-          fetch: async () => new Response(
-            JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
-            { status: 200 }
-          ),
+          fetch: async () =>
+            new Response(
+              JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
+              { status: 200 },
+            ),
         }),
       },
     };
@@ -101,7 +102,10 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       ]),
     };
 
-    acpBridge = new ACPBridgeService(mockTokenService, mockGitHubService as any);
+    acpBridge = new ACPBridgeService(
+      mockTokenService,
+      mockGitHubService as any,
+    );
   });
 
   describe('userId validation', () => {
@@ -118,7 +122,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       const result = await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'non_existent_user' },
-        mockEnv
+        mockEnv,
       );
 
       expect(result.error).toBeDefined();
@@ -130,7 +134,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       const result = await acpBridge.routeACPMethod(
         'initialize',
         { userId: 'user_1', protocolVersion: 1 },
-        mockEnv
+        mockEnv,
       );
 
       expect(result.error).toBeUndefined();
@@ -140,12 +144,12 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
 
   describe('per-user API key isolation', () => {
     it('should use user_1 API key for user_1 requests', async () => {
-      // This test verifies internal logic - in real scenario, 
+      // This test verifies internal logic - in real scenario,
       // the container would receive the correct API key via env vars
       const result = await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_1', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       // Should not error - user exists and has API key
@@ -156,7 +160,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       const result = await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_2', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       // Should not error - user exists and has API key
@@ -168,13 +172,13 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       const result = await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_1', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       // User 1 should get their own key, not User 2's
       // (This is verified by the mock - each userId gets their own config)
       expect(result.error).toBeUndefined();
-      
+
       // In a real scenario, we'd verify the container env vars
       // contain 'sk-ant-user1-secret-key' NOT 'sk-ant-user2-different-key'
     });
@@ -187,7 +191,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
         fetch: async (req: Request) => {
           const url = new URL(req.url);
           const userId = url.searchParams.get('userId');
-          
+
           if (userId === 'user_no_key') {
             return new Response(
               JSON.stringify({
@@ -195,21 +199,20 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
                 installationId: '333',
                 anthropicApiKey: undefined, // No API key!
               }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } }
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
             );
           }
 
-          return new Response(
-            JSON.stringify({ error: 'User not found' }),
-            { status: 404 }
-          );
+          return new Response(JSON.stringify({ error: 'User not found' }), {
+            status: 404,
+          });
         },
       });
 
       const result = await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_no_key', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       expect(result.error).toBeDefined();
@@ -226,7 +229,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       const result = await acpBridge.routeACPMethod(
         'session/new',
         { configuration: {} }, // No userId!
-        mockEnv
+        mockEnv,
       );
 
       // Should error - NOT use global key
@@ -241,12 +244,12 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       const result = await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_1', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       // Should succeed using user_1's key, NOT global key
       expect(result.error).toBeUndefined();
-      
+
       // The container should receive user_1's key ('sk-ant-user1-secret-key')
       // NOT the global key ('sk-ant-global-SHOULD-NOT-BE-USED')
     });
@@ -255,10 +258,10 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
   describe('GitHub token generation', () => {
     it('should generate GitHub token for user installation', async () => {
       let capturedBody: any;
-      
+
       // Disable NO_CONTAINERS to test real flow
       delete mockEnv.NO_CONTAINERS;
-      
+
       // Mock container to capture request body
       mockEnv.MY_CONTAINER = {
         idFromName: () => ({ toString: () => 'mock-container' }),
@@ -268,7 +271,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
             capturedBody = JSON.parse(bodyText);
             return new Response(
               JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
-              { status: 200 }
+              { status: 200 },
             );
           },
         }),
@@ -277,22 +280,26 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_1', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       // Verify GitHub token was generated and passed in params
       expect(capturedBody).toBeDefined();
       expect(capturedBody.params).toBeDefined();
-      expect(capturedBody.params.githubToken).toBe('ghs_installation_token_111');
-      expect(capturedBody.params.anthropicApiKey).toBe('sk-ant-user1-secret-key');
+      expect(capturedBody.params.githubToken).toBe(
+        'ghs_installation_token_111',
+      );
+      expect(capturedBody.params.anthropicApiKey).toBe(
+        'sk-ant-user1-secret-key',
+      );
     });
 
     it('should generate different GitHub tokens for different users', async () => {
       const capturedBodies: any[] = [];
-      
+
       // Disable NO_CONTAINERS to test real flow
       delete mockEnv.NO_CONTAINERS;
-      
+
       mockEnv.MY_CONTAINER = {
         idFromName: () => ({ toString: () => 'mock-container' }),
         get: () => ({
@@ -301,7 +308,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
             capturedBodies.push(JSON.parse(bodyText));
             return new Response(
               JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
-              { status: 200 }
+              { status: 200 },
             );
           },
         }),
@@ -311,19 +318,23 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_1', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       // User 2 request
       await acpBridge.routeACPMethod(
         'session/new',
         { userId: 'user_2', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       expect(capturedBodies).toHaveLength(2);
-      expect(capturedBodies[0].params.githubToken).toBe('ghs_installation_token_111');
-      expect(capturedBodies[1].params.githubToken).toBe('ghs_installation_token_222');
+      expect(capturedBodies[0].params.githubToken).toBe(
+        'ghs_installation_token_111',
+      );
+      expect(capturedBodies[1].params.githubToken).toBe(
+        'ghs_installation_token_222',
+      );
     });
 
     it('should handle GitHub token generation failure gracefully', async () => {
@@ -335,15 +346,20 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       };
 
       const mockGitHubServiceForFailure = {
-        fetchRepositories: vi.fn().mockRejectedValue(new Error('Failed to fetch repos')),
+        fetchRepositories: vi
+          .fn()
+          .mockRejectedValue(new Error('Failed to fetch repos')),
       };
 
-      const failingBridge = new ACPBridgeService(failingTokenService, mockGitHubServiceForFailure as any);
+      const failingBridge = new ACPBridgeService(
+        failingTokenService,
+        mockGitHubServiceForFailure as any,
+      );
       let capturedBody: any;
-      
+
       // Disable NO_CONTAINERS to test real flow
       delete mockEnv.NO_CONTAINERS;
-      
+
       mockEnv.MY_CONTAINER = {
         idFromName: () => ({ toString: () => 'mock-container' }),
         get: () => ({
@@ -352,7 +368,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
             capturedBody = JSON.parse(bodyText);
             return new Response(
               JSON.stringify({ jsonrpc: '2.0', result: {}, id: 1 }),
-              { status: 200 }
+              { status: 200 },
             );
           },
         }),
@@ -361,14 +377,16 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       const result = await failingBridge.routeACPMethod(
         'session/new',
         { userId: 'user_1', configuration: {} },
-        mockEnv
+        mockEnv,
       );
 
       // Should continue without error (GitHub operations just won't work)
       expect(result.error).toBeUndefined();
       expect(capturedBody).toBeDefined();
       expect(capturedBody.params.githubToken).toBeUndefined();
-      expect(capturedBody.params.anthropicApiKey).toBe('sk-ant-user1-secret-key');
+      expect(capturedBody.params.anthropicApiKey).toBe(
+        'sk-ant-user1-secret-key',
+      );
     });
   });
 });

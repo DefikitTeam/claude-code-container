@@ -40,7 +40,10 @@ export class ContainerConfigEntity {
       throw new ValidationError('containerImage must be a non-empty string');
     }
 
-    if (!props.environmentVariables || typeof props.environmentVariables !== 'object') {
+    if (
+      !props.environmentVariables ||
+      typeof props.environmentVariables !== 'object'
+    ) {
       throw new ValidationError('environmentVariables must be an object');
     }
 
@@ -73,14 +76,30 @@ export class ContainerConfigEntity {
   }
 
   // Getters
-  get configId(): string { return this.props.configId; }
-  get installationId(): string { return this.props.installationId; }
-  get containerImage(): string { return this.props.containerImage; }
-  get environmentVariables(): Record<string, string> { return { ...this.props.environmentVariables }; }
-  get resourceLimits() { return { ...this.props.resourceLimits }; }
-  get created(): number { return this.props.created; }
-  get updated(): number { return this.props.updated; }
-  get isActive(): boolean { return this.props.isActive; }
+  get configId(): string {
+    return this.props.configId;
+  }
+  get installationId(): string {
+    return this.props.installationId;
+  }
+  get containerImage(): string {
+    return this.props.containerImage;
+  }
+  get environmentVariables(): Record<string, string> {
+    return { ...this.props.environmentVariables };
+  }
+  get resourceLimits() {
+    return { ...this.props.resourceLimits };
+  }
+  get created(): number {
+    return this.props.created;
+  }
+  get updated(): number {
+    return this.props.updated;
+  }
+  get isActive(): boolean {
+    return this.props.isActive;
+  }
 
   /**
    * Create a new container config
@@ -90,7 +109,11 @@ export class ContainerConfigEntity {
     installationId: string,
     containerImage: string,
     environmentVariables: Record<string, string>,
-    resourceLimits: { cpuMillis: number; memoryMb: number; timeoutSeconds: number }
+    resourceLimits: {
+      cpuMillis: number;
+      memoryMb: number;
+      timeoutSeconds: number;
+    },
   ): ContainerConfigEntity {
     const now = Date.now();
     return new ContainerConfigEntity({
@@ -108,7 +131,9 @@ export class ContainerConfigEntity {
   /**
    * Update environment variables
    */
-  updateEnvironmentVariables(vars: Record<string, string>): ContainerConfigEntity {
+  updateEnvironmentVariables(
+    vars: Record<string, string>,
+  ): ContainerConfigEntity {
     if (!vars || typeof vars !== 'object') {
       throw new ValidationError('vars must be an object');
     }
@@ -122,13 +147,18 @@ export class ContainerConfigEntity {
   /**
    * Update resource limits
    */
-  updateResourceLimits(limits: { cpuMillis?: number; memoryMb?: number; timeoutSeconds?: number }): ContainerConfigEntity {
+  updateResourceLimits(limits: {
+    cpuMillis?: number;
+    memoryMb?: number;
+    timeoutSeconds?: number;
+  }): ContainerConfigEntity {
     return new ContainerConfigEntity({
       ...this.props,
       resourceLimits: {
         cpuMillis: limits.cpuMillis ?? this.props.resourceLimits.cpuMillis,
         memoryMb: limits.memoryMb ?? this.props.resourceLimits.memoryMb,
-        timeoutSeconds: limits.timeoutSeconds ?? this.props.resourceLimits.timeoutSeconds,
+        timeoutSeconds:
+          limits.timeoutSeconds ?? this.props.resourceLimits.timeoutSeconds,
       },
       updated: Date.now(),
     });

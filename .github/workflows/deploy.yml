@@ -66,9 +66,9 @@ jobs:
       - name: Set Cloudflare Worker Secrets
         run: |
           ENV="${{ steps.env.outputs.environment || github.event.inputs.environment || 'production' }}"
-          
+
           echo "🔐 Setting secrets for environment: $ENV"
-          
+
           # Set ENCRYPTION_KEY (required for encrypting user data)
           if [ -n "${{ secrets.ENCRYPTION_KEY }}" ]; then
             echo "${{ secrets.ENCRYPTION_KEY }}" | pnpm wrangler secret put ENCRYPTION_KEY --env "$ENV"
@@ -76,7 +76,7 @@ jobs:
           else
             echo "⚠️  ENCRYPTION_KEY not found in GitHub secrets"
           fi
-          
+
           # Set OPENROUTER_API_KEY (for Claude API)
           if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
             echo "${{ secrets.OPENROUTER_API_KEY }}" | pnpm wrangler secret put OPENROUTER_API_KEY --env "$ENV"
@@ -84,7 +84,7 @@ jobs:
           else
             echo "⚠️  OPENROUTER_API_KEY not found in GitHub secrets"
           fi
-          
+
           # Set LUMILINK_API_URL
           if [ -n "${{ secrets.LUMILINK_API_URL }}" ]; then
             echo "${{ secrets.LUMILINK_API_URL }}" | pnpm wrangler secret put LUMILINK_API_URL --env "$ENV"
@@ -92,13 +92,13 @@ jobs:
           else
             echo "⚠️  LUMILINK_API_URL not found in GitHub secrets"
           fi
-          
+
           # Set LumiLink JWT token (if using LumiLink integration)
           if [ -n "${{ secrets.LUMILINK_JWT_TOKEN }}" ]; then
             echo "${{ secrets.LUMILINK_JWT_TOKEN }}" | pnpm wrangler secret put LUMILINK_JWT_TOKEN --env "$ENV"
             echo "✅ LUMILINK_JWT_TOKEN set"
           fi
-          
+
           echo "🔐 Secrets configuration completed"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -52,6 +52,9 @@ next-env.d.ts
 /container_src/.acp-
 
 /.github/prompts
+/.github/agents
+
+test/mocks
 
 .dev.vars
 

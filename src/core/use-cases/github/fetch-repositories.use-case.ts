@@ -6,7 +6,12 @@ export interface FetchRepositoriesDto {
 }
 
 export interface FetchRepositoriesResult {
-  repositories: Array<{ id: number; name: string; fullName: string; url: string }>;
+  repositories: Array<{
+    id: number;
+    name: string;
+    fullName: string;
+    url: string;
+  }>;
   count: number;
 }
 
@@ -22,7 +27,9 @@ export class FetchRepositoriesUseCase {
       throw new ValidationError('installationId is required');
     }
 
-    const repositories = await this.githubService.fetchRepositories(dto.installationId);
+    const repositories = await this.githubService.fetchRepositories(
+      dto.installationId,
+    );
 
     return {
       repositories,

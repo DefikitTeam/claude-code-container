@@ -33,13 +33,20 @@ describe('E2E: Deployment Flow', () => {
     };
 
     mockDeploymentService = {
-      deploy: vi.fn().mockResolvedValue({ success: true, url: 'https://example.com' }),
-      getStatus: vi.fn().mockResolvedValue({ status: 'success', message: 'OK' }),
+      deploy: vi
+        .fn()
+        .mockResolvedValue({ success: true, url: 'https://example.com' }),
+      getStatus: vi
+        .fn()
+        .mockResolvedValue({ status: 'success', message: 'OK' }),
       rollback: vi.fn().mockResolvedValue({ success: true }),
       validate: vi.fn().mockResolvedValue({ valid: true }),
     };
 
-    deployUseCase = new DeployWorkerUseCase(mockDeploymentRepository, mockDeploymentService);
+    deployUseCase = new DeployWorkerUseCase(
+      mockDeploymentRepository,
+      mockDeploymentService,
+    );
     getStatusUseCase = new GetStatusUseCase(mockDeploymentRepository);
   });
 
@@ -69,7 +76,10 @@ describe('E2E: Deployment Flow', () => {
   });
 
   it('should throw ValidationError when code validation fails', async () => {
-    mockDeploymentService.validate.mockResolvedValue({ valid: false, errors: ['Syntax error'] });
+    mockDeploymentService.validate.mockResolvedValue({
+      valid: false,
+      errors: ['Syntax error'],
+    });
 
     await expect(
       deployUseCase.execute({
@@ -77,7 +87,7 @@ describe('E2E: Deployment Flow', () => {
         configHash: 'hash123',
         installationId: 'inst456',
         workerCode: 'invalid',
-      })
+      }),
     ).rejects.toThrow(ValidationError);
   });
 
@@ -87,7 +97,7 @@ describe('E2E: Deployment Flow', () => {
     await expect(
       getStatusUseCase.execute({
         deploymentId: 'nonexistent',
-      })
+      }),
     ).rejects.toThrow(NotFoundError);
   });
 });

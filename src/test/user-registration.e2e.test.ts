@@ -28,8 +28,18 @@ describe('E2E: User Registration Flow', () => {
     mockGitHubService = {
       validateInstallation: vi.fn().mockResolvedValue(true),
       fetchRepositories: vi.fn().mockResolvedValue([
-        { id: 1, name: 'repo1', fullName: 'org/repo1', url: 'https://github.com/org/repo1' },
-        { id: 2, name: 'repo2', fullName: 'org/repo2', url: 'https://github.com/org/repo2' },
+        {
+          id: 1,
+          name: 'repo1',
+          fullName: 'org/repo1',
+          url: 'https://github.com/org/repo1',
+        },
+        {
+          id: 2,
+          name: 'repo2',
+          fullName: 'org/repo2',
+          url: 'https://github.com/org/repo2',
+        },
       ]),
       fetchBranches: vi.fn().mockResolvedValue([]),
       createPullRequest: vi.fn().mockResolvedValue({}),
@@ -39,12 +49,21 @@ describe('E2E: User Registration Flow', () => {
 
     // Mock crypto service
     mockCryptoService = {
-      encrypt: vi.fn().mockResolvedValue({ encryptedData: new Uint8Array(), iv: new Uint8Array() }),
+      encrypt: vi
+        .fn()
+        .mockResolvedValue({
+          encryptedData: new Uint8Array(),
+          iv: new Uint8Array(),
+        }),
       decrypt: vi.fn().mockResolvedValue('decrypted'),
       hash: vi.fn().mockResolvedValue('hash'),
     };
 
-    useCase = new RegisterUserUseCase(mockUserRepository, mockGitHubService, mockCryptoService);
+    useCase = new RegisterUserUseCase(
+      mockUserRepository,
+      mockGitHubService,
+      mockCryptoService,
+    );
   });
 
   it('should successfully register a new user', async () => {
@@ -59,7 +78,9 @@ describe('E2E: User Registration Flow', () => {
     expect(result.installationId).toBe('inst456');
     expect(result.projectLabel).toBe('My Project');
     expect(result.created).toBeDefined();
-    expect(mockGitHubService.validateInstallation).toHaveBeenCalledWith('inst456');
+    expect(mockGitHubService.validateInstallation).toHaveBeenCalledWith(
+      'inst456',
+    );
     expect(mockUserRepository.save).toHaveBeenCalled();
   });
 
@@ -79,7 +100,7 @@ describe('E2E: User Registration Flow', () => {
         userId: '',
         installationId: 'inst456',
         anthropicApiKey: 'api-key-xyz',
-      })
+      }),
     ).rejects.toThrow(ValidationError);
   });
 
@@ -91,7 +112,7 @@ describe('E2E: User Registration Flow', () => {
         userId: 'user123',
         installationId: 'invalid',
         anthropicApiKey: 'api-key-xyz',
-      })
+      }),
     ).rejects.toThrow(NotFoundError);
   });
 });

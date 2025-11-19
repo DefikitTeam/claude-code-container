@@ -43,7 +43,9 @@ export const defaultOpenHandsConfig: OpenHandsAdapterConfig = {
   baseUrl: process.env.OPENHANDS_BASE_URL || 'https://app.all-hands.dev',
   pollingIntervalMs: Number(process.env.OPENHANDS_POLLING_INTERVAL_MS || 2000),
   maxRetries: Number(process.env.OPENHANDS_MAX_RETRIES || 3),
-  retryBackoffBaseMs: Number(process.env.OPENHANDS_RETRY_BACKOFF_BASE_MS || 500),
+  retryBackoffBaseMs: Number(
+    process.env.OPENHANDS_RETRY_BACKOFF_BASE_MS || 500,
+  ),
   maxEventBuffer: Number(process.env.OPENHANDS_MAX_EVENT_BUFFER || 1000),
   headers: {},
   disabled: (process.env.CLAUDE_CLIENT_DISABLE_OPENHANDS || 'false') === 'true',
@@ -53,7 +55,9 @@ export const defaultOpenHandsConfig: OpenHandsAdapterConfig = {
  * Helper to produce a config object merged with defaults. This keeps callers
  * from having to reference `process.env` directly and centralizes defaults.
  */
-export function loadConfig(overrides?: Partial<OpenHandsAdapterConfig>): OpenHandsAdapterConfig {
+export function loadConfig(
+  overrides?: Partial<OpenHandsAdapterConfig>,
+): OpenHandsAdapterConfig {
   return {
     ...defaultOpenHandsConfig,
     ...(overrides || {}),
@@ -110,10 +114,16 @@ export class OpenHandsAdapter implements ClaudeAdapter {
   canHandle(context: ClaudeRuntimeContext): boolean {
     // Respect explicit disabling via config or environment
     if (this.cfg.disabled) return false;
-    if ((process.env.CLAUDE_CLIENT_DISABLE_OPENHANDS || 'false') === 'true') return false;
+    if ((process.env.CLAUDE_CLIENT_DISABLE_OPENHANDS || 'false') === 'true')
+      return false;
 
     // Determine API key from (1) adapter config override, (2) runtime context, (3) environment
-    const apiKey = this.cfg.apiKey ?? context.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.OPENROUTER_API_KEY ?? process.env.ALLHANDS_API_KEY;
+    const apiKey =
+      this.cfg.apiKey ??
+      context.apiKey ??
+      process.env.OPENHANDS_API_KEY ??
+      process.env.OPENROUTER_API_KEY ??
+      process.env.ALLHANDS_API_KEY;
 
     // Only handle if we have an API key
     return Boolean(apiKey);
@@ -129,7 +139,7 @@ export class OpenHandsAdapter implements ClaudeAdapter {
     apiKey: string,
     prompt: string,
     callbacks: ClaudeCallbacks,
-    abortSignal: AbortSignal
+    abortSignal: AbortSignal,
   ): Promise<{ success: boolean; output?: string; error?: string }> {
     let collectedOutput = '';
     let isCompleted = false;
@@ -155,10 +165,17 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         abortSignal.removeEventListener('abort', abortHandler);
       };
 
-      const complete = (result: { success: boolean; output?: string; error?: string }) => {
+      const complete = (result: {
+        success: boolean;
+        output?: string;
+        error?: string;
+      }) => {
         if (isCompleted) return;
         isCompleted = true;
-        logger.debug('Socket.IO completing', { sessionId, success: result.success });
+        logger.debug('Socket.IO completing', {
+          sessionId,
+          success: result.success,
+        });
         cleanup();
         resolve(result);
       };
@@ -179,18 +196,22 @@ export class OpenHandsAdapter implements ClaudeAdapter {
       abortSignal.addEventListener('abort', abortHandler);
 
       if (!socket) {
-        logger.info('Creating new Socket.IO client', { sessionId, conversationId, baseUrl: this.cfg.baseUrl });
+        logger.info('Creating new Socket.IO client', {
+          sessionId,
+          conversationId,
+          baseUrl: this.cfg.baseUrl,
+        });
 
         // Create Socket.IO client with autoConnect: false to register handlers first
         socket = io(this.cfg.baseUrl, {
-          autoConnect: false,  // Don't auto-connect, we'll call connect() after registering handlers
-          transports: ['websocket', 'polling'],  // Allow fallback to polling
+          autoConnect: false, // Don't auto-connect, we'll call connect() after registering handlers
+          transports: ['websocket', 'polling'], // Allow fallback to polling
           auth: {
             token: apiKey,
           },
           query: {
             conversation_id: conversationId,
-            latest_event_id: '-1',    // Use -1 to get all events from start
+            latest_event_id: '-1', // Use -1 to get all events from start
             // NOTE: Official docs don't use session_api_key, testing without it
             // If connection fails, may need to fetch it from /api/conversations/{id}/config
           },
@@ -199,18 +220,18 @@ export class OpenHandsAdapter implements ClaudeAdapter {
           reconnectionDelay: 1000,
           timeout: 20000,
         });
-        
+
         this.socketClients.set(sessionId, socket);
 
         // Register event handlers BEFORE connecting
         socket.on('connect', () => {
-          logger.info('✅ Socket.IO connected successfully', { 
-            sessionId, 
+          logger.info('✅ Socket.IO connected successfully', {
+            sessionId,
             socketId: socket!.id,
             transport: socket!.io.engine.transport.name,
-            conversationId 
+            conversationId,
           });
-          
+
           // Register engine-level ping/pong handlers AFTER connection (engine now exists)
           socket!.io.engine.on('ping', () => {
             logger.debug('🏓 Socket.IO ping sent', { sessionId });
@@ -219,20 +240,23 @@ export class OpenHandsAdapter implements ClaudeAdapter {
           socket!.io.engine.on('pong', () => {
             logger.debug('🏓 Socket.IO pong received', { sessionId });
           });
-          
+
           // Clear connection timeout on successful connect
           if (connectionTimeout) {
             clearTimeout(connectionTimeout);
             connectionTimeout = null;
           }
-          
+
           // 🔥 CRITICAL: Send initial user action to start conversation processing
           // Without this, OpenHands won't process the conversation even though it's created
-          logger.info('📤 Sending initial user action', { sessionId, promptLength: prompt.length });
+          logger.info('📤 Sending initial user action', {
+            sessionId,
+            promptLength: prompt.length,
+          });
           socket!.emit('oh_user_action', {
             type: 'message',
             source: 'user',
-            message: prompt
+            message: prompt,
           });
         });
 
@@ -252,8 +276,8 @@ export class OpenHandsAdapter implements ClaudeAdapter {
             queryParams: {
               conversation_id: conversationId,
               has_session_api_key: Boolean(apiKey),
-              latest_event_id: '-1'
-            }
+              latest_event_id: '-1',
+            },
           });
           if (!isCompleted) {
             fail(`Connection error: ${error.message}`);
@@ -266,11 +290,17 @@ export class OpenHandsAdapter implements ClaudeAdapter {
 
         // Debug: log all Socket.IO engine events
         socket.io.on('open', () => {
-          logger.debug('🔌 Socket.IO engine opened (low-level transport connected)', { sessionId });
+          logger.debug(
+            '🔌 Socket.IO engine opened (low-level transport connected)',
+            { sessionId },
+          );
         });
 
         socket.io.on('close', (reason) => {
-          logger.debug('🔌 Socket.IO engine closed (low-level transport closed)', { sessionId, reason });
+          logger.debug(
+            '🔌 Socket.IO engine closed (low-level transport closed)',
+            { sessionId, reason },
+          );
         });
 
         // Note: ping/pong handlers are registered in 'connect' event handler above
@@ -299,7 +329,7 @@ export class OpenHandsAdapter implements ClaudeAdapter {
             eventId: event.id,
             type: event.type,
             source: event.source,
-            hasMessage: Boolean(event.message)
+            hasMessage: Boolean(event.message),
           });
 
           // Collect agent output
@@ -309,14 +339,20 @@ export class OpenHandsAdapter implements ClaudeAdapter {
           }
 
           // Check for completion
-          if (event.type === 'agent_state_changed' && event.result?.state === 'finished') {
+          if (
+            event.type === 'agent_state_changed' &&
+            event.result?.state === 'finished'
+          ) {
             logger.info('Conversation completed via Socket.IO', { sessionId });
             complete({ success: true, output: collectedOutput });
           }
 
           // Check for errors
           if (event.type === 'error') {
-            logger.error('Received error event', { sessionId, error: event.message });
+            logger.error('Received error event', {
+              sessionId,
+              error: event.message,
+            });
             fail(event.message || 'Unknown error from OpenHands');
           }
         });
@@ -331,8 +367,8 @@ export class OpenHandsAdapter implements ClaudeAdapter {
           queryParams: {
             conversation_id: conversationId,
             has_session_api_key: true,
-            latest_event_id: '-1'
-          }
+            latest_event_id: '-1',
+          },
         });
         socket.connect();
 
@@ -342,31 +378,43 @@ export class OpenHandsAdapter implements ClaudeAdapter {
             logger.error('Socket.IO connection timeout after 20s', {
               sessionId,
               socketConnected: socket!.connected,
-              socketId: socket!.id
+              socketId: socket!.id,
             });
-            fail('Connection timeout: Could not connect to OpenHands within 20 seconds');
+            fail(
+              'Connection timeout: Could not connect to OpenHands within 20 seconds',
+            );
           }
         }, 20000);
-
       } else {
-        logger.info('Reusing existing Socket.IO client', { sessionId, conversationId });
+        logger.info('Reusing existing Socket.IO client', {
+          sessionId,
+          conversationId,
+        });
 
         // For reused socket, event handlers already registered, just check connection
         if (!socket.connected) {
           logger.info('Reconnecting reused Socket.IO client', { sessionId });
           socket.connect();
         } else {
-          logger.info('Socket.IO already connected (reused)', { sessionId, socketId: socket.id });
+          logger.info('Socket.IO already connected (reused)', {
+            sessionId,
+            socketId: socket.id,
+          });
         }
       }
 
       // Conversation timeout fallback (5 minutes)
-      conversationTimeout = setTimeout(() => {
-        if (!isCompleted) {
-          logger.warn('Socket.IO conversation timeout after 5 minutes', { sessionId });
-          fail('Conversation timed out after 5 minutes');
-        }
-      }, 5 * 60 * 1000);
+      conversationTimeout = setTimeout(
+        () => {
+          if (!isCompleted) {
+            logger.warn('Socket.IO conversation timeout after 5 minutes', {
+              sessionId,
+            });
+            fail('Conversation timed out after 5 minutes');
+          }
+        },
+        5 * 60 * 1000,
+      );
     });
   }
 
@@ -385,7 +433,12 @@ export class OpenHandsAdapter implements ClaudeAdapter {
       const startTime = Date.now();
 
       // Use the same API key resolution logic as canHandle() to ensure consistency
-      const apiKey = this.cfg.apiKey ?? context.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.OPENROUTER_API_KEY ?? process.env.ALLHANDS_API_KEY;
+      const apiKey =
+        this.cfg.apiKey ??
+        context.apiKey ??
+        process.env.OPENHANDS_API_KEY ??
+        process.env.OPENROUTER_API_KEY ??
+        process.env.ALLHANDS_API_KEY;
 
       if (!apiKey) {
         const err = new Error('[OpenHandsAdapter] missing API key');
@@ -395,11 +448,14 @@ export class OpenHandsAdapter implements ClaudeAdapter {
       }
 
       // Extract repository information from context if available
-      const repository = (runOptions as any)?.repository ?? (context as any)?.repository ?? process.env.OPENHANDS_REPOSITORY;
+      const repository =
+        (runOptions as any)?.repository ??
+        (context as any)?.repository ??
+        process.env.OPENHANDS_REPOSITORY;
 
       logger.info('starting OpenHands conversation', {
         hasRepository: Boolean(repository),
-        promptLength: prompt.length
+        promptLength: prompt.length,
       });
 
       // Notify start
@@ -409,89 +465,109 @@ export class OpenHandsAdapter implements ClaudeAdapter {
       const conversationManager = new ConversationManager({
         baseUrl: this.cfg.baseUrl,
         apiKey,
-        headers: this.cfg.headers
+        headers: this.cfg.headers,
       });
 
       // Create conversation with initial user message
       const createRequest = {
         initial_user_msg: prompt,
-        ...(repository && { repository })
+        ...(repository && { repository }),
       };
 
       logger.debug('creating conversation', { repository });
-      const conversation = await conversationManager.createConversation(createRequest, abortSignal);
+      const conversation = await conversationManager.createConversation(
+        createRequest,
+        abortSignal,
+      );
 
       logger.info('conversation created', {
         conversationId: conversation.id,
-        initialStatus: conversation.status
+        initialStatus: conversation.status,
       });
 
       // 🔍 CRITICAL FIX: ALWAYS poll conversation status before connecting WebSocket
       // OpenHands server rejects connections if conversation not ready (status: 'ok', 'pending', etc.)
       // Cloud returns 'ok' initially, not 'pending', so we MUST poll regardless of initial status
-      logger.info('⏳ Polling conversation status to ensure ready...', { 
+      logger.info('⏳ Polling conversation status to ensure ready...', {
         conversationId: conversation.id,
-        initialStatus: conversation.status 
+        initialStatus: conversation.status,
       });
-      
+
       const maxPolls = 10;
       const pollIntervalMs = 500;
       let currentStatus = conversation.status;
       let isReady = false;
-      
+
       // Check if already ready (case-insensitive comparison for status)
       const statusUpper = currentStatus?.toUpperCase() || '';
       if (statusUpper === 'RUNNING' || statusUpper === 'IN_PROGRESS') {
-        logger.info('✅ Conversation already ready', { 
-          conversationId: conversation.id, 
-          status: currentStatus 
+        logger.info('✅ Conversation already ready', {
+          conversationId: conversation.id,
+          status: currentStatus,
         });
         isReady = true;
       } else {
         // Poll until ready
         for (let i = 0; i < maxPolls; i++) {
           if (abortSignal.aborted) {
-            throw new Error('[OpenHandsAdapter] aborted while waiting for conversation ready');
+            throw new Error(
+              '[OpenHandsAdapter] aborted while waiting for conversation ready',
+            );
           }
-          
-          await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-          
-          const status = await conversationManager.getConversationStatus(conversation.id, undefined, abortSignal);
+
+          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+
+          const status = await conversationManager.getConversationStatus(
+            conversation.id,
+            undefined,
+            abortSignal,
+          );
           currentStatus = status.status;
-          
-          logger.debug('conversation status poll', { 
-            conversationId: conversation.id, 
-            status: currentStatus, 
-            poll: i + 1 
+
+          logger.debug('conversation status poll', {
+            conversationId: conversation.id,
+            status: currentStatus,
+            poll: i + 1,
           });
-          
+
           // Case-insensitive comparison
           const currentStatusUpper = currentStatus?.toUpperCase() || '';
-          if (currentStatusUpper === 'RUNNING' || currentStatusUpper === 'IN_PROGRESS') {
-            logger.info('✅ Conversation ready', { 
-              conversationId: conversation.id, 
-              status: currentStatus, 
+          if (
+            currentStatusUpper === 'RUNNING' ||
+            currentStatusUpper === 'IN_PROGRESS'
+          ) {
+            logger.info('✅ Conversation ready', {
+              conversationId: conversation.id,
+              status: currentStatus,
               pollsNeeded: i + 1,
-              timeMs: (i + 1) * pollIntervalMs
+              timeMs: (i + 1) * pollIntervalMs,
             });
             isReady = true;
             break;
           }
-          
+
           // Check for failure states (case-insensitive)
-          if (currentStatusUpper === 'FAILED' || currentStatusUpper === 'ERROR') {
-            throw new Error(`[OpenHandsAdapter] conversation failed during initialization: ${currentStatus}`);
+          if (
+            currentStatusUpper === 'FAILED' ||
+            currentStatusUpper === 'ERROR'
+          ) {
+            throw new Error(
+              `[OpenHandsAdapter] conversation failed during initialization: ${currentStatus}`,
+            );
           }
         }
-        
+
         // If still not ready after max polls, log warning but proceed
         if (!isReady) {
-          logger.warn('⚠️ Conversation not ready after max polls, attempting connection anyway', { 
-            conversationId: conversation.id,
-            currentStatus,
-            maxPolls,
-            totalWaitMs: maxPolls * pollIntervalMs
-          });
+          logger.warn(
+            '⚠️ Conversation not ready after max polls, attempting connection anyway',
+            {
+              conversationId: conversation.id,
+              currentStatus,
+              maxPolls,
+              totalWaitMs: maxPolls * pollIntervalMs,
+            },
+          );
         }
       }
 
@@ -505,30 +581,31 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         apiKey,
         prompt,
         callbacks,
-        abortSignal
+        abortSignal,
       );
 
       const durationMs = Date.now() - startTime;
       logger.info('OpenHands conversation completed', {
         success: result.success,
         durationMs,
-        hasOutput: Boolean(result.output)
+        hasOutput: Boolean(result.output),
       });
 
       if (result.success && result.output) {
         callbacks.onComplete?.({ fullText: result.output, durationMs });
         return { fullText: result.output };
       } else {
-        const err = new Error(`[OpenHandsAdapter] conversation failed: ${result.error || 'Unknown error'}`);
+        const err = new Error(
+          `[OpenHandsAdapter] conversation failed: ${result.error || 'Unknown error'}`,
+        );
         callbacks.onError?.(err);
         throw err;
       }
-
     } catch (topLevelErr: any) {
       logger.error('[OpenHandsAdapter] UNCAUGHT ERROR in run():', {
         message: String(topLevelErr?.message ?? topLevelErr),
         name: topLevelErr?.name,
-        stack: topLevelErr?.stack?.split('\n').slice(0, 3).join('\n')
+        stack: topLevelErr?.stack?.split('\n').slice(0, 3).join('\n'),
       });
       throw topLevelErr;
     }
@@ -552,7 +629,9 @@ export class OpenHandsAdapter implements ClaudeAdapter {
    * Useful for graceful shutdown or cleanup.
    */
   disconnectAll(): void {
-    logger.info('Disconnecting all Socket.IO clients', { count: this.socketClients.size });
+    logger.info('Disconnecting all Socket.IO clients', {
+      count: this.socketClients.size,
+    });
     for (const [sessionId, socket] of this.socketClients.entries()) {
       socket.disconnect();
     }

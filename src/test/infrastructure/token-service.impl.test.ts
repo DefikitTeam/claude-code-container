@@ -6,7 +6,10 @@ describe('TokenServiceImpl', () => {
   let generator: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    generator = vi.fn(async (installationId: string) => `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`);
+    generator = vi.fn(
+      async (installationId: string) =>
+        `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`,
+    );
   });
 
   afterEach(() => {
@@ -26,7 +29,9 @@ describe('TokenServiceImpl', () => {
 
   it('validates installation identifiers before generating tokens', async () => {
     const service = new TokenServiceImpl(generator);
-    await expect(service.getInstallationToken('')).rejects.toThrow(ValidationError);
+    await expect(service.getInstallationToken('')).rejects.toThrow(
+      ValidationError,
+    );
   });
 
   it('invalidates cached tokens explicitly', async () => {

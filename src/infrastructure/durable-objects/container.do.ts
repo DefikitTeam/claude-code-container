@@ -7,20 +7,20 @@ import { Container } from '@cloudflare/containers';
 
 /**
  * ContainerDO - Real container execution using Cloudflare Workers Containers
- * 
+ *
  * This extends Container from @cloudflare/containers package which provides
  * actual isolated container workloads on Cloudflare infrastructure.
- * 
+ *
  * Unlike traditional Durable Objects, this handles the container lifecycle
  * and forwards requests to the containerized application running inside.
  */
 export class ContainerDO extends Container<any> {
   // Port the container listens on (default: 8080)
   defaultPort = 8080;
-  
+
   // Time before container sleeps due to inactivity (allow time for GitHub issue processing)
   sleepAfter = '5m'; // 5 minutes - enough for most GitHub issue processing
-  
+
   // Environment variables passed to the container
   // Note: ANTHROPIC_API_KEY and other sensitive data are provided per-request in fetch() env parameter
   envVars = {
@@ -29,7 +29,7 @@ export class ContainerDO extends Container<any> {
     PORT: '8080',
     ACP_MODE: 'http-server',
   };
-  
+
   // Specify the command to run in the container
   cmd = ['npm', 'start'];
 

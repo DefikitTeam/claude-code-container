@@ -372,8 +372,11 @@ _Generated and maintained by Claude Code - Automated GitHub Issue Processing
 System_
 
 ## Active Technologies
-- TypeScript 5.9.2, Node.js 22+ (006-add-openhands-sdk)
-- N/A (stateless adapter, conversation IDs ephemeral) (006-add-openhands-sdk)
+
+- TypeScript 5.9.2, Node.js 22+
+- Vercel AI SDK, OpenRouter OpenAI SDK, Anthropic Claude Code SDK
 
 ## Recent Changes
-- 006-add-openhands-sdk: Added TypeScript 5.9.2, Node.js 22+
+
+- Removed OpenHands SDK and adapter - using only Vercel AI SDK, OpenRouter
+  OpenAI SDK, and Anthropic Claude Code SDK

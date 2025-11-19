@@ -21,12 +21,12 @@ export function validatePattern(
   value: string,
   pattern: RegExp,
   fieldName: string,
-  message?: string
+  message?: string,
 ): void {
   if (!pattern.test(value)) {
     throw new ValidationError(
       message || `${fieldName} does not match required pattern`,
-      fieldName
+      fieldName,
     );
   }
 }
@@ -34,7 +34,10 @@ export function validatePattern(
 /**
  * Validate email format
  */
-export function validateEmail(email: string, fieldName: string = 'email'): void {
+export function validateEmail(
+  email: string,
+  fieldName: string = 'email',
+): void {
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailPattern.test(email)) {
     throw ValidationError.invalid(fieldName, 'invalid email format');
@@ -59,14 +62,14 @@ export function validateLength(
   value: string,
   min: number,
   max: number,
-  fieldName: string
+  fieldName: string,
 ): void {
   if (value.length < min || value.length > max) {
     throw new ValidationError(
       `${fieldName} must be between ${min} and ${max} characters`,
       fieldName,
       value.length,
-      `length:${min}-${max}`
+      `length:${min}-${max}`,
     );
   }
 }
@@ -78,14 +81,14 @@ export function validateRange(
   value: number,
   min: number,
   max: number,
-  fieldName: string
+  fieldName: string,
 ): void {
   if (value < min || value > max) {
     throw new ValidationError(
       `${fieldName} must be between ${min} and ${max}`,
       fieldName,
       value,
-      `range:${min}-${max}`
+      `range:${min}-${max}`,
     );
   }
 }
@@ -93,14 +96,11 @@ export function validateRange(
 /**
  * Validate that array is not empty
  */
-export function validateArrayNotEmpty<T>(
-  array: T[],
-  fieldName: string
-): void {
+export function validateArrayNotEmpty<T>(array: T[], fieldName: string): void {
   if (!Array.isArray(array) || array.length === 0) {
     throw new ValidationError(
       `${fieldName} must contain at least one item`,
-      fieldName
+      fieldName,
     );
   }
 }
@@ -111,14 +111,14 @@ export function validateArrayNotEmpty<T>(
 export function validateEnum<T>(
   value: T,
   allowedValues: T[],
-  fieldName: string
+  fieldName: string,
 ): void {
   if (!allowedValues.includes(value)) {
     throw new ValidationError(
       `${fieldName} must be one of: ${allowedValues.join(', ')}`,
       fieldName,
       value,
-      `enum:${allowedValues.join(',')}`
+      `enum:${allowedValues.join(',')}`,
     );
   }
 }
@@ -131,7 +131,7 @@ export function validateGitHubRepository(repo: string): void {
     repo,
     /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/,
     'repository',
-    'Repository must be in format: owner/repo'
+    'Repository must be in format: owner/repo',
   );
 }
 
@@ -143,7 +143,7 @@ export function validateGitHubBranchName(branch: string): void {
     branch,
     /^[a-zA-Z0-9._\/-]+$/,
     'branch',
-    'Invalid branch name format'
+    'Invalid branch name format',
   );
 }
 
@@ -155,7 +155,7 @@ export function validateInstallationId(installationId: string): void {
     installationId,
     /^\d+$/,
     'installationId',
-    'Installation ID must be numeric'
+    'Installation ID must be numeric',
   );
 }
 
@@ -175,14 +175,11 @@ export function validateApiKey(apiKey: string): void {
   if (apiKey.length < 20) {
     throw new ValidationError(
       'API key must be at least 20 characters',
-      'apiKey'
+      'apiKey',
     );
   }
   if (apiKey.includes(' ') || apiKey.includes('\n')) {
-    throw new ValidationError(
-      'API key contains invalid characters',
-      'apiKey'
-    );
+    throw new ValidationError('API key contains invalid characters', 'apiKey');
   }
 }
 

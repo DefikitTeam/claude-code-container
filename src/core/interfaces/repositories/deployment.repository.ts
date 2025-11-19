@@ -19,10 +19,15 @@ export interface IDeploymentRepository {
   /**
    * Find latest deployment for an installation
    */
-  findLatestByInstallation(installationId: string): Promise<DeploymentEntity | null>;
+  findLatestByInstallation(
+    installationId: string,
+  ): Promise<DeploymentEntity | null>;
 
   /**
    * List deployments for an installation
    */
-  listByInstallation(installationId: string, limit?: number): Promise<DeploymentEntity[]>;
+  listByInstallation(
+    installationId: string,
+    limit?: number,
+  ): Promise<DeploymentEntity[]>;
 }

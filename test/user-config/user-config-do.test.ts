@@ -181,7 +181,7 @@ describe('UserConfigDO multi-registration support', () => {
     const encrypted = await CryptoUtils.encrypt(key, 'legacy-secret');
 
     storage = new InMemoryStorage({
-      'encryption_key': exported,
+      encryption_key: exported,
       'installation:legacy-install': 'legacy-user',
       'user:legacy-user': {
         userId: 'legacy-user',
@@ -267,7 +267,9 @@ describe('UserConfigDO multi-registration support', () => {
     const deleteResponse = await deleteUser('token-user');
     expect(deleteResponse.status).toBe(200);
 
-    expect(await storage.get('token:tokens-install:token-user')).toBeUndefined();
+    expect(
+      await storage.get('token:tokens-install:token-user'),
+    ).toBeUndefined();
     expect(
       await storage.get('registry-token:tokens-install:token-user'),
     ).toBeUndefined();

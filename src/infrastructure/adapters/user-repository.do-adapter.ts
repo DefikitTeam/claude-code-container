@@ -69,7 +69,9 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
       query: { installationId },
     });
 
-  return Array.isArray(results) ? results.map((props: UserProps) => new UserEntity(props)) : [];
+    return Array.isArray(results)
+      ? results.map((props: UserProps) => new UserEntity(props))
+      : [];
   }
 
   async delete(userId: string): Promise<void> {
@@ -91,10 +93,14 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
       query: { installationId, activeOnly: 'true' },
     });
 
-    return Array.isArray(results) ? results.map((props: UserProps) => new UserEntity(props)) : [];
+    return Array.isArray(results)
+      ? results.map((props: UserProps) => new UserEntity(props))
+      : [];
   }
 
-  private async fetch<T extends unknown>(options: FetchOptions): Promise<T | null> {
+  private async fetch<T extends unknown>(
+    options: FetchOptions,
+  ): Promise<T | null> {
     const id = this.namespace.idFromName(this.stubName);
     const stub = this.namespace.get(id);
 
@@ -122,7 +128,9 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`Durable Object request failed: ${response.status} ${text}`);
+      throw new Error(
+        `Durable Object request failed: ${response.status} ${text}`,
+      );
     }
 
     const contentType = response.headers.get('Content-Type');

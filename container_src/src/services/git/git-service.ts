@@ -265,8 +265,14 @@ export class GitService implements IGitService {
       await this.runGit(repoPath, ['config', 'user.email']);
     } catch {
       // Not configured, set default
-      await this.runGit(repoPath, ['config', 'user.email', 'noreply@anthropic.com']);
-      console.error('[GitService] Set git user.email to "noreply@anthropic.com"');
+      await this.runGit(repoPath, [
+        'config',
+        'user.email',
+        'noreply@anthropic.com',
+      ]);
+      console.error(
+        '[GitService] Set git user.email to "noreply@anthropic.com"',
+      );
     }
   }
 

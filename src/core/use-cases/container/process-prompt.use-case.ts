@@ -25,7 +25,10 @@ export class ProcessPromptUseCase {
       throw new ValidationError('containerId and prompt are required');
     }
 
-    const result = await this.containerService.execute(dto.containerId, dto.prompt);
+    const result = await this.containerService.execute(
+      dto.containerId,
+      dto.prompt,
+    );
 
     return {
       exitCode: result.exitCode,

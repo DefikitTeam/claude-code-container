@@ -653,9 +653,9 @@ function buildPullRequestBody(
 function deriveIssueTitle(prompt: string): string {
   // Extract meaningful title from prompt, skipping metadata lines
   const lines = prompt.trim().split(/\r?\n/);
-  
+
   // Skip metadata lines (Session Mode, Working in, Context Files, etc.)
-  const meaningfulLine = lines.find(line => {
+  const meaningfulLine = lines.find((line) => {
     const trimmed = line.trim();
     // Skip empty lines
     if (!trimmed) return false;
@@ -668,17 +668,17 @@ function deriveIssueTitle(prompt: string): string {
     // This is likely the actual user request
     return true;
   });
-  
+
   if (!meaningfulLine) {
     // Fallback: try to find first non-empty line
-    const firstNonEmpty = lines.find(l => l.trim().length > 0);
-    return firstNonEmpty && firstNonEmpty.length > 120 
-      ? `${firstNonEmpty.slice(0, 117)}...` 
+    const firstNonEmpty = lines.find((l) => l.trim().length > 0);
+    return firstNonEmpty && firstNonEmpty.length > 120
+      ? `${firstNonEmpty.slice(0, 117)}...`
       : firstNonEmpty || 'Automated change request';
   }
-  
-  return meaningfulLine.length > 120 
-    ? `${meaningfulLine.slice(0, 117)}...` 
+
+  return meaningfulLine.length > 120
+    ? `${meaningfulLine.slice(0, 117)}...`
     : meaningfulLine;
 }
 
@@ -688,20 +688,25 @@ function derivePullRequestTitle(
   summary?: string,
 ): string {
   // Try to create a concise, action-oriented title
-  
+
   // 1. If we have a summary, extract the main action/change
   if (summary) {
     // Look for action patterns in summary
-    const actionMatch = summary.match(/(?:I(?:'ve| have))?\s*(changed|updated|modified|added|removed|fixed|implemented|created|refactored|improved)\s+([^.]+)/i);
+    const actionMatch = summary.match(
+      /(?:I(?:'ve| have))?\s*(changed|updated|modified|added|removed|fixed|implemented|created|refactored|improved)\s+([^.]+)/i,
+    );
     if (actionMatch) {
-      const action = actionMatch[1].charAt(0).toUpperCase() + actionMatch[1].slice(1);
+      const action =
+        actionMatch[1].charAt(0).toUpperCase() + actionMatch[1].slice(1);
       const target = actionMatch[2].trim();
       const title = `${action} ${target}`;
       return title.length > 120 ? `${title.slice(0, 117)}...` : title;
     }
-    
+
     // Fallback: use first meaningful sentence from summary
-    const sentences = summary.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const sentences = summary
+      .split(/[.!?]+/)
+      .filter((s) => s.trim().length > 10);
     if (sentences.length > 0) {
       const firstSentence = sentences[0].trim();
       // Remove "I'll help you" or similar phrases
@@ -709,20 +714,20 @@ function derivePullRequestTitle(
         .replace(/^(?:I(?:'ll| will))?\s*help\s+you\s+/i, '')
         .replace(/^(?:Let me|I will|I'll)\s+/i, '')
         .trim();
-      
+
       if (cleaned.length > 0) {
         return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned;
       }
     }
   }
-  
+
   // 2. Use prompt title if available
   if (promptTitle) {
     return promptTitle.length > 120
       ? `${promptTitle.slice(0, 117)}...`
       : promptTitle;
   }
-  
+
   // 3. Fallback to issue reference
   return `Fix issue #${issue.number}`;
 }
@@ -776,7 +781,9 @@ function buildAuthedUrl(
   const sanitized = sanitizeRemote(url);
   // CRITICAL FIX: Strip trailing slashes that cause git push to fail
   // Error: "URL rejected: Port number was not a decimal number between 0 and 65535"
-  const withoutProtocol = sanitized.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const withoutProtocol = sanitized
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '');
   return `https://x-access-token:${token}@${withoutProtocol}`;
 }
 

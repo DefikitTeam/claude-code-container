@@ -7,7 +7,11 @@ export interface SpawnContainerDto {
   userId: string;
   containerImage: string;
   environmentVariables: Record<string, string>;
-  resourceLimits: { cpuMillis: number; memoryMb: number; timeoutSeconds: number };
+  resourceLimits: {
+    cpuMillis: number;
+    memoryMb: number;
+    timeoutSeconds: number;
+  };
 }
 
 export interface SpawnContainerResult {
@@ -24,7 +28,9 @@ export class SpawnContainerUseCase {
 
   async execute(dto: SpawnContainerDto): Promise<SpawnContainerResult> {
     if (!dto.configId || !dto.installationId || !dto.userId) {
-      throw new ValidationError('configId, installationId, and userId are required');
+      throw new ValidationError(
+        'configId, installationId, and userId are required',
+      );
     }
 
     const result = await this.containerService.spawn(dto);

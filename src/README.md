@@ -1,6 +1,7 @@
 # Clean Architecture Implementation
 
-This directory contains the refactored codebase following Clean Architecture principles.
+This directory contains the refactored codebase following Clean Architecture
+principles.
 
 ## Structure
 

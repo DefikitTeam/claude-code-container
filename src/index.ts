@@ -74,14 +74,14 @@ export interface Env {
   MY_CONTAINER: DurableObjectNamespace;
   ACP_SESSION: DurableObjectNamespace;
   ASYNC_JOB: DurableObjectNamespace;
-  
+
   // LumiLink Integration - Simple authentication with user JWT token
-  LUMILINK_API_URL?: string;    // LumiLink API base URL (e.g., http://localhost:8788 or https://api.lumilink.ai)
-  LUMILINK_JWT_TOKEN?: string;  // User's JWT token from LumiLink authentication
-  
+  LUMILINK_API_URL?: string; // LumiLink API base URL (e.g., http://localhost:8788 or https://api.lumilink.ai)
+  LUMILINK_JWT_TOKEN?: string; // User's JWT token from LumiLink authentication
+
   // User-specific credentials
-  ENCRYPTION_KEY: string;       // For encrypting user data (Anthropic API keys, etc.)
-  ANTHROPIC_API_KEY?: string;   // Optional default Anthropic API key
+  ENCRYPTION_KEY: string; // For encrypting user data (Anthropic API keys, etc.)
+  ANTHROPIC_API_KEY?: string; // Optional default Anthropic API key
 }
 
 /**
@@ -115,7 +115,7 @@ async function setupDI(env: Env): Promise<Controllers> {
   // Worker authenticates using the user's JWT token (same as regular API calls)
   // This is simpler than managing separate API keys
   let tokenService: TokenServiceImpl;
-  
+
   if (env.LUMILINK_JWT_TOKEN && env.LUMILINK_API_URL) {
     console.log('[DI] ✅ Using LumiLink token provider (JWT auth)');
     const lumilinkProvider = new LumiLinkTokenProvider({
@@ -126,18 +126,20 @@ async function setupDI(env: Env): Promise<Controllers> {
   } else {
     // No token provider configured - GitHub operations will fail, but user registration still works
     console.warn('[DI] ⚠️  No LumiLink credentials configured.');
-    console.warn('[DI] User registration works, but GitHub operations (repos, branches, PRs) will fail.');
+    console.warn(
+      '[DI] User registration works, but GitHub operations (repos, branches, PRs) will fail.',
+    );
     console.warn('[DI] Set these environment variables:');
     console.warn('[DI]   - LUMILINK_API_URL (e.g., http://localhost:8788)');
     console.warn('[DI]   - LUMILINK_JWT_TOKEN (get from LumiLink login)');
-    
+
     // Create a dummy token service that throws helpful errors when used
     tokenService = new TokenServiceImpl({
       getToken: async (installationId: string) => {
         throw new Error(
           'LumiLink credentials not configured. Cannot perform GitHub operations.\n' +
-          'Set LUMILINK_API_URL and LUMILINK_JWT_TOKEN environment variables.\n' +
-          'Get JWT token by logging into LumiLink.'
+            'Set LUMILINK_API_URL and LUMILINK_JWT_TOKEN environment variables.\n' +
+            'Get JWT token by logging into LumiLink.',
         );
       },
     });
@@ -146,17 +148,29 @@ async function setupDI(env: Env): Promise<Controllers> {
   const githubService = new GitHubServiceImpl(tokenService);
 
   const deploymentService = new DeploymentServiceImpl();
-  const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG);
+  const userRepository = new UserRepositoryDurableObjectAdapter(
+    env.USER_CONFIG,
+  );
   const containerService = new ContainerServiceImpl(env.MY_CONTAINER);
   const deploymentRepository = new DeploymentRepositoryImpl();
-  
+
   // Initialize ACP Bridge and Container Registry Auth services
   const acpBridgeService = new ACPBridgeService(tokenService, githubService);
-  const containerRegistryAuthService = new ContainerRegistryAuthService(env, tokenService);
+  const containerRegistryAuthService = new ContainerRegistryAuthService(
+    env,
+    tokenService,
+  );
 
-  const registerUserUseCase = new RegisterUserUseCase(userRepository, githubService, cryptoService);
+  const registerUserUseCase = new RegisterUserUseCase(
+    userRepository,
+    githubService,
+    cryptoService,
+  );
   const getUserUseCase = new GetUserUseCase(userRepository);
-  const updateUserUseCase = new UpdateUserUseCase(userRepository, cryptoService);
+  const updateUserUseCase = new UpdateUserUseCase(
+    userRepository,
+    cryptoService,
+  );
   const deleteUserUseCase = new DeleteUserUseCase(userRepository);
 
   const processWebhookUseCase = new ProcessWebhookUseCase(githubService);
@@ -167,11 +181,19 @@ async function setupDI(env: Env): Promise<Controllers> {
   const spawnContainerUseCase = new SpawnContainerUseCase(containerService);
   const processPromptUseCase = new ProcessPromptUseCase(containerService);
   const getLogsUseCase = new GetLogsUseCase(containerService);
-  const terminateContainerUseCase = new TerminateContainerUseCase(containerService);
+  const terminateContainerUseCase = new TerminateContainerUseCase(
+    containerService,
+  );
 
-  const deployWorkerUseCase = new DeployWorkerUseCase(deploymentRepository, deploymentService);
+  const deployWorkerUseCase = new DeployWorkerUseCase(
+    deploymentRepository,
+    deploymentService,
+  );
   const getStatusUseCase = new GetStatusUseCase(deploymentRepository);
-  const rollbackUseCase = new RollbackUseCase(deploymentRepository, deploymentService);
+  const rollbackUseCase = new RollbackUseCase(
+    deploymentRepository,
+    deploymentService,
+  );
   const validateConfigUseCase = new ValidateConfigUseCase(deploymentService);
 
   cachedControllers = {
@@ -220,39 +242,65 @@ async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
 
   // Global middleware
   app.use('*', attachRequestContext());
-  app.use('*', cors({
-    origin: '*',
-    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Installation-ID', 'X-User-ID'],
-    maxAge: 86400,
-    credentials: true,
-  }));
+  app.use(
+    '*',
+    cors({
+      origin: '*',
+      allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Installation-ID',
+        'X-User-ID',
+      ],
+      maxAge: 86400,
+      credentials: true,
+    }),
+  );
 
   registerErrorMiddleware(app as unknown as Hono);
 
   app.route('/health', createHealthRoutes());
   app.route('/api/users', createUserRoutes(controllers.userController));
   app.route('/api/github', createGitHubRoutes(controllers.githubController));
-  app.route('/api/containers', createContainerRoutes(controllers.containerController));
-  app.route('/api/deployments', createDeploymentRoutes(controllers.deploymentController));
-  app.route('/api/installations', createInstallationRoutes(controllers.installationController));
+  app.route(
+    '/api/containers',
+    createContainerRoutes(controllers.containerController),
+  );
+  app.route(
+    '/api/deployments',
+    createDeploymentRoutes(controllers.deploymentController),
+  );
+  app.route(
+    '/api/installations',
+    createInstallationRoutes(controllers.installationController),
+  );
   app.route('/acp', createACPRoutes(controllers.acpController));
 
-  app.notFound((c) => c.json({
-    success: false,
-    error: {
-      code: 'NOT_FOUND',
-      message: 'Route not found',
-    },
-    timestamp: Date.now(),
-  }, 404));
+  app.notFound((c) =>
+    c.json(
+      {
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Route not found',
+        },
+        timestamp: Date.now(),
+      },
+      404,
+    ),
+  );
 
   cachedApp = app;
   return app;
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const app = await ensureApp(env);
     return app.fetch(request, env, ctx);
   },

@@ -8,7 +8,9 @@ type TestDurableObjectNamespace = {
   get(id: TestDurableObjectId): { fetch(request: Request): Promise<Response> };
 };
 
-function createNamespace(handler: (request: Request) => Promise<Response> | Response) {
+function createNamespace(
+  handler: (request: Request) => Promise<Response> | Response,
+) {
   const fetchSpy = vi.fn(async (request: Request) => {
     return await handler(request);
   });
@@ -19,7 +21,7 @@ function createNamespace(handler: (request: Request) => Promise<Response> | Resp
       lastIdFromNameArg = name;
       return { name };
     }),
-  get: vi.fn(() => ({ fetch: fetchSpy })),
+    get: vi.fn(() => ({ fetch: fetchSpy })),
   };
 
   return {
@@ -37,18 +39,23 @@ describe('ContainerServiceImpl', () => {
   it('spawns containers via Durable Object', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
 
-    const { namespace, fetchSpy, lastIdFromNameArgRef } = createNamespace(async (request) => {
-      expect(request.method).toBe('GET');
-      expect(new URL(request.url).pathname).toBe('/health');
-      return new Response(JSON.stringify({ 
-        status: 'healthy',
-        message: 'Container ready',
-        timestamp: new Date().toISOString(),
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    });
+    const { namespace, fetchSpy, lastIdFromNameArgRef } = createNamespace(
+      async (request) => {
+        expect(request.method).toBe('GET');
+        expect(new URL(request.url).pathname).toBe('/health');
+        return new Response(
+          JSON.stringify({
+            status: 'healthy',
+            message: 'Container ready',
+            timestamp: new Date().toISOString(),
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      },
+    );
 
     const service = new ContainerServiceImpl(namespace);
     const result = await service.spawn({
@@ -60,19 +67,26 @@ describe('ContainerServiceImpl', () => {
       resourceLimits: { cpuMillis: 500, memoryMb: 512, timeoutSeconds: 60 },
     });
 
-  expect(result.containerId).toBe('ctr_cfg1_4fzzzxjy');
+    expect(result.containerId).toBe('ctr_cfg1_4fzzzxjy');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-  expect(lastIdFromNameArgRef()).toBe('ctr_cfg1_4fzzzxjy');
+    expect(lastIdFromNameArgRef()).toBe('ctr_cfg1_4fzzzxjy');
   });
 
   it('executes commands and returns result payload', async () => {
     const { namespace } = createNamespace(async (request) => {
-      if (request.method === 'POST' && new URL(request.url).pathname === '/process') {
+      if (
+        request.method === 'POST' &&
+        new URL(request.url).pathname === '/process'
+      ) {
         const body = await request.json();
         expect(body.type).toBe('execute');
         expect(body.command).toBe('npm test');
         return new Response(
-          JSON.stringify({ success: true, logs: ['test passed'], message: 'ok' }),
+          JSON.stringify({
+            success: true,
+            logs: ['test passed'],
+            message: 'ok',
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
@@ -92,14 +106,17 @@ describe('ContainerServiceImpl', () => {
       expect(request.method).toBe('GET');
       const url = new URL(request.url);
       expect(url.pathname).toBe('/health');
-      return new Response(JSON.stringify({ 
-        status: 'healthy',
-        message: 'Container operational',
-        timestamp: '2025-10-28T12:00:00.000Z',
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          status: 'healthy',
+          message: 'Container operational',
+          timestamp: '2025-10-28T12:00:00.000Z',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     });
 
     const service = new ContainerServiceImpl(namespace);
@@ -128,7 +145,10 @@ describe('ContainerServiceImpl', () => {
 
   it('returns stopped status when DO returns null payload', async () => {
     const { namespace } = createNamespace(async (request) => {
-      if (request.method === 'GET' && new URL(request.url).pathname === '/container') {
+      if (
+        request.method === 'GET' &&
+        new URL(request.url).pathname === '/container'
+      ) {
         return new Response('null', {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -144,7 +164,9 @@ describe('ContainerServiceImpl', () => {
   });
 
   it('validates spawn parameters before calling Durable Object', async () => {
-    const { namespace, fetchSpy } = createNamespace(async () => new Response('OK', { status: 200 }));
+    const { namespace, fetchSpy } = createNamespace(
+      async () => new Response('OK', { status: 200 }),
+    );
     const service = new ContainerServiceImpl(namespace);
 
     await expect(

@@ -40,10 +40,10 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     // 3. OpenHandsAdapter - Tertiary (OpenHands cloud service) - WebSocket-based, complex
     // 4. HTTPAPIClientAdapter - Fallback (Direct Anthropic HTTP API) - Last resort for reliability
     this.adapters = options.adapters ?? [
-      new OpenAIOpenRouterToolsAdapter(),   // � Primary: Vercel AI SDK with FULL TOOL SUPPORT
-      new OpenAIOpenRouterAdapter(),  // Secondary: OpenAI SDK (text-only, no tools)
-      new OpenHandsAdapter(),          // Tertiary: OpenHands (complex, WebSocket-based)
-      new HTTPAPIClientAdapter(),      // Fallback: Direct Anthropic API
+      new OpenAIOpenRouterToolsAdapter(), // � Primary: Vercel AI SDK with FULL TOOL SUPPORT
+      new OpenAIOpenRouterAdapter(), // Secondary: OpenAI SDK (text-only, no tools)
+      new OpenHandsAdapter(), // Tertiary: OpenHands (complex, WebSocket-based)
+      new HTTPAPIClientAdapter(), // Fallback: Direct Anthropic API
     ];
     this.defaultModel = options.defaultModel || DEFAULT_MODEL;
   }
@@ -56,7 +56,8 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     const startTime = Date.now();
     const sessionId = options.sessionId ?? `session-${startTime}`;
     const operationId =
-      options.operationId ?? `op-${startTime}-${Math.random().toString(36).slice(2, 8)}`;
+      options.operationId ??
+      `op-${startTime}-${Math.random().toString(36).slice(2, 8)}`;
 
     const abortController = new AbortController();
     if (options.abortSignal) {
@@ -64,7 +65,9 @@ export class ClaudeRuntimeSelector implements IClaudeService {
         throw new Error('aborted');
       }
       const forwardAbort = () => abortController.abort();
-      options.abortSignal.addEventListener('abort', forwardAbort, { once: true });
+      options.abortSignal.addEventListener('abort', forwardAbort, {
+        once: true,
+      });
     }
 
     const inFlight: InFlight = { sessionId, operationId, abortController };
@@ -93,11 +96,15 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       const context = await this.createContext(options);
       const candidates = await this.planAdapters(context);
 
-      console.error(`[ClaudeRuntimeSelector] Available adapters: ${candidates.map(a => {
-        // Prefer a human-friendly adapterId when present for clearer diagnostics
-        const id = (a as any).adapterId ?? null;
-        return id ? `${a.name}(${id})` : a.name;
-      }).join(', ')}`);
+      console.error(
+        `[ClaudeRuntimeSelector] Available adapters: ${candidates
+          .map((a) => {
+            // Prefer a human-friendly adapterId when present for clearer diagnostics
+            const id = (a as any).adapterId ?? null;
+            return id ? `${a.name}(${id})` : a.name;
+          })
+          .join(', ')}`,
+      );
       console.error(`[ClaudeRuntimeSelector] Context:`, {
         hasWorkspace: !!context.workspacePath,
         model: context.model,
@@ -110,7 +117,9 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       for (const adapter of candidates) {
         try {
           const adapterId = (adapter as any).adapterId ?? null;
-          console.error(`[ClaudeRuntimeSelector] Using adapter: ${adapter.name}${adapterId ? ` (${adapterId})` : ''}`);
+          console.error(
+            `[ClaudeRuntimeSelector] Using adapter: ${adapter.name}${adapterId ? ` (${adapterId})` : ''}`,
+          );
           const result = await adapter.run(
             prompt,
             options,
@@ -126,7 +135,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
           const durationMs = Date.now() - startTime;
           callbacks.onComplete?.({ fullText, durationMs });
 
-      return {
+          return {
             fullText,
             tokens: {
               input: inputTokens,
@@ -198,7 +207,9 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     }
 
     if (entry.operationId) {
-      this.inFlightByOperation.delete(`${entry.sessionId}:${entry.operationId}`);
+      this.inFlightByOperation.delete(
+        `${entry.sessionId}:${entry.operationId}`,
+      );
     }
   }
 
@@ -206,7 +217,9 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     return Math.max(1, Math.ceil(text.length / 4));
   }
 
-  private async createContext(options: RunOptions): Promise<ClaudeRuntimeContext> {
+  private async createContext(
+    options: RunOptions,
+  ): Promise<ClaudeRuntimeContext> {
     // Debug logging for API key resolution
     console.error('[RUNTIME-SELECTOR] Creating context:', {
       hasOptionsApiKey: !!options.apiKey,
@@ -216,12 +229,21 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     });
 
     // Try ANTHROPIC_API_KEY first, then fall back to OPENROUTER_API_KEY for multi-model support
-    const apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY;
+    const apiKey =
+      options.apiKey ||
+      process.env.ANTHROPIC_API_KEY ||
+      process.env.OPENROUTER_API_KEY;
 
     console.error('[RUNTIME-SELECTOR] API key resolved:', {
       hasApiKey: !!apiKey,
       apiKeyLength: apiKey?.length || 0,
-      source: options.apiKey ? 'options' : process.env.ANTHROPIC_API_KEY ? 'env-anthropic' : process.env.OPENROUTER_API_KEY ? 'env-openrouter' : 'none',
+      source: options.apiKey
+        ? 'options'
+        : process.env.ANTHROPIC_API_KEY
+          ? 'env-anthropic'
+          : process.env.OPENROUTER_API_KEY
+            ? 'env-openrouter'
+            : 'none',
     });
 
     if (!apiKey) {
@@ -246,7 +268,9 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     };
   }
 
-  private async planAdapters(context: ClaudeRuntimeContext): Promise<ClaudeAdapter[]> {
+  private async planAdapters(
+    context: ClaudeRuntimeContext,
+  ): Promise<ClaudeAdapter[]> {
     const ordered: ClaudeAdapter[] = [];
 
     const candidates = [...this.adapters];
@@ -277,7 +301,10 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       cwd: process.cwd(),
       hasApiKeyEnv: Boolean(process.env.ANTHROPIC_API_KEY),
       hasOpenRouterKeyEnv: Boolean(process.env.OPENROUTER_API_KEY),
-      adapters: this.adapters.map(a => ({ name: a.name, id: (a as any).adapterId ?? null })),
+      adapters: this.adapters.map((a) => ({
+        name: a.name,
+        id: (a as any).adapterId ?? null,
+      })),
       hasOpenHandsKey: Boolean(process.env.OPENHANDS_API_KEY),
     };
   }

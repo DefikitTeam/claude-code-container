@@ -399,7 +399,7 @@ MIIEowIBAAKCAQEA4qiXKGHRMTgCfWWGRRNOOW0hJrKYqKhM9yR1YJXqKJwVyGFV
         page: 2,
       });
 
-      expect((global.fetch as Mock)).toHaveBeenNthCalledWith(
+      expect(global.fetch as Mock).toHaveBeenNthCalledWith(
         2,
         'https://api.github.com/installation/repositories?per_page=50&page=2',
         expect.objectContaining({
@@ -416,7 +416,10 @@ MIIEowIBAAKCAQEA4qiXKGHRMTgCfWWGRRNOOW0hJrKYqKhM9yR1YJXqKJwVyGFV
       const mockBranches = [
         {
           name: 'main',
-          commit: { sha: 'abc123', url: 'https://api.github.com/repos/owner/repo/commits/abc123' },
+          commit: {
+            sha: 'abc123',
+            url: 'https://api.github.com/repos/owner/repo/commits/abc123',
+          },
           protected: true,
         },
       ];
@@ -452,7 +455,7 @@ MIIEowIBAAKCAQEA4qiXKGHRMTgCfWWGRRNOOW0hJrKYqKhM9yR1YJXqKJwVyGFV
       );
 
       expect(branches).toEqual(mockBranches);
-      expect((global.fetch as Mock)).toHaveBeenNthCalledWith(
+      expect(global.fetch as Mock).toHaveBeenNthCalledWith(
         2,
         'https://api.github.com/repos/owner/repo/branches?per_page=25&page=3&protected=true',
         expect.objectContaining({

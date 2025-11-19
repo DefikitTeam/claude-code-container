@@ -25,8 +25,17 @@ export class CreatePullRequestUseCase {
   constructor(private readonly githubService: IGitHubService) {}
 
   async execute(dto: CreatePullRequestDto): Promise<CreatePullRequestResult> {
-    if (!dto.owner || !dto.repo || !dto.title || !dto.head || !dto.base || !dto.installationId) {
-      throw new ValidationError('owner, repo, title, head, base, and installationId are required');
+    if (
+      !dto.owner ||
+      !dto.repo ||
+      !dto.title ||
+      !dto.head ||
+      !dto.base ||
+      !dto.installationId
+    ) {
+      throw new ValidationError(
+        'owner, repo, title, head, base, and installationId are required',
+      );
     }
 
     const result = await this.githubService.createPullRequest(dto);

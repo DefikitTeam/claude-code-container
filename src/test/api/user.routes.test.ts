@@ -22,8 +22,18 @@ describe('API: User Routes', () => {
     const githubService = {
       validateInstallation: vi.fn().mockResolvedValue(true),
       fetchRepositories: vi.fn().mockResolvedValue([
-        { id: 1, name: 'repo1', fullName: 'org/repo1', url: 'https://example.com/repo1' },
-        { id: 2, name: 'repo2', fullName: 'org/repo2', url: 'https://example.com/repo2' },
+        {
+          id: 1,
+          name: 'repo1',
+          fullName: 'org/repo1',
+          url: 'https://example.com/repo1',
+        },
+        {
+          id: 2,
+          name: 'repo2',
+          fullName: 'org/repo2',
+          url: 'https://example.com/repo2',
+        },
       ]),
       fetchBranches: vi.fn(),
       createPullRequest: vi.fn(),
@@ -32,16 +42,28 @@ describe('API: User Routes', () => {
     };
 
     const cryptoService = {
-      encrypt: vi.fn().mockResolvedValue({ encryptedData: new Uint8Array([1, 2, 3]), iv: new Uint8Array([4, 5, 6]) }),
+      encrypt: vi
+        .fn()
+        .mockResolvedValue({
+          encryptedData: new Uint8Array([1, 2, 3]),
+          iv: new Uint8Array([4, 5, 6]),
+        }),
       decrypt: vi.fn().mockResolvedValue('decrypted-key'),
       hash: vi.fn().mockResolvedValue('hash'),
       verifyWebhookSignature: vi.fn().mockResolvedValue(true),
       initialize: vi.fn(),
     } as any;
 
-    const registerUserUseCase = new RegisterUserUseCase(userRepository, githubService as any, cryptoService);
+    const registerUserUseCase = new RegisterUserUseCase(
+      userRepository,
+      githubService as any,
+      cryptoService,
+    );
     const getUserUseCase = new GetUserUseCase(userRepository);
-    const updateUserUseCase = new UpdateUserUseCase(userRepository, cryptoService);
+    const updateUserUseCase = new UpdateUserUseCase(
+      userRepository,
+      cryptoService,
+    );
     const deleteUserUseCase = new DeleteUserUseCase(userRepository);
 
     const controller = new UserController(
@@ -73,9 +95,9 @@ describe('API: User Routes', () => {
 
     expect(registerResponse.status).toBe(201);
     const registerJson = await registerResponse.json();
-  expect(registerJson.success).toBe(true);
-  expect(registerJson.data.userId).toBe(MOCK_USER_ID);
-  expect(registerJson.data.installationId).toBe(MOCK_INSTALLATION_ID);
+    expect(registerJson.success).toBe(true);
+    expect(registerJson.data.userId).toBe(MOCK_USER_ID);
+    expect(registerJson.data.installationId).toBe(MOCK_INSTALLATION_ID);
 
     const getResponse = await app.request(`/api/users/${MOCK_USER_ID}`, {
       method: 'GET',

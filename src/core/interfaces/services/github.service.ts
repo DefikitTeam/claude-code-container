@@ -12,20 +12,28 @@ export interface IGitHubService {
   /**
    * Fetch all repositories accessible by installation
    */
-  fetchRepositories(installationId: string): Promise<Array<{
-    id: number;
-    name: string;
-    fullName: string;
-    url: string;
-  }>>;
+  fetchRepositories(installationId: string): Promise<
+    Array<{
+      id: number;
+      name: string;
+      fullName: string;
+      url: string;
+    }>
+  >;
 
   /**
    * Fetch branches for a repository
    */
-  fetchBranches(owner: string, repo: string, installationId: string): Promise<Array<{
-    name: string;
-    commit: { sha: string };
-  }>>;
+  fetchBranches(
+    owner: string,
+    repo: string,
+    installationId: string,
+  ): Promise<
+    Array<{
+      name: string;
+      commit: { sha: string };
+    }>
+  >;
 
   /**
    * Create a pull request

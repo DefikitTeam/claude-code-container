@@ -3,10 +3,7 @@ import type {
   ClaudeResult,
   RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
-import type {
-  ClaudeAdapter,
-  ClaudeRuntimeContext,
-} from './adapter.js';
+import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
 import { ensureClaudeAuthFile } from './auth-helper.js';
 
 function extractTextFromMessage(message: any): string {
@@ -87,7 +84,9 @@ export class SDKClientAdapter implements ClaudeAdapter {
 
     // Dynamic import of SDK is best-effort; bubble up if unavailable.
     const sdk = await import('@anthropic-ai/claude-code').catch((error) => {
-      throw new Error(`claude_sdk_import_failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `claude_sdk_import_failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     });
 
     const query = (sdk as any)?.query ?? (sdk as any)?.default?.query;

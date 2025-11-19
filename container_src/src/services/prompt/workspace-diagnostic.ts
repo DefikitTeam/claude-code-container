@@ -32,7 +32,10 @@ export interface DiagnosticResult {
   errors: string[];
 }
 
-async function runGit(cwd: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+async function runGit(
+  cwd: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
     const result = await execFileAsync('git', args, { cwd });
     return { stdout: result.stdout, stderr: result.stderr, code: 0 };
@@ -40,14 +43,14 @@ async function runGit(cwd: string, args: string[]): Promise<{ stdout: string; st
     return {
       stdout: e.stdout || '',
       stderr: e.stderr || '',
-      code: e.code || 1
+      code: e.code || 1,
     };
   }
 }
 
 export async function diagnoseWorkspace(
   workspacePath: string,
-  targetFiles?: string[]
+  targetFiles?: string[],
 ): Promise<DiagnosticResult> {
   const result: DiagnosticResult = {
     timestamp: new Date().toISOString(),
@@ -108,9 +111,16 @@ export async function diagnoseWorkspace(
 
     // 5. Check git config
     try {
-      const userNameResult = await runGit(workspacePath, ['config', 'user.name']);
-      const userEmailResult = await runGit(workspacePath, ['config', 'user.email']);
-      result.checks.gitConfigValid = userNameResult.code === 0 && userEmailResult.code === 0;
+      const userNameResult = await runGit(workspacePath, [
+        'config',
+        'user.name',
+      ]);
+      const userEmailResult = await runGit(workspacePath, [
+        'config',
+        'user.email',
+      ]);
+      result.checks.gitConfigValid =
+        userNameResult.code === 0 && userEmailResult.code === 0;
       if (!result.checks.gitConfigValid) {
         result.errors.push('Git user.name or user.email not configured');
       }
@@ -128,7 +138,10 @@ export async function diagnoseWorkspace(
 
     // 7. Get current branch
     try {
-      const branchResult = await runGit(workspacePath, ['branch', '--show-current']);
+      const branchResult = await runGit(workspacePath, [
+        'branch',
+        '--show-current',
+      ]);
       result.checks.currentBranch = branchResult.stdout.trim() || null;
     } catch (e: any) {
       result.errors.push(`Branch check failed: ${e.message}`);
@@ -157,11 +170,14 @@ export async function diagnoseWorkspace(
 
     // 10. Get git status --porcelain
     try {
-      const statusResult = await runGit(workspacePath, ['status', '--porcelain']);
+      const statusResult = await runGit(workspacePath, [
+        'status',
+        '--porcelain',
+      ]);
       result.checks.gitStatusPorcelain = statusResult.stdout;
 
       // Parse porcelain output
-      const lines = statusResult.stdout.split('\n').filter(l => l.trim());
+      const lines = statusResult.stdout.split('\n').filter((l) => l.trim());
       for (const line of lines) {
         const status = line.substring(0, 2);
         const file = line.substring(3);
@@ -199,14 +215,15 @@ export async function diagnoseWorkspace(
             file,
           ]);
           if (checkIgnoreResult.code === 0) {
-            result.errors.push(`File is ignored by .gitignore: ${file} (${checkIgnoreResult.stdout.trim()})`);
+            result.errors.push(
+              `File is ignored by .gitignore: ${file} (${checkIgnoreResult.stdout.trim()})`,
+            );
           }
         } catch (e: any) {
           // File not ignored (exit code 1 is expected)
         }
       }
     }
-
   } catch (e: any) {
     result.errors.push(`Unexpected error: ${e.message}`);
   }
@@ -225,19 +242,25 @@ export function formatDiagnosticResult(result: DiagnosticResult): string {
   lines.push('');
 
   lines.push('CHECKS:');
-  lines.push(`  ✓ Directory Exists: ${result.checks.directoryExists ? 'YES' : 'NO'}`);
+  lines.push(
+    `  ✓ Directory Exists: ${result.checks.directoryExists ? 'YES' : 'NO'}`,
+  );
   lines.push(`  ✓ Is Git Repo: ${result.checks.isGitRepo ? 'YES' : 'NO'}`);
-  lines.push(`  ✓ Git Config Valid: ${result.checks.gitConfigValid ? 'YES' : 'NO'}`);
+  lines.push(
+    `  ✓ Git Config Valid: ${result.checks.gitConfigValid ? 'YES' : 'NO'}`,
+  );
   lines.push(`  ✓ Has Remote: ${result.checks.hasRemote ? 'YES' : 'NO'}`);
   lines.push(`  ✓ Current Branch: ${result.checks.currentBranch || 'NONE'}`);
-  lines.push(`  ✓ Workspace Permissions: ${result.checks.workspacePermissions || 'UNKNOWN'}`);
+  lines.push(
+    `  ✓ Workspace Permissions: ${result.checks.workspacePermissions || 'UNKNOWN'}`,
+  );
   lines.push('');
 
   lines.push('FILES IN WORKSPACE:');
   if (result.checks.filesInWorkspace.length === 0) {
     lines.push('  (empty)');
   } else {
-    result.checks.filesInWorkspace.forEach(f => lines.push(`  - ${f}`));
+    result.checks.filesInWorkspace.forEach((f) => lines.push(`  - ${f}`));
   }
   lines.push('');
 
@@ -245,7 +268,7 @@ export function formatDiagnosticResult(result: DiagnosticResult): string {
   if (result.checks.fileExists.length === 0) {
     lines.push('  (none checked or none found)');
   } else {
-    result.checks.fileExists.forEach(f => lines.push(`  ✓ ${f}`));
+    result.checks.fileExists.forEach((f) => lines.push(`  ✓ ${f}`));
   }
   lines.push('');
 
@@ -261,7 +284,7 @@ export function formatDiagnosticResult(result: DiagnosticResult): string {
   if (result.checks.untrackedFiles.length === 0) {
     lines.push('  (none)');
   } else {
-    result.checks.untrackedFiles.forEach(f => lines.push(`  ?? ${f}`));
+    result.checks.untrackedFiles.forEach((f) => lines.push(`  ?? ${f}`));
   }
   lines.push('');
 
@@ -269,7 +292,7 @@ export function formatDiagnosticResult(result: DiagnosticResult): string {
   if (result.checks.modifiedFiles.length === 0) {
     lines.push('  (none)');
   } else {
-    result.checks.modifiedFiles.forEach(f => lines.push(`  M  ${f}`));
+    result.checks.modifiedFiles.forEach((f) => lines.push(`  M  ${f}`));
   }
   lines.push('');
 
@@ -277,7 +300,7 @@ export function formatDiagnosticResult(result: DiagnosticResult): string {
   if (result.checks.stagedFiles.length === 0) {
     lines.push('  (none)');
   } else {
-    result.checks.stagedFiles.forEach(f => lines.push(`  A  ${f}`));
+    result.checks.stagedFiles.forEach((f) => lines.push(`  A  ${f}`));
   }
   lines.push('');
 
@@ -293,7 +316,7 @@ export function formatDiagnosticResult(result: DiagnosticResult): string {
 
   if (result.errors.length > 0) {
     lines.push('ERRORS:');
-    result.errors.forEach(err => lines.push(`  ⚠️  ${err}`));
+    result.errors.forEach((err) => lines.push(`  ⚠️  ${err}`));
     lines.push('');
   }
 

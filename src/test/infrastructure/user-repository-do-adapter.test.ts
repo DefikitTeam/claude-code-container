@@ -16,7 +16,10 @@ type TestDurableObjectNamespace = {
 };
 
 function createNamespace(
-  handler: (request: Request, parsedBody: unknown) => Promise<Response> | Response,
+  handler: (
+    request: Request,
+    parsedBody: unknown,
+  ) => Promise<Response> | Response,
 ) {
   const requests: RecordedRequest[] = [];
 
@@ -28,7 +31,11 @@ function createNamespace(
       parsedBody = text ? JSON.parse(text) : undefined;
     }
 
-    requests.push({ method: request.method, url: request.url, body: parsedBody });
+    requests.push({
+      method: request.method,
+      url: request.url,
+      body: parsedBody,
+    });
     return handler(request, parsedBody);
   });
 
@@ -57,7 +64,9 @@ describe('UserRepositoryDurableObjectAdapter', () => {
   };
 
   it('saves users via POST request', async () => {
-    const { namespace, requests } = createNamespace(async () => new Response(null, { status: 204 }));
+    const { namespace, requests } = createNamespace(
+      async () => new Response(null, { status: 204 }),
+    );
     const adapter = new UserRepositoryDurableObjectAdapter(namespace);
     const entity = new UserEntity(baseUserProps);
 
@@ -89,7 +98,9 @@ describe('UserRepositoryDurableObjectAdapter', () => {
   });
 
   it('returns null when user not found', async () => {
-    const { namespace } = createNamespace(async () => new Response('missing', { status: 404 }));
+    const { namespace } = createNamespace(
+      async () => new Response('missing', { status: 404 }),
+    );
     const adapter = new UserRepositoryDurableObjectAdapter(namespace);
 
     const user = await adapter.findById('ghost');
@@ -114,7 +125,9 @@ describe('UserRepositoryDurableObjectAdapter', () => {
   });
 
   it('deletes users through DELETE request', async () => {
-    const { namespace, requests } = createNamespace(async () => new Response(null, { status: 200 }));
+    const { namespace, requests } = createNamespace(
+      async () => new Response(null, { status: 200 }),
+    );
     const adapter = new UserRepositoryDurableObjectAdapter(namespace);
 
     await adapter.delete('user-123');
@@ -126,7 +139,9 @@ describe('UserRepositoryDurableObjectAdapter', () => {
   });
 
   it('validates identifiers before calling Durable Object', async () => {
-    const { namespace, fetchSpy } = createNamespace(async () => new Response(null, { status: 200 }));
+    const { namespace, fetchSpy } = createNamespace(
+      async () => new Response(null, { status: 200 }),
+    );
     const adapter = new UserRepositoryDurableObjectAdapter(namespace);
 
     await expect(adapter.findById('')).rejects.toThrow(ValidationError);

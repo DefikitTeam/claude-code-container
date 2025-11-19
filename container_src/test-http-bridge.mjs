@@ -26,7 +26,7 @@ async function testHttpBridge() {
     const initResult = await client.sendJsonRpc(
       'initialize',
       {
-        protocolVersion: "0.3.1",
+        protocolVersion: '0.3.1',
         clientCapabilities: {
           fs: { readTextFile: true, writeTextFile: true },
           terminal: true,

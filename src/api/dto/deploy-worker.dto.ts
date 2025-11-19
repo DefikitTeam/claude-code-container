@@ -7,9 +7,14 @@ export interface DeployWorkerDTO {
   workerCode: string;
 }
 
-export function parseDeployWorkerDTO(body: any, installationId: string): DeployWorkerDTO {
+export function parseDeployWorkerDTO(
+  body: any,
+  installationId: string,
+): DeployWorkerDTO {
   if (!body || typeof body !== 'object') {
-    throw new ValidationError('Invalid deployment data: body must be an object');
+    throw new ValidationError(
+      'Invalid deployment data: body must be an object',
+    );
   }
 
   const { version, configHash, workerCode } = body;
@@ -19,7 +24,9 @@ export function parseDeployWorkerDTO(body: any, installationId: string): DeployW
   }
 
   if (!workerCode || typeof workerCode !== 'string') {
-    throw new ValidationError('Invalid deployment data: workerCode is required');
+    throw new ValidationError(
+      'Invalid deployment data: workerCode is required',
+    );
   }
 
   // Generate configHash if not provided

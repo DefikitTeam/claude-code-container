@@ -15,6 +15,9 @@ export interface HttpContext {
 
 export type NextFunction = () => Promise<void>;
 
-export type Middleware = (ctx: HttpContext, next: NextFunction) => Promise<void>;
+export type Middleware = (
+  ctx: HttpContext,
+  next: NextFunction,
+) => Promise<void>;
 
 export type RouteHandler = (ctx: HttpContext) => Promise<void>;

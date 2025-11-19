@@ -3,7 +3,7 @@
  * Provides GitHub API operations (repositories, branches, PR creation, etc.)
  *
  * Implements: IGitHubService
- * 
+ *
  * IMPORTANT: This service NO LONGER requires GitHub App credentials.
  * It uses TokenService which calls an external provider (e.g., LumiLink) to get tokens.
  */
@@ -52,17 +52,29 @@ export class GitHubServiceImpl implements IGitHubService {
       }
 
       // Get installation token - if this succeeds, the installation is valid
-      const { token } = await this.tokenService.getInstallationToken(installationId);
-      
+      const { token } =
+        await this.tokenService.getInstallationToken(installationId);
+
       // Verify the token works by calling an installation-level endpoint
       // Note: /app/installations/{id} requires JWT auth, not installation token
       // So we use /installation/repositories which works with installation tokens
-      const response = await this.githubRequest('GET', '/installation/repositories', token);
+      const response = await this.githubRequest(
+        'GET',
+        '/installation/repositories',
+        token,
+      );
 
-      console.log(`[GitHub] Installation ${installationId} validation: ${response.status} ${response.statusText}`);
-      return response.ok && (response.status === 200 || response.status === 304);
+      console.log(
+        `[GitHub] Installation ${installationId} validation: ${response.status} ${response.statusText}`,
+      );
+      return (
+        response.ok && (response.status === 200 || response.status === 304)
+      );
     } catch (error) {
-      console.error(`[GitHub] Installation validation failed for ${installationId}:`, error);
+      console.error(
+        `[GitHub] Installation validation failed for ${installationId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -72,9 +84,7 @@ export class GitHubServiceImpl implements IGitHubService {
    * @param installationId - GitHub installation ID
    * @returns Array of repository information
    */
-  async fetchRepositories(
-    installationId: string,
-  ): Promise<
+  async fetchRepositories(installationId: string): Promise<
     Array<{
       id: number;
       name: string;
@@ -87,8 +97,13 @@ export class GitHubServiceImpl implements IGitHubService {
     }
 
     try {
-      const { token } = await this.tokenService.getInstallationToken(installationId);
-      const response = await this.githubRequest('GET', '/installation/repositories', token);
+      const { token } =
+        await this.tokenService.getInstallationToken(installationId);
+      const response = await this.githubRequest(
+        'GET',
+        '/installation/repositories',
+        token,
+      );
 
       if (!response.ok) {
         throw new UnauthorizedError('Failed to fetch repositories from GitHub');
@@ -103,7 +118,9 @@ export class GitHubServiceImpl implements IGitHubService {
       }));
     } catch (error) {
       if (error instanceof UnauthorizedError) throw error;
-      throw new Error(`Failed to fetch repositories: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to fetch repositories: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -125,15 +142,23 @@ export class GitHubServiceImpl implements IGitHubService {
     }>
   > {
     if (!owner || !repo || !installationId) {
-      throw new ValidationError('owner, repo, and installationId must be provided');
+      throw new ValidationError(
+        'owner, repo, and installationId must be provided',
+      );
     }
 
     try {
-      const { token } = await this.tokenService.getInstallationToken(installationId);
-      const response = await this.githubRequest('GET', `/repos/{owner}/{repo}/branches`, token, {
-        owner,
-        repo,
-      });
+      const { token } =
+        await this.tokenService.getInstallationToken(installationId);
+      const response = await this.githubRequest(
+        'GET',
+        `/repos/{owner}/{repo}/branches`,
+        token,
+        {
+          owner,
+          repo,
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status}`);
@@ -172,23 +197,33 @@ export class GitHubServiceImpl implements IGitHubService {
     const { owner, repo, title, body, head, base, installationId } = params;
 
     if (!owner || !repo || !title || !head || !base || !installationId) {
-      throw new ValidationError('All PR parameters (owner, repo, title, head, base, installationId) are required');
+      throw new ValidationError(
+        'All PR parameters (owner, repo, title, head, base, installationId) are required',
+      );
     }
 
     try {
-      const { token } = await this.tokenService.getInstallationToken(installationId);
-      const response = await this.githubRequest('POST', '/repos/{owner}/{repo}/pulls', token, {
-        owner,
-        repo,
-        title,
-        body,
-        head,
-        base,
-      });
+      const { token } =
+        await this.tokenService.getInstallationToken(installationId);
+      const response = await this.githubRequest(
+        'POST',
+        '/repos/{owner}/{repo}/pulls',
+        token,
+        {
+          owner,
+          repo,
+          title,
+          body,
+          head,
+          base,
+        },
+      );
 
       if (!response.ok) {
         const errorData: any = await response.json();
-        throw new Error(`GitHub API error: ${errorData.message || response.status}`);
+        throw new Error(
+          `GitHub API error: ${errorData.message || response.status}`,
+        );
       }
 
       const pr = (await response.json()) as any;
@@ -222,17 +257,25 @@ export class GitHubServiceImpl implements IGitHubService {
     const { owner, repo, title, body, installationId } = params;
 
     if (!owner || !repo || !title || !installationId) {
-      throw new ValidationError('owner, repo, title, and installationId are required');
+      throw new ValidationError(
+        'owner, repo, title, and installationId are required',
+      );
     }
 
     try {
-      const { token } = await this.tokenService.getInstallationToken(installationId);
-      const response = await this.githubRequest('POST', '/repos/{owner}/{repo}/issues', token, {
-        owner,
-        repo,
-        title,
-        body,
-      });
+      const { token } =
+        await this.tokenService.getInstallationToken(installationId);
+      const response = await this.githubRequest(
+        'POST',
+        '/repos/{owner}/{repo}/issues',
+        token,
+        {
+          owner,
+          repo,
+          title,
+          body,
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status}`);
@@ -269,13 +312,19 @@ export class GitHubServiceImpl implements IGitHubService {
     }
 
     try {
-      const { token } = await this.tokenService.getInstallationToken(installationId);
-      const response = await this.githubRequest('POST', '/repos/{owner}/{repo}/issues/{issueNumber}/comments', token, {
-        owner,
-        repo,
-        issueNumber,
-        body,
-      });
+      const { token } =
+        await this.tokenService.getInstallationToken(installationId);
+      const response = await this.githubRequest(
+        'POST',
+        '/repos/{owner}/{repo}/issues/{issueNumber}/comments',
+        token,
+        {
+          owner,
+          repo,
+          issueNumber,
+          body,
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status}`);
@@ -287,7 +336,9 @@ export class GitHubServiceImpl implements IGitHubService {
         url: comment.html_url,
       };
     } catch (error) {
-      throw new Error(`Failed to add comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to add comment: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -314,7 +365,8 @@ export class GitHubServiceImpl implements IGitHubService {
     // Filter params to get body fields (not URL path params)
     const bodyFields: Record<string, any> = {};
     if (params && method === 'POST') {
-      const pathKeys = path.match(/\{(\w+)\}/g)?.map((k) => k.slice(1, -1)) || [];
+      const pathKeys =
+        path.match(/\{(\w+)\}/g)?.map((k) => k.slice(1, -1)) || [];
       for (const [key, value] of Object.entries(params)) {
         if (!pathKeys.includes(key)) {
           bodyFields[key] = value;
@@ -325,8 +377,8 @@ export class GitHubServiceImpl implements IGitHubService {
     const requestInit: RequestInit = {
       method,
       headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github+json',
+        Authorization: `token ${token}`,
+        Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': this.apiVersion,
         'User-Agent': 'ClaudeCode-Container',
       },
@@ -334,7 +386,8 @@ export class GitHubServiceImpl implements IGitHubService {
 
     if (method === 'POST' && Object.keys(bodyFields).length > 0) {
       requestInit.body = JSON.stringify(bodyFields);
-      (requestInit.headers as Record<string, string>)['Content-Type'] = 'application/json';
+      (requestInit.headers as Record<string, string>)['Content-Type'] =
+        'application/json';
     }
 
     try {

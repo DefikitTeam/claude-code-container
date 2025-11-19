@@ -29,9 +29,13 @@ export class AcpSessionDO extends DurableObject {
   /**
    * Create a new session
    */
-  async createSession(session: Omit<AcpSession, 'startedAt' | 'updatedAt'>): Promise<AcpSession> {
+  async createSession(
+    session: Omit<AcpSession, 'startedAt' | 'updatedAt'>,
+  ): Promise<AcpSession> {
     if (!session.sessionId || !session.userId || !session.installationId) {
-      throw new ValidationError('sessionId, userId, and installationId are required');
+      throw new ValidationError(
+        'sessionId, userId, and installationId are required',
+      );
     }
 
     try {
@@ -44,11 +48,18 @@ export class AcpSessionDO extends DurableObject {
       const key = `${this.SESSIONS_PREFIX}${session.sessionId}`;
       await this.ctx.storage.put(key, JSON.stringify(data));
 
-      await this.indexSessionForUser(session.userId, session.installationId, session.sessionId, true);
+      await this.indexSessionForUser(
+        session.userId,
+        session.installationId,
+        session.sessionId,
+        true,
+      );
 
       return data;
     } catch (error) {
-      throw new Error(`Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -70,13 +81,20 @@ export class AcpSessionDO extends DurableObject {
       const session = JSON.parse(value as string) as AcpSession;
       if (session.expiresAt <= Date.now()) {
         await this.ctx.storage.delete(key);
-        await this.indexSessionForUser(session.userId, session.installationId, sessionId, false);
+        await this.indexSessionForUser(
+          session.userId,
+          session.installationId,
+          sessionId,
+          false,
+        );
         return null;
       }
 
       return session;
     } catch (error) {
-      throw new Error(`Failed to get session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get session: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -103,14 +121,19 @@ export class AcpSessionDO extends DurableObject {
       const key = `${this.SESSIONS_PREFIX}${sessionId}`;
       await this.ctx.storage.put(key, JSON.stringify(session));
     } catch (error) {
-      throw new Error(`Failed to update session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update session: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
   /**
    * List user's active sessions
    */
-  async listUserSessions(userId: string, installationId: string): Promise<AcpSession[]> {
+  async listUserSessions(
+    userId: string,
+    installationId: string,
+  ): Promise<AcpSession[]> {
     if (!userId || !installationId) {
       throw new ValidationError('userId and installationId are required');
     }
@@ -135,20 +158,28 @@ export class AcpSessionDO extends DurableObject {
 
       return sessions;
     } catch (error) {
-      throw new Error(`Failed to list sessions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list sessions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
   /**
    * Delete session
    */
-  async deleteSession(sessionId: string, userId: string, installationId: string): Promise<void> {
+  async deleteSession(
+    sessionId: string,
+    userId: string,
+    installationId: string,
+  ): Promise<void> {
     try {
       const key = `${this.SESSIONS_PREFIX}${sessionId}`;
       await this.ctx.storage.delete(key);
       await this.indexSessionForUser(userId, installationId, sessionId, false);
     } catch (error) {
-      throw new Error(`Failed to delete session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to delete session: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -162,7 +193,9 @@ export class AcpSessionDO extends DurableObject {
       const indexKey = `${this.USER_INDEX_PREFIX}${installationId}:${userId}`;
       const indexValue = await this.ctx.storage.get(indexKey);
 
-      let sessionIds: string[] = indexValue ? JSON.parse(indexValue as string) : [];
+      let sessionIds: string[] = indexValue
+        ? JSON.parse(indexValue as string)
+        : [];
 
       if (add && !sessionIds.includes(sessionId)) {
         sessionIds.push(sessionId);
@@ -172,7 +205,9 @@ export class AcpSessionDO extends DurableObject {
 
       await this.ctx.storage.put(indexKey, JSON.stringify(sessionIds));
     } catch (error) {
-      console.error(`Failed to index session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(
+        `Failed to index session: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -184,13 +219,19 @@ export class AcpSessionDO extends DurableObject {
 
     if (request.method === 'POST' && url.pathname === '/session') {
       try {
-  const session = await request.json<Omit<AcpSession, 'startedAt' | 'updatedAt'>>();
-  const created = await this.createSession(session);
+        const session =
+          await request.json<Omit<AcpSession, 'startedAt' | 'updatedAt'>>();
+        const created = await this.createSession(session);
         return new Response(JSON.stringify(created), { status: 201 });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
+          },
+        );
       }
     }
 
@@ -198,14 +239,21 @@ export class AcpSessionDO extends DurableObject {
       try {
         const sessionId = url.searchParams.get('sessionId');
         if (!sessionId) {
-          return new Response(JSON.stringify({ error: 'sessionId required' }), { status: 400 });
+          return new Response(JSON.stringify({ error: 'sessionId required' }), {
+            status: 400,
+          });
         }
         const session = await this.getSession(sessionId);
         return new Response(JSON.stringify(session), { status: 200 });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 500,
-        });
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 500,
+          },
+        );
       }
     }
 
@@ -219,9 +267,14 @@ export class AcpSessionDO extends DurableObject {
         await this.updateSessionStatus(sessionId, status, metadata);
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
+          },
+        );
       }
     }
 
@@ -230,14 +283,22 @@ export class AcpSessionDO extends DurableObject {
         const userId = url.searchParams.get('userId');
         const installationId = url.searchParams.get('installationId');
         if (!userId || !installationId) {
-          return new Response(JSON.stringify({ error: 'userId and installationId required' }), { status: 400 });
+          return new Response(
+            JSON.stringify({ error: 'userId and installationId required' }),
+            { status: 400 },
+          );
         }
         const sessions = await this.listUserSessions(userId, installationId);
         return new Response(JSON.stringify(sessions), { status: 200 });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 500,
-        });
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 500,
+          },
+        );
       }
     }
 

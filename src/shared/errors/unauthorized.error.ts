@@ -5,7 +5,10 @@
 
 import { BaseError } from './base.error';
 
-export type UnauthorizedErrorType = 'AUTHENTICATION' | 'AUTHORIZATION' | 'TOKEN_EXPIRED';
+export type UnauthorizedErrorType =
+  | 'AUTHENTICATION'
+  | 'AUTHORIZATION'
+  | 'TOKEN_EXPIRED';
 
 export class UnauthorizedError extends BaseError {
   public readonly errorType: UnauthorizedErrorType;
@@ -16,14 +19,14 @@ export class UnauthorizedError extends BaseError {
     errorType: UnauthorizedErrorType = 'AUTHENTICATION',
     requiredPermission?: string,
     statusCode: number = 401,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
     super(
       message,
       'UNAUTHORIZED_ERROR',
       statusCode,
       { errorType, requiredPermission, ...details },
-      true // operational error - safe to expose
+      true, // operational error - safe to expose
     );
 
     this.errorType = errorType;
@@ -36,27 +39,27 @@ export class UnauthorizedError extends BaseError {
   static authentication(message?: string): UnauthorizedError {
     return new UnauthorizedError(
       message || 'Authentication failed. Please provide valid credentials.',
-      'AUTHENTICATION'
+      'AUTHENTICATION',
     );
   }
 
   static missingToken(): UnauthorizedError {
     return new UnauthorizedError(
       'Missing or invalid authentication token',
-      'AUTHENTICATION'
+      'AUTHENTICATION',
     );
   }
 
   static tokenExpired(): UnauthorizedError {
     return new UnauthorizedError(
       'Authentication token has expired',
-      'TOKEN_EXPIRED'
+      'TOKEN_EXPIRED',
     );
   }
 
   static insufficientPermissions(
     permission: string,
-    resource?: string
+    resource?: string,
   ): UnauthorizedError {
     const message = resource
       ? `Insufficient permissions to access ${resource}. Required: ${permission}`
@@ -70,14 +73,11 @@ export class UnauthorizedError extends BaseError {
       message || 'Access denied',
       'AUTHORIZATION',
       undefined,
-      403
+      403,
     );
   }
 
   static invalidApiKey(): UnauthorizedError {
-    return new UnauthorizedError(
-      'Invalid API key provided',
-      'AUTHENTICATION'
-    );
+    return new UnauthorizedError('Invalid API key provided', 'AUTHENTICATION');
   }
 }

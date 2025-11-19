@@ -16,7 +16,8 @@ export class Router {
   async dispatch(ctx: HttpContext): Promise<void> {
     const route = this.routes.find(
       (candidate) =>
-        candidate.method === ctx.method && normalize(candidate.path) === ctx.path,
+        candidate.method === ctx.method &&
+        normalize(candidate.path) === ctx.path,
     );
 
     if (!route) {

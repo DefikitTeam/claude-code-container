@@ -66,7 +66,8 @@ export function extractFileWriteCandidate(
   if (!fullText || typeof fullText !== 'string') return undefined;
 
   // find filename hint from promptText first
-  const filenameRegex = /([\w\-./]+\.(?:js|ts|css|scss|md|html|json|yml|yaml|txt))/i;
+  const filenameRegex =
+    /([\w\-./]+\.(?:js|ts|css|scss|md|html|json|yml|yaml|txt))/i;
   let filename: string | undefined;
   if (promptText && typeof promptText === 'string') {
     const m = promptText.match(filenameRegex);

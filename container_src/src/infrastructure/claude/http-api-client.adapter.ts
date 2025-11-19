@@ -3,10 +3,7 @@ import type {
   ClaudeResult,
   RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
-import type {
-  ClaudeAdapter,
-  ClaudeRuntimeContext,
-} from './adapter.js';
+import type { ClaudeAdapter, ClaudeRuntimeContext } from './adapter.js';
 
 export class HTTPAPIClientAdapter implements ClaudeAdapter {
   readonly name = 'http-api' as const;
@@ -73,7 +70,11 @@ export class HTTPAPIClientAdapter implements ClaudeAdapter {
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || trimmed === 'event: message_start' || trimmed === 'event: message_stop') {
+        if (
+          !trimmed ||
+          trimmed === 'event: message_start' ||
+          trimmed === 'event: message_stop'
+        ) {
           continue;
         }
 
@@ -120,7 +121,10 @@ export class HTTPAPIClientAdapter implements ClaudeAdapter {
       return '';
     }
 
-    if (message.type === 'content_block_delta' && typeof message.delta?.text === 'string') {
+    if (
+      message.type === 'content_block_delta' &&
+      typeof message.delta?.text === 'string'
+    ) {
       return message.delta.text;
     }
 

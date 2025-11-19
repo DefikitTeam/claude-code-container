@@ -55,7 +55,11 @@ function buildRequestContext(
     hasParams: !!params,
     paramsKeys: params ? Object.keys(params) : [],
     hasAnthropicApiKey: !!(params && params.anthropicApiKey),
-    anthropicApiKeySource: params?.anthropicApiKey ? 'params' : process.env.ANTHROPIC_API_KEY ? 'env' : 'missing',
+    anthropicApiKeySource: params?.anthropicApiKey
+      ? 'params'
+      : process.env.ANTHROPIC_API_KEY
+        ? 'env'
+        : 'missing',
   });
 
   const metadata = {
@@ -63,8 +67,7 @@ function buildRequestContext(
     sessionId: getString(params, ['sessionId']),
     anthropicApiKey:
       getString(params, ['anthropicApiKey']) ?? process.env.ANTHROPIC_API_KEY,
-    githubToken:
-      getString(params, ['githubToken']) ?? process.env.GITHUB_TOKEN, // ✅ Extract GitHub token from params
+    githubToken: getString(params, ['githubToken']) ?? process.env.GITHUB_TOKEN, // ✅ Extract GitHub token from params
     workspaceUri: getString(params, ['configuration', 'workspaceUri']),
     repository: getValue(params, ['context', 'repository']),
     operation: getValue(params, ['context', 'operation']),
@@ -84,7 +87,10 @@ function buildRequestContext(
   };
 }
 
-function getString(source: Record<string, unknown> | undefined, path: string[]): string | undefined {
+function getString(
+  source: Record<string, unknown> | undefined,
+  path: string[],
+): string | undefined {
   const value = getValue(source, path);
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
@@ -102,7 +108,9 @@ function getValue(
   return current;
 }
 
-async function dispatchJsonRpc(request: JsonRpcRequest): Promise<JsonRpcResponse> {
+async function dispatchJsonRpc(
+  request: JsonRpcRequest,
+): Promise<JsonRpcResponse> {
   const params = request.params ?? {};
   const ctx = buildRequestContext(request.id, params);
 
@@ -143,10 +151,7 @@ async function dispatchJsonRpc(request: JsonRpcRequest): Promise<JsonRpcResponse
         );
         break;
       case 'cancel':
-        result = await cancelHandler(
-          params as CancelRequest['params'],
-          ctx,
-        );
+        result = await cancelHandler(params as CancelRequest['params'], ctx);
         break;
       default:
         return {

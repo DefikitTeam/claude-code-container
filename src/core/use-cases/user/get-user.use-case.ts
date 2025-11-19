@@ -25,7 +25,7 @@ export class GetUserUseCase {
 
   async execute(dto: GetUserDto): Promise<GetUserResult> {
     const user = await this.userRepository.findById(dto.userId);
-    
+
     if (!user) {
       throw NotFoundError.user(dto.userId);
     }

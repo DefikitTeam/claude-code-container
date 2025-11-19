@@ -12,5 +12,7 @@ export function registerErrorMiddleware(app: Hono): void {
     return errorResponse(c, err);
   });
 
-  app.notFound((c) => errorResponse(c, new BaseError('Route not found', 'NOT_FOUND', 404)));
+  app.notFound((c) =>
+    errorResponse(c, new BaseError('Route not found', 'NOT_FOUND', 404)),
+  );
 }

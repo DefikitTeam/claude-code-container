@@ -103,7 +103,7 @@ describe('Shared Layer - Phase 1', () => {
     it('should create insufficient permissions error', () => {
       const error = UnauthorizedError.insufficientPermissions(
         'admin',
-        'resource'
+        'resource',
       );
       expect(error.statusCode).toBe(403);
       expect(error.errorType).toBe('AUTHORIZATION');
@@ -121,7 +121,9 @@ describe('Shared Layer - Phase 1', () => {
       expect(() => validateRequired('value', 'field')).not.toThrow();
       expect(() => validateRequired('', 'field')).toThrow(ValidationError);
       expect(() => validateRequired(null, 'field')).toThrow(ValidationError);
-      expect(() => validateRequired(undefined, 'field')).toThrow(ValidationError);
+      expect(() => validateRequired(undefined, 'field')).toThrow(
+        ValidationError,
+      );
     });
 
     it('should validate email format', () => {
@@ -132,7 +134,7 @@ describe('Shared Layer - Phase 1', () => {
     it('should validate string length', () => {
       expect(() => validateLength('hello', 1, 10, 'text')).not.toThrow();
       expect(() => validateLength('hello', 10, 20, 'text')).toThrow(
-        ValidationError
+        ValidationError,
       );
     });
 
@@ -177,7 +179,7 @@ describe('Shared Layer - Phase 1', () => {
 
       // Should show first 4 chars
       expect(masked.startsWith('supe')).toBe(true);
-      // Should show last 4 chars  
+      // Should show last 4 chars
       expect(masked.endsWith('2345')).toBe(true);
       // Should not contain middle part
       expect(masked).not.toContain('secret');

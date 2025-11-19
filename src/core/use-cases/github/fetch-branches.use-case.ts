@@ -24,7 +24,11 @@ export class FetchBranchesUseCase {
       throw new ValidationError('owner, repo, and installationId are required');
     }
 
-    const branches = await this.githubService.fetchBranches(dto.owner, dto.repo, dto.installationId);
+    const branches = await this.githubService.fetchBranches(
+      dto.owner,
+      dto.repo,
+      dto.installationId,
+    );
 
     return {
       branches,

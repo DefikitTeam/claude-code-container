@@ -1,6 +1,11 @@
 import { ValidationError } from '../../shared/errors/validation.error';
 
-export type DeploymentStatus = 'pending' | 'in-progress' | 'success' | 'failed' | 'rolled-back';
+export type DeploymentStatus =
+  | 'pending'
+  | 'in-progress'
+  | 'success'
+  | 'failed'
+  | 'rolled-back';
 
 export interface DeploymentProps {
   deploymentId: string;
@@ -40,9 +45,17 @@ export class DeploymentEntity {
       throw new ValidationError('version must be a non-empty string');
     }
 
-    const validStatuses: DeploymentStatus[] = ['pending', 'in-progress', 'success', 'failed', 'rolled-back'];
+    const validStatuses: DeploymentStatus[] = [
+      'pending',
+      'in-progress',
+      'success',
+      'failed',
+      'rolled-back',
+    ];
     if (!validStatuses.includes(props.status)) {
-      throw new ValidationError('status must be one of: pending, in-progress, success, failed, rolled-back');
+      throw new ValidationError(
+        'status must be one of: pending, in-progress, success, failed, rolled-back',
+      );
     }
 
     if (!props.configHash || typeof props.configHash !== 'string') {
@@ -59,16 +72,36 @@ export class DeploymentEntity {
   }
 
   // Getters
-  get deploymentId(): string { return this.props.deploymentId; }
-  get installationId(): string { return this.props.installationId; }
-  get version(): string { return this.props.version; }
-  get status(): DeploymentStatus { return this.props.status; }
-  get configHash(): string { return this.props.configHash; }
-  get previousVersion(): string | undefined { return this.props.previousVersion; }
-  get created(): number { return this.props.created; }
-  get updated(): number { return this.props.updated; }
-  get deployedAt(): number | undefined { return this.props.deployedAt; }
-  get failureReason(): string | undefined { return this.props.failureReason; }
+  get deploymentId(): string {
+    return this.props.deploymentId;
+  }
+  get installationId(): string {
+    return this.props.installationId;
+  }
+  get version(): string {
+    return this.props.version;
+  }
+  get status(): DeploymentStatus {
+    return this.props.status;
+  }
+  get configHash(): string {
+    return this.props.configHash;
+  }
+  get previousVersion(): string | undefined {
+    return this.props.previousVersion;
+  }
+  get created(): number {
+    return this.props.created;
+  }
+  get updated(): number {
+    return this.props.updated;
+  }
+  get deployedAt(): number | undefined {
+    return this.props.deployedAt;
+  }
+  get failureReason(): string | undefined {
+    return this.props.failureReason;
+  }
 
   /**
    * Create a new deployment
@@ -78,7 +111,7 @@ export class DeploymentEntity {
     installationId: string,
     version: string,
     configHash: string,
-    previousVersion?: string
+    previousVersion?: string,
   ): DeploymentEntity {
     const now = Date.now();
     return new DeploymentEntity({
@@ -143,7 +176,11 @@ export class DeploymentEntity {
    * Check if deployment is complete
    */
   isComplete(): boolean {
-    return this.props.status === 'success' || this.props.status === 'failed' || this.props.status === 'rolled-back';
+    return (
+      this.props.status === 'success' ||
+      this.props.status === 'failed' ||
+      this.props.status === 'rolled-back'
+    );
   }
 
   /**

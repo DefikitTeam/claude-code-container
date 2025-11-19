@@ -16,8 +16,14 @@ describe('ConversationManager', () => {
 
   it('createConversation posts to /api/conversations and returns parsed response', async () => {
     const resp = { id: 'conv-123', status: 'pending' };
-    fetchMock.mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify(resp) });
-    const cm = new ConversationManager({ baseUrl: 'https://api.test', apiKey: 'sk-test' });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      text: async () => JSON.stringify(resp),
+    });
+    const cm = new ConversationManager({
+      baseUrl: 'https://api.test',
+      apiKey: 'sk-test',
+    });
     const result = await cm.createConversation({ prompt: 'hello' });
     expect(result.id).toBe('conv-123');
     expect(fetchMock).toHaveBeenCalled();
@@ -25,8 +31,14 @@ describe('ConversationManager', () => {
 
   it('getConversationStatus includes latest_event_id query when provided', async () => {
     const resp = { id: 'conv-1', status: 'in_progress' };
-    fetchMock.mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify(resp) });
-    const cm = new ConversationManager({ baseUrl: 'https://api.test', apiKey: 'sk-test' });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      text: async () => JSON.stringify(resp),
+    });
+    const cm = new ConversationManager({
+      baseUrl: 'https://api.test',
+      apiKey: 'sk-test',
+    });
     const result = await cm.getConversationStatus('conv-1', 5);
     expect(result.status).toBe('in_progress');
     // verify fetch called with URL containing latest_event_id=5

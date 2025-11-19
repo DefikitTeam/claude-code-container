@@ -32,7 +32,10 @@ export function attachRequestContext(): MiddlewareHandler {
 }
 
 function safeRandomId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID();
   }
 

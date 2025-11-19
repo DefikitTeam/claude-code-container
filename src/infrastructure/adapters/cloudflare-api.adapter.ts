@@ -35,7 +35,8 @@ export class CloudflareApiAdapter {
   private workerName: string;
   private zoneId: string;
   private readonly baseUrl = 'https://api.cloudflare.com/client/v4';
-  private readonly workersBaseUrl = 'https://api.cloudflare.com/client/v4/accounts';
+  private readonly workersBaseUrl =
+    'https://api.cloudflare.com/client/v4/accounts';
 
   constructor(config: CloudflareConfig) {
     if (!config.accountId || !config.apiToken) {
@@ -83,7 +84,7 @@ export class CloudflareApiAdapter {
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.apiToken}`,
         },
         body: formData,
       });
@@ -127,7 +128,7 @@ export class CloudflareApiAdapter {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -166,7 +167,9 @@ export class CloudflareApiAdapter {
     // 3. Return success status
 
     // For now, return stub response
-    console.warn('Worker rollback is not fully implemented - use version control instead');
+    console.warn(
+      'Worker rollback is not fully implemented - use version control instead',
+    );
     return { success: true };
   }
 
@@ -182,7 +185,7 @@ export class CloudflareApiAdapter {
       const response = await fetch(url, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.apiToken}`,
         },
       });
 
@@ -207,7 +210,7 @@ export class CloudflareApiAdapter {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -217,7 +220,9 @@ export class CloudflareApiAdapter {
       }
 
       const data = (await response.json()) as any;
-      const namespace = data.result?.find((ns: any) => ns.title === namespaceName);
+      const namespace = data.result?.find(
+        (ns: any) => ns.title === namespaceName,
+      );
 
       return namespace?.id || null;
     } catch (error) {
@@ -246,7 +251,7 @@ export class CloudflareApiAdapter {
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.apiToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ value, expirationTtl: ttl }),
@@ -274,7 +279,7 @@ export class CloudflareApiAdapter {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.apiToken}`,
         },
       });
 
@@ -295,14 +300,17 @@ export class CloudflareApiAdapter {
    * @param key - Storage key
    * @returns Success status
    */
-  async deleteKVData(namespaceId: string, key: string): Promise<{ success: boolean }> {
+  async deleteKVData(
+    namespaceId: string,
+    key: string,
+  ): Promise<{ success: boolean }> {
     try {
       const url = `${this.baseUrl}/accounts/${this.accountId}/storage/kv/namespaces/${namespaceId}/values/${key}`;
 
       const response = await fetch(url, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.apiToken}`,
         },
       });
 

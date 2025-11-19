@@ -63,9 +63,10 @@ describe('SessionEntity', () => {
     const now = Date.now();
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    const updated = entity.appendMessageHistory([
-      { type: 'text', text: 'hello world' } as ContentBlock,
-    ], now);
+    const updated = entity.appendMessageHistory(
+      [{ type: 'text', text: 'hello world' } as ContentBlock],
+      now,
+    );
     vi.useRealTimers();
     expect(updated.messageHistory.length).toBe(1);
     expect(entity.messageHistory.length).toBe(0);

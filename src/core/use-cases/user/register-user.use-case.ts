@@ -23,7 +23,7 @@ export interface RegisterUserResult {
 /**
  * Register User Use Case
  * Creates a new user for a GitHub installation
- * 
+ *
  * Flow:
  * 1. Validate GitHub installation is active
  * 2. Determine repository access (user-provided or fetch from GitHub)
@@ -34,7 +34,7 @@ export class RegisterUserUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly githubService: IGitHubService,
-    private readonly cryptoService: ICryptoService
+    private readonly cryptoService: ICryptoService,
   ) {}
 
   async execute(dto: RegisterUserDto): Promise<RegisterUserResult> {
@@ -49,7 +49,7 @@ export class RegisterUserUseCase {
     // }
 
     let repositoryAccess = dto.repositoryAccess || [];
-    
+
     // TODO: Fetch repositories from GitHub when token management is enabled
     // if (repositoryAccess.length === 0) {
     //   const repos = await this.githubService.fetchRepositories(dto.installationId);
@@ -64,7 +64,7 @@ export class RegisterUserUseCase {
       dto.installationId,
       apiKey,
       repositoryAccess,
-      dto.projectLabel
+      dto.projectLabel,
     );
 
     await this.userRepository.save(user);

@@ -61,7 +61,13 @@ export interface ConversationStatusResponse {
  * no side-effects beyond performing HTTP requests and returning parsed JSON.
  */
 export class ConversationManager {
-  constructor(private options?: { baseUrl?: string; apiKey?: string; headers?: Record<string, string> }) {}
+  constructor(
+    private options?: {
+      baseUrl?: string;
+      apiKey?: string;
+      headers?: Record<string, string>;
+    },
+  ) {}
 
   /**
    * Error type that includes an HTTP status code and optional body for
@@ -79,20 +85,32 @@ export class ConversationManager {
     }
   };
 
-  private baseUrl(): string { 
+  private baseUrl(): string {
     // The OpenHands docs and examples use https://app.all-hands.dev as the API host.
     // Use that as the default here but allow overriding via options or OPENHANDS_BASE_URL.
-    return this.options?.baseUrl || process.env.OPENHANDS_BASE_URL || 'https://app.all-hands.dev';
+    return (
+      this.options?.baseUrl ||
+      process.env.OPENHANDS_BASE_URL ||
+      'https://app.all-hands.dev'
+    );
   }
-
 
   private buildHeaders(): Record<string, string> {
     const h: Record<string, string> = { 'content-type': 'application/json' };
     // Normalize and sanitize API key values. Some environments accidentally
     // set the literal string 'undefined' or 'null' which would pass a Boolean
     // check but are not valid credentials. Treat those as absent.
-    const raw = this.options?.apiKey ?? process.env.OPENHANDS_API_KEY ?? process.env.LLM_API_KEY;
-    const apiKey = typeof raw === 'string' && raw.trim() && raw !== 'undefined' && raw !== 'null' ? raw.trim() : undefined;
+    const raw =
+      this.options?.apiKey ??
+      process.env.OPENHANDS_API_KEY ??
+      process.env.LLM_API_KEY;
+    const apiKey =
+      typeof raw === 'string' &&
+      raw.trim() &&
+      raw !== 'undefined' &&
+      raw !== 'null'
+        ? raw.trim()
+        : undefined;
     if (apiKey) {
       // Prefer standard Bearer Authorization but include common alternate
       // header names some deployments accept (x-api-key) to improve
@@ -122,7 +140,10 @@ export class ConversationManager {
    * Returns the parsed ConversationStatusResponse on success or throws an
    * Error with diagnostic information on failure.
    */
-  async createConversation(req: CreateConversationRequest, signal?: AbortSignal): Promise<ConversationStatusResponse> {
+  async createConversation(
+    req: CreateConversationRequest,
+    signal?: AbortSignal,
+  ): Promise<ConversationStatusResponse> {
     const candidates = [this.baseUrl()];
     let lastNetworkErr: any = null;
     let res: Response | undefined;
@@ -146,8 +167,12 @@ export class ConversationManager {
     }
 
     if (!res) {
-      const msg = String(lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error');
-      const e = new Error(`[ConversationManager] network error when POST (all candidates tried): ${msg}`);
+      const msg = String(
+        lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error',
+      );
+      const e = new Error(
+        `[ConversationManager] network error when POST (all candidates tried): ${msg}`,
+      );
       e.name = 'NetworkError';
       (e as any).code = lastNetworkErr?.code ?? undefined;
       throw e;
@@ -163,7 +188,7 @@ export class ConversationManager {
       } catch (e) {
         // keep raw text
       }
-      throw new (ConversationManager.HTTPError)(res.status, body);
+      throw new ConversationManager.HTTPError(res.status, body);
     }
 
     try {
@@ -182,31 +207,43 @@ export class ConversationManager {
 
       if (!json || !json.id) {
         // Provide a clearer error with the raw body for diagnostics
-        throw new Error(`[ConversationManager.createConversation] missing id in response - raw: ${text}`);
+        throw new Error(
+          `[ConversationManager.createConversation] missing id in response - raw: ${text}`,
+        );
       }
 
       return json as ConversationStatusResponse;
     } catch (err) {
-      throw new Error(`[ConversationManager.createConversation] invalid-json response: ${String(err)} - raw: ${text}`);
+      throw new Error(
+        `[ConversationManager.createConversation] invalid-json response: ${String(err)} - raw: ${text}`,
+      );
     }
   }
 
   /**
    * Retrieve conversation status and basic metadata from OpenHands.
    */
-  async getConversationStatus(conversationId: string, latestEventId?: number, signal?: AbortSignal): Promise<ConversationStatusResponse> {
+  async getConversationStatus(
+    conversationId: string,
+    latestEventId?: number,
+    signal?: AbortSignal,
+  ): Promise<ConversationStatusResponse> {
     const candidates = [this.baseUrl()];
     let lastNetworkErr: any = null;
     let res: Response | undefined;
     for (const base of candidates) {
       let url = `${base.replace(/\/$/, '')}/api/conversations/${encodeURIComponent(
-        conversationId
+        conversationId,
       )}`;
       if (typeof latestEventId === 'number') {
         url += `?latest_event_id=${encodeURIComponent(String(latestEventId))}`;
       }
       try {
-        res = await fetch(url, { method: 'GET', headers: this.buildHeaders(), signal });
+        res = await fetch(url, {
+          method: 'GET',
+          headers: this.buildHeaders(),
+          signal,
+        });
         break;
       } catch (err: any) {
         lastNetworkErr = err;
@@ -215,8 +252,12 @@ export class ConversationManager {
     }
 
     if (!res) {
-      const msg = String(lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error');
-      const e = new Error(`[ConversationManager] network error when GET (all candidates tried): ${msg}`);
+      const msg = String(
+        lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error',
+      );
+      const e = new Error(
+        `[ConversationManager] network error when GET (all candidates tried): ${msg}`,
+      );
       e.name = 'NetworkError';
       (e as any).code = lastNetworkErr?.code ?? undefined;
       throw e;
@@ -230,7 +271,7 @@ export class ConversationManager {
       } catch (e) {
         // keep raw
       }
-      throw new (ConversationManager.HTTPError)(res.status, body);
+      throw new ConversationManager.HTTPError(res.status, body);
     }
 
     try {
@@ -242,10 +283,11 @@ export class ConversationManager {
 
       return json as ConversationStatusResponse;
     } catch (err) {
-      throw new Error(`[ConversationManager.getConversationStatus] invalid-json response: ${String(err)} - raw: ${text}`);
+      throw new Error(
+        `[ConversationManager.getConversationStatus] invalid-json response: ${String(err)} - raw: ${text}`,
+      );
     }
   }
-
 }
 
 export default ConversationManager;

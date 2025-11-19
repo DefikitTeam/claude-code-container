@@ -27,7 +27,17 @@ export interface FileToolsConfig {
 export function createFileTools(config: FileToolsConfig) {
   const {
     workspacePath,
-    allowedCommands = ['ls', 'cat', 'grep', 'find', 'git', 'npm', 'node', 'python', 'pip'],
+    allowedCommands = [
+      'ls',
+      'cat',
+      'grep',
+      'find',
+      'git',
+      'npm',
+      'node',
+      'python',
+      'pip',
+    ],
     maxFileSize = 10 * 1024 * 1024, // 10MB default
   } = config;
 
@@ -59,7 +69,11 @@ IMPORTANT: Always read a file before modifying it to understand its current stat
 
 Example: readFile({ path: "src/components/Button.tsx" })`,
     inputSchema: z.object({
-      path: z.string().describe('Path to the file relative to workspace root (e.g., "src/app.ts" or "package.json")'),
+      path: z
+        .string()
+        .describe(
+          'Path to the file relative to workspace root (e.g., "src/app.ts" or "package.json")',
+        ),
     }),
     execute: async ({ path: filePath }) => {
       try {
@@ -119,8 +133,16 @@ Example workflow for modifying a file:
 2. Analyze what needs to change
 3. writeFile({ path: "src/app.ts", content: "...COMPLETE FILE..." }) // Write entire file`,
     inputSchema: z.object({
-      path: z.string().describe('Path to the file relative to workspace root (e.g., "src/utils/helper.ts")'),
-      content: z.string().describe('COMPLETE file content to write (not just changes - the entire file)'),
+      path: z
+        .string()
+        .describe(
+          'Path to the file relative to workspace root (e.g., "src/utils/helper.ts")',
+        ),
+      content: z
+        .string()
+        .describe(
+          'COMPLETE file content to write (not just changes - the entire file)',
+        ),
     }),
     execute: async ({ path: filePath, content }) => {
       try {
@@ -180,8 +202,18 @@ Example:
   listDirectory({ path: ".", recursive: false }) // See top-level structure
   listDirectory({ path: "src", recursive: true })  // Deep exploration of src/`,
     inputSchema: z.object({
-      path: z.string().describe('Path to directory relative to workspace root (use "." for root)').default('.'),
-      recursive: z.boolean().describe('List subdirectories recursively (use false for quick overview, true for deep exploration)').default(false),
+      path: z
+        .string()
+        .describe(
+          'Path to directory relative to workspace root (use "." for root)',
+        )
+        .default('.'),
+      recursive: z
+        .boolean()
+        .describe(
+          'List subdirectories recursively (use false for quick overview, true for deep exploration)',
+        )
+        .default(false),
     }),
     execute: async ({ path: dirPath, recursive }) => {
       try {
@@ -196,7 +228,9 @@ Example:
 
             for (const entry of entries) {
               const relativePath = path.join(prefix, entry.name);
-              files.push(entry.isDirectory() ? `${relativePath}/` : relativePath);
+              files.push(
+                entry.isDirectory() ? `${relativePath}/` : relativePath,
+              );
 
               if (entry.isDirectory()) {
                 await walk(path.join(dir, entry.name), relativePath);
@@ -214,8 +248,8 @@ Example:
         } else {
           // Non-recursive listing
           const entries = await fs.readdir(fullPath, { withFileTypes: true });
-          const files = entries.map(entry =>
-            entry.isDirectory() ? `${entry.name}/` : entry.name
+          const files = entries.map((entry) =>
+            entry.isDirectory() ? `${entry.name}/` : entry.name,
           );
 
           return {
@@ -258,7 +292,11 @@ Examples:
 
 Note: Commands must start with one of the allowed commands for security.`,
     inputSchema: z.object({
-      command: z.string().describe(`Bash command to execute (must start with: ${allowedCommands.join(', ')})`),
+      command: z
+        .string()
+        .describe(
+          `Bash command to execute (must start with: ${allowedCommands.join(', ')})`,
+        ),
     }),
     execute: async ({ command }) => {
       try {
@@ -301,8 +339,13 @@ Note: Commands must start with one of the allowed commands for security.`,
   const deletePathTool = tool({
     description: 'Delete a file or directory from the workspace',
     inputSchema: z.object({
-      path: z.string().describe('Path to file/directory relative to workspace root'),
-      recursive: z.boolean().describe('Delete directory recursively').default(false),
+      path: z
+        .string()
+        .describe('Path to file/directory relative to workspace root'),
+      recursive: z
+        .boolean()
+        .describe('Delete directory recursively')
+        .default(false),
     }),
     execute: async ({ path: targetPath, recursive }) => {
       try {

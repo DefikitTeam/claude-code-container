@@ -21,13 +21,17 @@ export class CryptoServiceImpl implements ICryptoService {
    */
   async initialize(keyMaterial: string | undefined | null): Promise<void> {
     if (!keyMaterial || typeof keyMaterial !== 'string') {
-      throw new ValidationError('ENCRYPTION_KEY is not configured. Provide a 64-character hex string.');
+      throw new ValidationError(
+        'ENCRYPTION_KEY is not configured. Provide a 64-character hex string.',
+      );
     }
 
     const normalizedKey = keyMaterial.trim();
 
     if (normalizedKey.length !== 64 || !/^[0-9a-fA-F]+$/.test(normalizedKey)) {
-      throw new ValidationError('ENCRYPTION_KEY must be a 32-byte key represented as a 64-character hex string.');
+      throw new ValidationError(
+        'ENCRYPTION_KEY must be a 32-byte key represented as a 64-character hex string.',
+      );
     }
 
     try {
@@ -56,7 +60,9 @@ export class CryptoServiceImpl implements ICryptoService {
     iv: Uint8Array;
   }> {
     if (!this.key) {
-      throw new ValidationError('Crypto service not initialized - call initialize() first');
+      throw new ValidationError(
+        'Crypto service not initialized - call initialize() first',
+      );
     }
 
     if (!data || typeof data !== 'string') {
@@ -85,7 +91,9 @@ export class CryptoServiceImpl implements ICryptoService {
         encryptedData: new Uint8Array(encryptedContent),
       };
     } catch (error) {
-      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -97,7 +105,9 @@ export class CryptoServiceImpl implements ICryptoService {
    */
   async decrypt(encryptedData: Uint8Array, iv: Uint8Array): Promise<string> {
     if (!this.key) {
-      throw new ValidationError('Crypto service not initialized - call initialize() first');
+      throw new ValidationError(
+        'Crypto service not initialized - call initialize() first',
+      );
     }
 
     if (!(encryptedData instanceof Uint8Array) || encryptedData.length === 0) {
@@ -121,7 +131,9 @@ export class CryptoServiceImpl implements ICryptoService {
 
       return new TextDecoder().decode(decryptedContent);
     } catch (error) {
-      throw new Error(`Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -140,7 +152,9 @@ export class CryptoServiceImpl implements ICryptoService {
       const hashBuffer = await crypto.subtle.digest('SHA-256', encodedData);
       return this.bufferToHex(new Uint8Array(hashBuffer));
     } catch (error) {
-      throw new Error(`Hash generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Hash generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -158,7 +172,9 @@ export class CryptoServiceImpl implements ICryptoService {
   ): Promise<boolean> {
     try {
       // Remove 'sha256=' prefix if present
-      const cleanSignature = signature.startsWith('sha256=') ? signature.slice(7) : signature;
+      const cleanSignature = signature.startsWith('sha256=')
+        ? signature.slice(7)
+        : signature;
 
       // Import the secret as HMAC key
       const key = await crypto.subtle.importKey(
@@ -170,7 +186,11 @@ export class CryptoServiceImpl implements ICryptoService {
       );
 
       // Generate expected signature
-      const expectedSignature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+      const expectedSignature = await crypto.subtle.sign(
+        'HMAC',
+        key,
+        new TextEncoder().encode(payload),
+      );
 
       // Convert to hex
       const expectedHex = this.bufferToHex(new Uint8Array(expectedSignature));
@@ -207,7 +227,9 @@ export class CryptoServiceImpl implements ICryptoService {
     for (let i = 0; i < hex.length; i += 2) {
       const byte = parseInt(hex.substring(i, i + 2), 16);
       if (Number.isNaN(byte)) {
-        throw new ValidationError('ENCRYPTION_KEY contains non-hexadecimal characters.');
+        throw new ValidationError(
+          'ENCRYPTION_KEY contains non-hexadecimal characters.',
+        );
       }
       bytes[i / 2] = byte;
     }
@@ -218,6 +240,8 @@ export class CryptoServiceImpl implements ICryptoService {
    * Convert Uint8Array to hex string
    */
   private bufferToHex(buffer: Uint8Array): string {
-    return Array.from(buffer).map((b) => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(buffer)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
   }
 }

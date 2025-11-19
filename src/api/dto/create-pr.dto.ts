@@ -10,7 +10,10 @@ export interface CreatePRDTO {
   installationId: string;
 }
 
-export function parseCreatePRDTO(body: any, installationId: string): CreatePRDTO {
+export function parseCreatePRDTO(
+  body: any,
+  installationId: string,
+): CreatePRDTO {
   if (!body || typeof body !== 'object') {
     throw new ValidationError('Invalid PR data: body must be an object');
   }
@@ -18,13 +21,17 @@ export function parseCreatePRDTO(body: any, installationId: string): CreatePRDTO
   const { repository, title, body: prBody, head, base } = body;
 
   if (!repository || typeof repository !== 'string') {
-    throw new ValidationError('Invalid PR data: repository is required (format: owner/repo)');
+    throw new ValidationError(
+      'Invalid PR data: repository is required (format: owner/repo)',
+    );
   }
 
   // Parse owner/repo format
   const [owner, repo] = repository.split('/');
   if (!owner || !repo) {
-    throw new ValidationError('Invalid PR data: repository must be in owner/repo format');
+    throw new ValidationError(
+      'Invalid PR data: repository must be in owner/repo format',
+    );
   }
 
   if (!title || typeof title !== 'string') {

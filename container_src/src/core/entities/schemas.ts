@@ -4,9 +4,7 @@ export const automationContextSchema = z
   .record(z.string(), z.unknown())
   .optional();
 
-export const agentContextSchema = z
-  .record(z.string(), z.unknown())
-  .optional();
+export const agentContextSchema = z.record(z.string(), z.unknown()).optional();
 
 export const contentBlockMetadataSchema = z
   .object({

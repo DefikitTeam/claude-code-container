@@ -8,7 +8,9 @@ export interface WebhookPayloadDTO {
 
 export function parseWebhookPayloadDTO(body: any): WebhookPayloadDTO {
   if (!body || typeof body !== 'object') {
-    throw new ValidationError('Invalid webhook payload: body must be an object');
+    throw new ValidationError(
+      'Invalid webhook payload: body must be an object',
+    );
   }
 
   const event = body.event || body['x-github-event'];

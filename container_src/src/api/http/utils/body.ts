@@ -1,6 +1,8 @@
 import type * as http from 'http';
 
-export async function readRequestBody(req: http.IncomingMessage): Promise<string> {
+export async function readRequestBody(
+  req: http.IncomingMessage,
+): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
     let body = '';
     req.on('data', (chunk) => {

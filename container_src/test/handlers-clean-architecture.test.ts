@@ -7,7 +7,10 @@ import { sessionLoadHandler } from '../src/handlers/session-load-handler.js';
 import { sessionPromptHandler } from '../src/handlers/session-prompt-handler.js';
 import { cancelHandler } from '../src/handlers/cancel-handler.js';
 import { acpState } from '../src/handlers/acp-state.js';
-import { getContainer, resetContainer } from '../src/config/container.config.js';
+import {
+  getContainer,
+  resetContainer,
+} from '../src/config/container.config.js';
 import type { RequestContext } from '../src/services/stdio-jsonrpc.js';
 import type { ACPSession } from '../src/types/acp-session.js';
 import type { SessionPromptResponse } from '../src/types/acp-messages.js';
@@ -49,7 +52,9 @@ describe('handler integration (clean architecture)', () => {
   function buildSession(overrides: Partial<ACPSession> = {}): ACPSession {
     const now = Date.now();
     return {
-      sessionId: overrides.sessionId ?? `session-${Math.random().toString(36).slice(2, 8)}`,
+      sessionId:
+        overrides.sessionId ??
+        `session-${Math.random().toString(36).slice(2, 8)}`,
       workspaceUri: overrides.workspaceUri,
       mode: overrides.mode ?? 'development',
       state: overrides.state ?? 'active',
@@ -81,7 +86,10 @@ describe('handler integration (clean architecture)', () => {
     acpState.deleteSession(sessionId); // force load from persistence
 
     const loadSpy = vi.spyOn(container.sessionStore, 'load');
-    const response = await sessionLoadHandler({ sessionId, includeHistory: true }, ctx);
+    const response = await sessionLoadHandler(
+      { sessionId, includeHistory: true },
+      ctx,
+    );
 
     expect(loadSpy).toHaveBeenCalledWith(sessionId);
     expect(response.sessionInfo.sessionId).toBe(sessionId);
@@ -101,7 +109,9 @@ describe('handler integration (clean architecture)', () => {
 
     const promptSpy = vi
       .spyOn(container.promptProcessor, 'processPrompt')
-      .mockResolvedValue({ stopReason: 'completed' } as SessionPromptResponse['result']);
+      .mockResolvedValue({
+        stopReason: 'completed',
+      } as SessionPromptResponse['result']);
 
     const result = await sessionPromptHandler(
       {

@@ -1,13 +1,13 @@
 /**
  * OpenAI SDK adapter for OpenRouter with FULL TOOL SUPPORT
- * 
+ *
  * This is the production-ready adapter that provides:
  * - ✅ File system tools (writeFile, readFile, listDirectory)
  * - ✅ Bash execution tool (executeBash)
  * - ✅ Automatic tool call loop (like Vercel SDK but more efficient)
  * - ✅ Native OpenAI SDK (no Vercel overhead)
  * - ✅ Streaming support with tool execution
- * 
+ *
  * Key advantages over Vercel SDK:
  * - Direct API access, less overhead
  * - Native OpenAI runTools() helper (battle-tested)
@@ -55,7 +55,9 @@ export interface OpenAIOpenRouterToolsConfig {
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
   defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5',
-  httpReferer: process.env.OPENROUTER_HTTP_REFERER || 'https://github.com/DefikitTeam/claude-code-container',
+  httpReferer:
+    process.env.OPENROUTER_HTTP_REFERER ||
+    'https://github.com/DefikitTeam/claude-code-container',
   siteName: process.env.OPENROUTER_SITE_NAME || 'Claude Code Container',
   timeout: Number(process.env.OPENROUTER_TIMEOUT || 180000),
   maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES || 2),
@@ -67,8 +69,10 @@ const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> = {
 export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
   readonly name = 'http-api' as const;
   readonly adapterId = 'openai-openrouter-tools' as const;
-  
-  private config: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> & { apiKey?: string };
+
+  private config: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> & {
+    apiKey?: string;
+  };
 
   constructor(config?: OpenAIOpenRouterToolsConfig) {
     this.config = {
@@ -76,7 +80,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       apiKey: config?.apiKey || process.env.OPENROUTER_API_KEY,
       ...(config || {}),
     };
-    
+
     logger.debug('initialized', {
       baseURL: this.config.baseURL,
       defaultModel: this.config.defaultModel,
@@ -87,10 +91,14 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
   canHandle(context: ClaudeRuntimeContext): boolean {
     // Check if we have an API key
-    const hasApiKey = !!(this.config.apiKey ?? context.apiKey ?? process.env.OPENROUTER_API_KEY);
-    
+    const hasApiKey = !!(
+      this.config.apiKey ??
+      context.apiKey ??
+      process.env.OPENROUTER_API_KEY
+    );
+
     logger.debug('can handle', { hasApiKey });
-    
+
     // Can handle if we have API key (workspace is required for tools but will be validated in run())
     return hasApiKey;
   }
@@ -106,19 +114,23 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     abortSignal: AbortSignal,
   ): Promise<ClaudeResult> {
     const startTime = Date.now();
-    
+
     try {
       // Resolve API key
-      const apiKey = this.config.apiKey ?? context.apiKey ?? process.env.OPENROUTER_API_KEY;
-      
+      const apiKey =
+        this.config.apiKey ?? context.apiKey ?? process.env.OPENROUTER_API_KEY;
+
       if (!apiKey) {
-        throw new Error('[OpenAIToolsAdapter] missing API key - set OPENROUTER_API_KEY environment variable');
+        throw new Error(
+          '[OpenAIToolsAdapter] missing API key - set OPENROUTER_API_KEY environment variable',
+        );
       }
 
       // Resolve model with mapping
-      const requestedModel = runOptions.model ?? context.model ?? this.config.defaultModel;
+      const requestedModel =
+        runOptions.model ?? context.model ?? this.config.defaultModel;
       const model = this.selectModel(requestedModel);
-      
+
       logger.info('starting completion with tools', {
         requestedModel,
         model,
@@ -144,9 +156,11 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
       // CRITICAL: Prepare file system tools (REQUIRED for coding tasks)
       const tools = this.prepareTools(context);
-      
+
       if (!tools || tools.length === 0) {
-        throw new Error('[OpenAIToolsAdapter] No workspace path provided - tools cannot be initialized. Workspace is required for file operations.');
+        throw new Error(
+          '[OpenAIToolsAdapter] No workspace path provided - tools cannot be initialized. Workspace is required for file operations.',
+        );
       }
 
       logger.debug('tools prepared', {
@@ -168,7 +182,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
       ];
-      
+
       const maxToolLoops = 10; // Prevent infinite loops
       let loopCount = 0;
       let inputTokens = this.estimateTokens(prompt + systemPrompt);
@@ -184,22 +198,30 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
         logger.info(`🔄 Tool loop iteration ${loopCount}/${maxToolLoops}`, {
           messagesCount: conversationMessages.length,
-          lastMessageRole: conversationMessages[conversationMessages.length - 1]?.role,
+          lastMessageRole:
+            conversationMessages[conversationMessages.length - 1]?.role,
         });
 
         // Create streaming completion
-        logger.info(`📡 Making API call to OpenRouter (iteration ${loopCount})...`);
+        logger.info(
+          `📡 Making API call to OpenRouter (iteration ${loopCount})...`,
+        );
         const stream = await client.chat.completions.create({
           model,
           messages: conversationMessages,
           tools: tools as any,
           stream: true,
         });
-        logger.info(`✅ API call started successfully (iteration ${loopCount})`);
+        logger.info(
+          `✅ API call started successfully (iteration ${loopCount})`,
+        );
 
         let currentMessage = '';
         let currentToolCalls: any[] = [];
-        let currentToolCallsMap = new Map<number, { id: string; name: string; arguments: string }>();
+        let currentToolCallsMap = new Map<
+          number,
+          { id: string; name: string; arguments: string }
+        >();
 
         // Process stream chunks
         for await (const chunk of stream) {
@@ -208,7 +230,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           }
 
           const delta = chunk.choices[0]?.delta;
-          
+
           // Handle content delta
           if (delta?.content) {
             currentMessage += delta.content;
@@ -222,8 +244,12 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           if (delta?.tool_calls) {
             for (const toolCall of delta.tool_calls) {
               const index = toolCall.index;
-              const existing = currentToolCallsMap.get(index) || { id: '', name: '', arguments: '' };
-              
+              const existing = currentToolCallsMap.get(index) || {
+                id: '',
+                name: '',
+                arguments: '',
+              };
+
               // Capture the tool call ID (required for matching with tool responses)
               if (toolCall.id) {
                 existing.id = toolCall.id;
@@ -234,7 +260,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               if (toolCall.function?.arguments) {
                 existing.arguments += toolCall.function.arguments;
               }
-              
+
               currentToolCallsMap.set(index, existing);
             }
           }
@@ -243,14 +269,16 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           const finishReason = chunk.choices[0]?.finish_reason;
           if (finishReason === 'tool_calls') {
             // Convert map to array with proper IDs
-            currentToolCalls = Array.from(currentToolCallsMap.entries()).map(([index, data]) => ({
-              id: data.id,
-              type: 'function' as const,
-              function: {
-                name: data.name,
-                arguments: data.arguments,
-              },
-            }));
+            currentToolCalls = Array.from(currentToolCallsMap.entries()).map(
+              ([index, data]) => ({
+                id: data.id,
+                type: 'function' as const,
+                function: {
+                  name: data.name,
+                  arguments: data.arguments,
+                },
+              }),
+            );
           }
         }
 
@@ -262,14 +290,17 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
         // If we have tool calls, execute them
         if (currentToolCalls.length > 0) {
-          logger.info(`🔧 Model requested ${currentToolCalls.length} tool calls`, {
-            tools: currentToolCalls.map(tc => tc.function.name),
-          });
+          logger.info(
+            `🔧 Model requested ${currentToolCalls.length} tool calls`,
+            {
+              tools: currentToolCalls.map((tc) => tc.function.name),
+            },
+          );
 
           // Add assistant message with tool calls to conversation
           conversationMessages.push({
             role: 'assistant',
-            content: currentMessage || null as any,
+            content: currentMessage || (null as any),
             tool_calls: currentToolCalls as any,
           });
 
@@ -288,7 +319,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               conversationMessages.push({
                 role: 'tool',
                 tool_call_id: toolCallId,
-                content: JSON.stringify({ success: false, error: 'Tool not found' }),
+                content: JSON.stringify({
+                  success: false,
+                  error: 'Tool not found',
+                }),
               });
               continue;
             }
@@ -299,7 +333,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               const args = parseFn(toolArgs);
               const execFn = (tool.function as any).function;
               const result = await execFn(args);
-              const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+              const resultStr =
+                typeof result === 'string' ? result : JSON.stringify(result);
 
               logger.debug('tool executed successfully', {
                 name: toolName,
@@ -320,12 +355,17 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               conversationMessages.push({
                 role: 'tool',
                 tool_call_id: toolCallId,
-                content: JSON.stringify({ success: false, error: error.message }),
+                content: JSON.stringify({
+                  success: false,
+                  error: error.message,
+                }),
               });
             }
           }
 
-          logger.info(`✅ All ${currentToolCalls.length} tools executed, continuing loop to send results back to model...`);
+          logger.info(
+            `✅ All ${currentToolCalls.length} tools executed, continuing loop to send results back to model...`,
+          );
 
           // Continue loop to get model's response after tool execution
           continue;
@@ -359,10 +399,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           output: outputTokens,
         },
       };
-
     } catch (error: any) {
       const durationMs = Date.now() - startTime;
-      
+
       logger.error('completion failed', {
         durationMs,
         errorMessage: error.message,
@@ -378,7 +417,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
       if (error instanceof OpenAI.APIError) {
         const apiError = new Error(
-          `openrouter_api_error_${error.status || 'unknown'}: ${error.message}`
+          `openrouter_api_error_${error.status || 'unknown'}: ${error.message}`,
         );
         (apiError as any).detail = {
           status: error.status,
@@ -398,14 +437,30 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
   /**
    * Prepare file system tools in native OpenAI SDK format
    */
-  private prepareTools(context: ClaudeRuntimeContext): RunnableToolFunction<any>[] | null {
+  private prepareTools(
+    context: ClaudeRuntimeContext,
+  ): RunnableToolFunction<any>[] | null {
     if (!context.workspacePath) {
       logger.warn('no workspace path - tools disabled');
       return null;
     }
 
     const workspacePath = context.workspacePath;
-    const allowedCommands = ['ls', 'cat', 'grep', 'find', 'git', 'npm', 'pnpm', 'node', 'python', 'pip', 'echo', 'pwd', 'which'];
+    const allowedCommands = [
+      'ls',
+      'cat',
+      'grep',
+      'find',
+      'git',
+      'npm',
+      'pnpm',
+      'node',
+      'python',
+      'pip',
+      'echo',
+      'pwd',
+      'which',
+    ];
     const maxFileSize = 10 * 1024 * 1024; // 10MB
 
     /**
@@ -431,7 +486,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
             properties: {
               path: {
                 type: 'string',
-                description: 'Path to the file relative to workspace root (e.g., "src/app.ts")',
+                description:
+                  'Path to the file relative to workspace root (e.g., "src/app.ts")',
               },
             },
             required: ['path'],
@@ -481,7 +537,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               },
               content: {
                 type: 'string',
-                description: 'Complete file content to write (must provide FULL file content)',
+                description:
+                  'Complete file content to write (must provide FULL file content)',
               },
             },
             required: ['path', 'content'],
@@ -525,7 +582,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
             properties: {
               path: {
                 type: 'string',
-                description: 'Path to directory relative to workspace root (use "." for root)',
+                description:
+                  'Path to directory relative to workspace root (use "." for root)',
               },
               recursive: {
                 type: 'boolean',
@@ -538,7 +596,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
             try {
               const fullPath = resolvePath(args.path);
 
-              const listFiles = async (dir: string, base: string = ''): Promise<string[]> => {
+              const listFiles = async (
+                dir: string,
+                base: string = '',
+              ): Promise<string[]> => {
                 const entries = await fs.readdir(dir, { withFileTypes: true });
                 const files: string[] = [];
 
@@ -547,7 +608,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
                   if (entry.isDirectory()) {
                     files.push(relativePath + '/');
                     if (args.recursive) {
-                      const subFiles = await listFiles(path.join(dir, entry.name), relativePath);
+                      const subFiles = await listFiles(
+                        path.join(dir, entry.name),
+                        relativePath,
+                      );
                       files.push(...subFiles);
                     }
                   } else {
@@ -646,7 +710,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       'gpt-4o': 'openai/gpt-4o',
       'gpt-4': 'openai/gpt-4',
       'gpt-5': 'openai/gpt-5',
-      'o1': 'openai/o1',
+      o1: 'openai/o1',
       'gemini-2.0-flash': 'google/gemini-2.0-flash-001:free',
       'gemini-flash': 'google/gemini-2.0-flash-001:free',
       'qwen-coder': 'qwen/qwen-2.5-coder-32b-instruct',

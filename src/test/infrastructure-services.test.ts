@@ -204,7 +204,10 @@ describe('Infrastructure Services', () => {
     });
 
     it('should return empty array for non-existent installation', async () => {
-      const deployments = await repository.listByInstallation('non-existent', 10);
+      const deployments = await repository.listByInstallation(
+        'non-existent',
+        10,
+      );
       expect(deployments).toHaveLength(0);
     });
   });

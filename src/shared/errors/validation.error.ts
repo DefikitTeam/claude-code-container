@@ -15,14 +15,14 @@ export class ValidationError extends BaseError {
     field?: string,
     value?: unknown,
     constraint?: string,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
     super(
       message,
       'VALIDATION_ERROR',
       400,
       { field, value, constraint, ...details },
-      true // operational error - safe to expose
+      true, // operational error - safe to expose
     );
     this.field = field;
     this.value = value;
@@ -41,7 +41,7 @@ export class ValidationError extends BaseError {
       `${field} is invalid: ${constraint}`,
       field,
       undefined,
-      constraint
+      constraint,
     );
   }
 
@@ -50,7 +50,7 @@ export class ValidationError extends BaseError {
       `${field} does not match expected pattern: ${expectedPattern}`,
       field,
       undefined,
-      `pattern:${expectedPattern}`
+      `pattern:${expectedPattern}`,
     );
   }
 }

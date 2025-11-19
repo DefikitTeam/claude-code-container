@@ -58,7 +58,9 @@ export class GitHubAppConfigDO extends DurableObject {
 
       await this.ctx.storage.put(this.CONFIG_KEY, JSON.stringify(data));
     } catch (error) {
-      throw new Error(`Failed to save config: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to save config: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -70,7 +72,9 @@ export class GitHubAppConfigDO extends DurableObject {
       const value = await this.ctx.storage.get(this.CONFIG_KEY);
       return value ? JSON.parse(value as string) : null;
     } catch (error) {
-      throw new Error(`Failed to get config: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get config: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -93,16 +97,23 @@ export class GitHubAppConfigDO extends DurableObject {
 
       const bufferedExpiresAt = Date.now() + (ttlSeconds + 1) * 1000;
 
-      await this.ctx.storage.put(key, JSON.stringify({ token, expiresAt: bufferedExpiresAt }));
+      await this.ctx.storage.put(
+        key,
+        JSON.stringify({ token, expiresAt: bufferedExpiresAt }),
+      );
     } catch (error) {
-      throw new Error(`Failed to cache token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to cache token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
   /**
    * Get cached installation token
    */
-  async getInstallationToken(installationId: string): Promise<{ token: string; expiresAt: number } | null> {
+  async getInstallationToken(
+    installationId: string,
+  ): Promise<{ token: string; expiresAt: number } | null> {
     try {
       const key = `${this.INSTALLATION_PREFIX}${installationId}`;
       const value = await this.ctx.storage.get(key);
@@ -110,7 +121,10 @@ export class GitHubAppConfigDO extends DurableObject {
         return null;
       }
 
-      const cached = JSON.parse(value as string) as { token: string; expiresAt: number };
+      const cached = JSON.parse(value as string) as {
+        token: string;
+        expiresAt: number;
+      };
       if (cached.expiresAt <= Date.now()) {
         await this.ctx.storage.delete(key);
         return null;
@@ -118,7 +132,9 @@ export class GitHubAppConfigDO extends DurableObject {
 
       return cached;
     } catch (error) {
-      throw new Error(`Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -130,7 +146,9 @@ export class GitHubAppConfigDO extends DurableObject {
       const key = `${this.INSTALLATION_PREFIX}${installationId}`;
       await this.ctx.storage.delete(key);
     } catch (error) {
-      throw new Error(`Failed to invalidate token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to invalidate token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -145,9 +163,14 @@ export class GitHubAppConfigDO extends DurableObject {
         const config = await this.getConfig();
         return new Response(JSON.stringify(config), { status: 200 });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 500,
-        });
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 500,
+          },
+        );
       }
     }
 
@@ -157,9 +180,14 @@ export class GitHubAppConfigDO extends DurableObject {
         await this.saveConfig(config);
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 400,
-        });
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
+          },
+        );
       }
     }
 
@@ -167,14 +195,22 @@ export class GitHubAppConfigDO extends DurableObject {
       try {
         const installationId = url.searchParams.get('installationId');
         if (!installationId) {
-          return new Response(JSON.stringify({ error: 'installationId required' }), { status: 400 });
+          return new Response(
+            JSON.stringify({ error: 'installationId required' }),
+            { status: 400 },
+          );
         }
         const token = await this.getInstallationToken(installationId);
         return new Response(JSON.stringify(token), { status: 200 });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
-          status: 500,
-        });
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 500,
+          },
+        );
       }
     }
 

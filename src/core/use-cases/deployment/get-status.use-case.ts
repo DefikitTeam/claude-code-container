@@ -26,7 +26,9 @@ export class GetStatusUseCase {
       throw new ValidationError('deploymentId is required');
     }
 
-    const deployment = await this.deploymentRepository.findById(dto.deploymentId);
+    const deployment = await this.deploymentRepository.findById(
+      dto.deploymentId,
+    );
     if (!deployment) {
       throw new NotFoundError(`Deployment ${dto.deploymentId} not found`);
     }

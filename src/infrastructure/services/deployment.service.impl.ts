@@ -29,7 +29,10 @@ export class DeploymentServiceImpl implements IDeploymentService {
    */
   private deploymentStatus: Map<string, DeploymentResult> = new Map();
 
-  constructor(private cloudflareApiKey?: string, private cloudflareAccountId?: string) {}
+  constructor(
+    private cloudflareApiKey?: string,
+    private cloudflareAccountId?: string,
+  ) {}
 
   /**
    * Deploy worker to production
@@ -47,7 +50,9 @@ export class DeploymentServiceImpl implements IDeploymentService {
     const { version, configHash, installationId, workerCode } = params;
 
     if (!version || !configHash || !installationId || !workerCode) {
-      throw new ValidationError('All deployment parameters (version, configHash, installationId, workerCode) are required');
+      throw new ValidationError(
+        'All deployment parameters (version, configHash, installationId, workerCode) are required',
+      );
     }
 
     if (typeof workerCode !== 'string' || workerCode.length === 0) {
@@ -98,7 +103,9 @@ export class DeploymentServiceImpl implements IDeploymentService {
         };
       }
     } catch (error) {
-      throw new Error(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -108,9 +115,7 @@ export class DeploymentServiceImpl implements IDeploymentService {
    * @param deploymentId - Deployment ID to check
    * @returns Deployment status
    */
-  async getStatus(
-    deploymentId: string,
-  ): Promise<{
+  async getStatus(deploymentId: string): Promise<{
     status: 'pending' | 'in-progress' | 'success' | 'failed';
     message?: string;
   }> {
@@ -145,7 +150,9 @@ export class DeploymentServiceImpl implements IDeploymentService {
     previousVersion: string,
   ): Promise<{ success: boolean }> {
     if (!deploymentId || !previousVersion) {
-      throw new ValidationError('deploymentId and previousVersion are required');
+      throw new ValidationError(
+        'deploymentId and previousVersion are required',
+      );
     }
 
     try {
@@ -173,7 +180,9 @@ export class DeploymentServiceImpl implements IDeploymentService {
 
       return { success };
     } catch (error) {
-      throw new Error(`Rollback failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Rollback failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -183,9 +192,7 @@ export class DeploymentServiceImpl implements IDeploymentService {
    * @param workerCode - Worker code to validate
    * @returns Validation result with any errors
    */
-  async validate(
-    workerCode: string,
-  ): Promise<{
+  async validate(workerCode: string): Promise<{
     valid: boolean;
     errors?: string[];
   }> {
@@ -214,7 +221,9 @@ export class DeploymentServiceImpl implements IDeploymentService {
       // In production, this would use a proper parser like @babel/parser
       new Function(workerCode);
     } catch (e) {
-      errors.push(`Syntax error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      errors.push(
+        `Syntax error: ${e instanceof Error ? e.message : 'Unknown error'}`,
+      );
     }
 
     return {
@@ -250,7 +259,10 @@ export class DeploymentServiceImpl implements IDeploymentService {
   /**
    * Perform the actual rollback (stub implementation)
    */
-  private async performRollback(deploymentId: string, previousVersion: string): Promise<boolean> {
+  private async performRollback(
+    deploymentId: string,
+    previousVersion: string,
+  ): Promise<boolean> {
     // In production, this would call Cloudflare API to rollback
 
     // For now, simulate successful rollback
@@ -271,7 +283,10 @@ export class DeploymentServiceImpl implements IDeploymentService {
   /**
    * Generate deployment URL (stub)
    */
-  private generateDeploymentUrl(installationId: string, version: string): string {
+  private generateDeploymentUrl(
+    installationId: string,
+    version: string,
+  ): string {
     return `https://workers.cloudflare.com/deployments/${installationId}/${version}`;
   }
 

@@ -5,7 +5,10 @@ import { GetLogsUseCase } from '../../core/use-cases/container/get-logs.use-case
 import { TerminateContainerUseCase } from '../../core/use-cases/container/terminate-container.use-case';
 import { parseSpawnContainerDTO } from '../dto/spawn-container.dto';
 import { parseProcessPromptDTO } from '../dto/process-prompt.dto';
-import { successResponse, createdResponse } from '../responses/success.response';
+import {
+  successResponse,
+  createdResponse,
+} from '../responses/success.response';
 import { errorResponse } from '../responses/error.response';
 
 export class ContainerController {
@@ -21,7 +24,11 @@ export class ContainerController {
       const installationId = c.req.header('x-installation-id')!;
       const userId = c.req.header('x-user-id')!;
       const body = await c.req.json();
-      const containerData = parseSpawnContainerDTO(body, installationId, userId);
+      const containerData = parseSpawnContainerDTO(
+        body,
+        installationId,
+        userId,
+      );
 
       const result = await this.spawnContainerUseCase.execute(containerData);
 
@@ -69,7 +76,9 @@ export class ContainerController {
         return errorResponse(c, new Error('Container ID is required'));
       }
 
-      const result = await this.terminateContainerUseCase.execute({ containerId });
+      const result = await this.terminateContainerUseCase.execute({
+        containerId,
+      });
 
       return successResponse(c, result, 200);
     } catch (err: any) {

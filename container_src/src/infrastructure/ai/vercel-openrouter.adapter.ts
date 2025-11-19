@@ -44,47 +44,69 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
     const modelName = this.selectModel(context.model || runOptions.model);
 
     // 3. Prepare file system tools (ALWAYS enabled for file operations)
-    console.error('[VercelOpenRouterAdapter] Creating file tools with workspace:', {
-      workspacePath: context.workspacePath,
-      hasWorkspace: !!context.workspacePath,
-    });
+    console.error(
+      '[VercelOpenRouterAdapter] Creating file tools with workspace:',
+      {
+        workspacePath: context.workspacePath,
+        hasWorkspace: !!context.workspacePath,
+      },
+    );
 
     const fileTools = context.workspacePath
       ? createFileTools({
           workspacePath: context.workspacePath,
-          allowedCommands: ['ls', 'cat', 'grep', 'find', 'git', 'npm', 'pnpm', 'node', 'python', 'pip', 'echo', 'pwd', 'which'],
+          allowedCommands: [
+            'ls',
+            'cat',
+            'grep',
+            'find',
+            'git',
+            'npm',
+            'pnpm',
+            'node',
+            'python',
+            'pip',
+            'echo',
+            'pwd',
+            'which',
+          ],
           maxFileSize: 10 * 1024 * 1024, // 10MB
         })
       : null;
 
     // Combine all tools
-    const tools = fileTools ? {
-      ...fileTools,
-      // Add git patch tool for efficient diff-based updates
-      applyPatch: tool({
-        description: 'Apply a unified-diff patch to the repository workspace. Use this for applying multiple file changes efficiently.',
-        inputSchema: z.object({
-          patch: z.string().min(1).describe('Unified diff patch to apply'),
-        }),
-        async execute({ patch }) {
-          const maxBytes = Number(process.env.ACP_MAX_PATCH_BYTES) || 200 * 1024;
-          if (Buffer.byteLength(patch, 'utf8') > maxBytes) {
-            return { success: false, error: 'patch-too-large' };
-          }
-          const git = new GitService();
-          const ws = context.workspacePath;
-          if (!ws) return { success: false, error: 'workspace-not-provided' };
-          try {
-            await git.applyPatch(ws, patch);
-            return { success: true };
-          } catch (error: any) {
-            return { success: false, error: error.message };
-          }
-        },
-      }),
-    } : undefined;
+    const tools = fileTools
+      ? {
+          ...fileTools,
+          // Add git patch tool for efficient diff-based updates
+          applyPatch: tool({
+            description:
+              'Apply a unified-diff patch to the repository workspace. Use this for applying multiple file changes efficiently.',
+            inputSchema: z.object({
+              patch: z.string().min(1).describe('Unified diff patch to apply'),
+            }),
+            async execute({ patch }) {
+              const maxBytes =
+                Number(process.env.ACP_MAX_PATCH_BYTES) || 200 * 1024;
+              if (Buffer.byteLength(patch, 'utf8') > maxBytes) {
+                return { success: false, error: 'patch-too-large' };
+              }
+              const git = new GitService();
+              const ws = context.workspacePath;
+              if (!ws)
+                return { success: false, error: 'workspace-not-provided' };
+              try {
+                await git.applyPatch(ws, patch);
+                return { success: true };
+              } catch (error: any) {
+                return { success: false, error: error.message };
+              }
+            },
+          }),
+        }
+      : undefined;
 
-      try {
+    try {
       // 4. Prepare system instructions for coding assistant behavior
       const systemPrompt = getWorkspaceSystemPrompt({
         workspacePath: context.workspacePath,
@@ -213,10 +235,11 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
         throw error;
       }
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error('[VercelOpenRouterAdapter] Error:', errorMessage);
       callbacks.onError?.(error);
-      
+
       throw new Error(`openrouter_sdk_error: ${errorMessage}`);
     }
   }
@@ -233,19 +256,19 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
       'claude-sonnet-4': 'anthropic/claude-sonnet-4',
       'claude-sonnet-4-5': 'anthropic/claude-sonnet-4', // Alias for claude-sonnet-4
       'claude-3.7-sonnet': 'anthropic/claude-3.7-sonnet:thinking',
-      
+
       // OpenAI models
       'gpt-4o': 'openai/gpt-4o',
       'gpt-4': 'openai/gpt-4',
-      'o1': 'openai/o1',
-      
+      o1: 'openai/o1',
+
       // Google models
       'gemini-2.0-flash': 'google/gemini-2.0-flash-001:free',
       'gemini-flash': 'google/gemini-2.0-flash-001:free',
-      
+
       // Coding-specific models
       'qwen-coder': 'qwen/qwen-2.5-coder-32b-instruct',
-      
+
       // Reasoning models
       'deepseek-r1': 'deepseek/deepseek-r1',
     };

@@ -57,7 +57,10 @@ describe('E2E: Container Execution Flow', () => {
     expect(result.success).toBe(true);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe('Success');
-    expect(mockContainerService.execute).toHaveBeenCalledWith('container_123', 'echo "Hello"');
+    expect(mockContainerService.execute).toHaveBeenCalledWith(
+      'container_123',
+      'echo "Hello"',
+    );
   });
 
   it('should terminate container', async () => {
@@ -67,7 +70,9 @@ describe('E2E: Container Execution Flow', () => {
 
     expect(result.status).toBe('terminated');
     expect(result.message).toBe('Container terminated successfully');
-    expect(mockContainerService.terminate).toHaveBeenCalledWith('container_123');
+    expect(mockContainerService.terminate).toHaveBeenCalledWith(
+      'container_123',
+    );
   });
 
   it('should throw ValidationError when required fields missing', async () => {
@@ -79,7 +84,7 @@ describe('E2E: Container Execution Flow', () => {
         containerImage: 'node:18',
         environmentVariables: {},
         resourceLimits: { cpuMillis: 1000, memoryMb: 512, timeoutSeconds: 300 },
-      })
+      }),
     ).rejects.toThrow(ValidationError);
   });
 

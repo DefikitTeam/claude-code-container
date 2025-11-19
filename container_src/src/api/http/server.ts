@@ -7,7 +7,12 @@ import { registerHealthRoute } from './routes/health-route.js';
 import { registerProcessRoute } from './routes/process-route.js';
 import { registerAcpRoutes } from './routes/acp-route.js';
 import { logWithContext } from './utils/logger.js';
-import type { HttpContext, Middleware, NextFunction, HttpMethod } from './types.js';
+import type {
+  HttpContext,
+  Middleware,
+  NextFunction,
+  HttpMethod,
+} from './types.js';
 
 const DEFAULT_PORT = parseInt(process.env.PORT || '8080', 10);
 
@@ -45,7 +50,10 @@ export async function runHttpServer(argv: any = {}): Promise<void> {
 
   await new Promise<void>((resolve, reject) => {
     server.listen(port, '0.0.0.0', () => {
-      logWithContext('SERVER', `HTTP server listening on http://0.0.0.0:${port}`);
+      logWithContext(
+        'SERVER',
+        `HTTP server listening on http://0.0.0.0:${port}`,
+      );
       logWithContext('SERVER', 'Routes registered', {
         routes: ['GET /health', 'POST /process', 'POST /acp'],
       });
@@ -66,7 +74,10 @@ export async function runHttpServer(argv: any = {}): Promise<void> {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-function buildContext(req: http.IncomingMessage, res: http.ServerResponse): HttpContext {
+function buildContext(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): HttpContext {
   const method = (req.method || 'GET').toUpperCase() as HttpMethod;
   const originalUrl = req.url || '/';
   const requestUrl = new URL(originalUrl, 'http://localhost');
@@ -83,7 +94,10 @@ function buildContext(req: http.IncomingMessage, res: http.ServerResponse): Http
   };
 }
 
-function compose(middlewares: Middleware[], terminal: (ctx: HttpContext) => Promise<void>) {
+function compose(
+  middlewares: Middleware[],
+  terminal: (ctx: HttpContext) => Promise<void>,
+) {
   return async (ctx: HttpContext): Promise<void> => {
     let index = -1;
     const dispatch = async (i: number): Promise<void> => {

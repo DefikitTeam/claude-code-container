@@ -6,7 +6,11 @@ export interface SpawnContainerDTO {
   userId: string;
   containerImage: string;
   environmentVariables: Record<string, string>;
-  resourceLimits: { cpuMillis: number; memoryMb: number; timeoutSeconds: number };
+  resourceLimits: {
+    cpuMillis: number;
+    memoryMb: number;
+    timeoutSeconds: number;
+  };
 }
 
 export function parseSpawnContainerDTO(
@@ -18,14 +22,17 @@ export function parseSpawnContainerDTO(
     throw new ValidationError('Invalid container data: body must be an object');
   }
 
-  const { configId, containerImage, environmentVariables, resourceLimits } = body;
+  const { configId, containerImage, environmentVariables, resourceLimits } =
+    body;
 
   if (!configId || typeof configId !== 'string') {
     throw new ValidationError('Invalid container data: configId is required');
   }
 
   if (!containerImage || typeof containerImage !== 'string') {
-    throw new ValidationError('Invalid container data: containerImage is required');
+    throw new ValidationError(
+      'Invalid container data: containerImage is required',
+    );
   }
 
   return {
@@ -34,6 +41,10 @@ export function parseSpawnContainerDTO(
     userId,
     containerImage,
     environmentVariables: environmentVariables || {},
-    resourceLimits: resourceLimits || { cpuMillis: 1000, memoryMb: 256, timeoutSeconds: 300 },
+    resourceLimits: resourceLimits || {
+      cpuMillis: 1000,
+      memoryMb: 256,
+      timeoutSeconds: 300,
+    },
   };
 }

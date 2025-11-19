@@ -14,7 +14,7 @@ export class BaseError extends Error {
     code: string,
     statusCode: number = 500,
     details?: Record<string, unknown>,
-    isOperational: boolean = true
+    isOperational: boolean = true,
   ) {
     super(message);
     this.code = code;

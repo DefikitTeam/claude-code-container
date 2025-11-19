@@ -54,19 +54,41 @@ export class UserEntity {
   }
 
   // Getters
-  get userId(): string { return this.props.userId; }
-  get installationId(): string { return this.props.installationId; }
-  get anthropicApiKey(): string { return this.props.anthropicApiKey; }
-  get repositoryAccess(): string[] { return this.props.repositoryAccess; }
-  get isActive(): boolean { return this.props.isActive; }
-  get created(): number { return this.props.created; }
-  get updated(): number { return this.props.updated; }
-  get projectLabel(): string | null | undefined { return this.props.projectLabel; }
+  get userId(): string {
+    return this.props.userId;
+  }
+  get installationId(): string {
+    return this.props.installationId;
+  }
+  get anthropicApiKey(): string {
+    return this.props.anthropicApiKey;
+  }
+  get repositoryAccess(): string[] {
+    return this.props.repositoryAccess;
+  }
+  get isActive(): boolean {
+    return this.props.isActive;
+  }
+  get created(): number {
+    return this.props.created;
+  }
+  get updated(): number {
+    return this.props.updated;
+  }
+  get projectLabel(): string | null | undefined {
+    return this.props.projectLabel;
+  }
 
   /**
    * Create a new user
    */
-  static create(userId: string, installationId: string, anthropicApiKey: string, repositoryAccess: string[], projectLabel?: string | null): UserEntity {
+  static create(
+    userId: string,
+    installationId: string,
+    anthropicApiKey: string,
+    repositoryAccess: string[],
+    projectLabel?: string | null,
+  ): UserEntity {
     const now = Date.now();
     return new UserEntity({
       userId,
@@ -123,7 +145,10 @@ export class UserEntity {
    * Check if user has access to a repository
    */
   hasAccessTo(repo: string): boolean {
-    return this.props.repositoryAccess.includes('*') || this.props.repositoryAccess.includes(repo);
+    return (
+      this.props.repositoryAccess.includes('*') ||
+      this.props.repositoryAccess.includes(repo)
+    );
   }
 
   /**

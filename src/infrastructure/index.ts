@@ -84,4 +84,7 @@ export type {
   IDeploymentService,
 } from '../core/interfaces/services';
 
-export type { IUserRepository, IDeploymentRepository } from '../core/interfaces/repositories';
+export type {
+  IUserRepository,
+  IDeploymentRepository,
+} from '../core/interfaces/repositories';

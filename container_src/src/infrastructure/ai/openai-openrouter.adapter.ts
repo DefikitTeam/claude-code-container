@@ -1,15 +1,15 @@
 /**
  * OpenAI SDK adapter for OpenRouter integration
- * 
+ *
  * This adapter uses the official OpenAI SDK to communicate with OpenRouter's API.
  * OpenRouter provides a unified interface to 200+ LLMs including Claude, GPT, Gemini, etc.
- * 
+ *
  * Key features:
  * - Simple HTTP streaming (no WebSocket complexity)
  * - Native tool calling support
  * - Multi-model fallback capabilities
  * - Compatible with Cloudflare Workers (stateless)
- * 
+ *
  * Documentation:
  * - OpenRouter Docs: https://openrouter.ai/docs/community/open-ai-sdk
  * - OpenAI SDK: https://github.com/openai/openai-node
@@ -26,10 +26,14 @@ import type {
 
 // Lightweight logger scoped to this adapter
 const logger = {
-  error: (...args: unknown[]) => console.error('[OpenAIOpenRouterAdapter]', ...args),
-  warn: (...args: unknown[]) => console.warn('[OpenAIOpenRouterAdapter]', ...args),
-  info: (...args: unknown[]) => console.info('[OpenAIOpenRouterAdapter]', ...args),
-  debug: (...args: unknown[]) => console.debug('[OpenAIOpenRouterAdapter]', ...args),
+  error: (...args: unknown[]) =>
+    console.error('[OpenAIOpenRouterAdapter]', ...args),
+  warn: (...args: unknown[]) =>
+    console.warn('[OpenAIOpenRouterAdapter]', ...args),
+  info: (...args: unknown[]) =>
+    console.info('[OpenAIOpenRouterAdapter]', ...args),
+  debug: (...args: unknown[]) =>
+    console.debug('[OpenAIOpenRouterAdapter]', ...args),
 };
 
 /**
@@ -38,22 +42,22 @@ const logger = {
 export interface OpenAIOpenRouterConfig {
   // Base URL for OpenRouter API (defaults to https://openrouter.ai/api/v1)
   baseURL?: string;
-  
+
   // API key for OpenRouter (defaults to OPENROUTER_API_KEY env var)
   apiKey?: string;
 
   // Default model to use (defaults to openai/gpt-5)
   defaultModel?: string;
-  
+
   // Optional HTTP referer header (for OpenRouter rankings)
   httpReferer?: string;
-  
+
   // Optional site name header (for OpenRouter rankings)
   siteName?: string;
-  
+
   // Request timeout in milliseconds
   timeout?: number;
-  
+
   // Maximum retries for transient errors
   maxRetries?: number;
 }
@@ -64,7 +68,9 @@ export interface OpenAIOpenRouterConfig {
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
   defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5',
-  httpReferer: process.env.OPENROUTER_HTTP_REFERER || 'https://github.com/DefikitTeam/claude-code-container',
+  httpReferer:
+    process.env.OPENROUTER_HTTP_REFERER ||
+    'https://github.com/DefikitTeam/claude-code-container',
   siteName: process.env.OPENROUTER_SITE_NAME || 'Claude Code Container',
   timeout: Number(process.env.OPENROUTER_TIMEOUT || 180000), // 3 minutes
   maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES || 2),
@@ -72,18 +78,20 @@ const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterConfig, 'apiKey'>> = {
 
 /**
  * OpenAI SDK adapter for OpenRouter
- * 
+ *
  * Implements the ClaudeAdapter interface using OpenAI SDK + OpenRouter.
  * This provides a simpler, more reliable alternative to WebSocket-based adapters.
  */
 export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
   // Runtime kind (must be one of 'sdk' | 'cli' | 'http-api')
   readonly name = 'http-api' as const;
-  
+
   // Adapter identifier for logging and diagnostics
   readonly adapterId = 'openai-openrouter' as const;
-  
-  private config: Required<Omit<OpenAIOpenRouterConfig, 'apiKey'>> & { apiKey?: string };
+
+  private config: Required<Omit<OpenAIOpenRouterConfig, 'apiKey'>> & {
+    apiKey?: string;
+  };
 
   constructor(config?: OpenAIOpenRouterConfig) {
     this.config = {
@@ -91,7 +99,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       apiKey: config?.apiKey || process.env.OPENROUTER_API_KEY,
       ...(config || {}),
     };
-    
+
     logger.debug('initialized', {
       baseURL: this.config.baseURL,
       defaultModel: this.config.defaultModel,
@@ -102,7 +110,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
 
   /**
    * Check if this adapter can handle the given context
-   * 
+   *
    * Requirements:
    * - OpenRouter API key must be available
    * - Can be explicitly disabled via CLAUDE_CLIENT_DISABLE_OPENAI_OPENROUTER env var
@@ -110,7 +118,9 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
   canHandle(context: ClaudeRuntimeContext): boolean {
     // Respect explicit disabling
     if (process.env.CLAUDE_CLIENT_DISABLE_OPENAI_OPENROUTER === '1') {
-      logger.debug('adapter disabled via CLAUDE_CLIENT_DISABLE_OPENAI_OPENROUTER');
+      logger.debug(
+        'adapter disabled via CLAUDE_CLIENT_DISABLE_OPENAI_OPENROUTER',
+      );
       return false;
     }
 
@@ -118,7 +128,8 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
     // 1. Adapter config override
     // 2. Runtime context
     // 3. Environment variable
-    const apiKey = this.config.apiKey ?? context.apiKey ?? process.env.OPENROUTER_API_KEY;
+    const apiKey =
+      this.config.apiKey ?? context.apiKey ?? process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
       logger.debug('no API key available');
@@ -131,7 +142,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
 
   /**
    * Run a prompt using OpenAI SDK + OpenRouter
-   * 
+   *
    * Supports:
    * - Streaming responses (async iteration)
    * - Tool calling (function tools)
@@ -146,19 +157,23 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
     abortSignal: AbortSignal,
   ): Promise<ClaudeResult> {
     const startTime = Date.now();
-    
+
     try {
       // Resolve API key (same priority as canHandle)
-      const apiKey = this.config.apiKey ?? context.apiKey ?? process.env.OPENROUTER_API_KEY;
-      
+      const apiKey =
+        this.config.apiKey ?? context.apiKey ?? process.env.OPENROUTER_API_KEY;
+
       if (!apiKey) {
-        throw new Error('[OpenAIOpenRouterAdapter] missing API key - set OPENROUTER_API_KEY environment variable');
+        throw new Error(
+          '[OpenAIOpenRouterAdapter] missing API key - set OPENROUTER_API_KEY environment variable',
+        );
       }
 
       // Resolve model (priority: runOptions > context > config default)
-      const requestedModel = runOptions.model ?? context.model ?? this.config.defaultModel;
+      const requestedModel =
+        runOptions.model ?? context.model ?? this.config.defaultModel;
       const model = this.selectModel(requestedModel);
-      
+
       logger.info('starting completion', {
         requestedModel,
         model,
@@ -213,12 +228,12 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
         // Extract delta content
         const delta = chunk.choices[0]?.delta;
         const content = delta?.content || '';
-        
+
         if (content) {
           fullText += content;
           const tokens = this.estimateTokens(content);
           outputTokens += tokens;
-          
+
           // Notify delta callback
           callbacks.onDelta?.({ text: content, tokens });
         }
@@ -227,9 +242,11 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
         if (delta?.tool_calls) {
           logger.debug('tool calls received', {
             count: delta.tool_calls.length,
-            tools: delta.tool_calls.map((tc: any) => tc.function?.name).filter(Boolean),
+            tools: delta.tool_calls
+              .map((tc: any) => tc.function?.name)
+              .filter(Boolean),
           });
-          
+
           // Note: Tool call handling would be implemented here when RunOptions supports it
           // For now, we just log them
         }
@@ -246,7 +263,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       }
 
       const durationMs = Date.now() - startTime;
-      
+
       logger.info('completion succeeded', {
         durationMs,
         outputLength: fullText.length,
@@ -263,10 +280,9 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
           output: outputTokens,
         },
       };
-
     } catch (error: any) {
       const durationMs = Date.now() - startTime;
-      
+
       logger.error('completion failed', {
         durationMs,
         errorMessage: error.message,
@@ -284,7 +300,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       if (error instanceof OpenAI.APIError) {
         // OpenAI SDK error with structured information
         const apiError = new Error(
-          `openrouter_api_error_${error.status || 'unknown'}: ${error.message}`
+          `openrouter_api_error_${error.status || 'unknown'}: ${error.message}`,
         );
         (apiError as any).detail = {
           status: error.status,
@@ -304,7 +320,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
 
   /**
    * Map model names to OpenRouter model identifiers
-   * 
+   *
    * Supports common short names (claude-sonnet-4) and full OpenRouter IDs (anthropic/claude-sonnet-4).
    * If a model ID already contains a slash, it's assumed to be a valid OpenRouter ID.
    */
@@ -317,20 +333,20 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       'claude-sonnet-4': 'anthropic/claude-sonnet-4',
       'claude-sonnet-4-5': 'anthropic/claude-sonnet-4', // Alias for claude-sonnet-4
       'claude-3.7-sonnet': 'anthropic/claude-3.7-sonnet:thinking',
-      
+
       // OpenAI models
       'gpt-4o': 'openai/gpt-4o',
       'gpt-4': 'openai/gpt-4',
       'gpt-5': 'openai/gpt-5',
-      'o1': 'openai/o1',
-      
+      o1: 'openai/o1',
+
       // Google models
       'gemini-2.0-flash': 'google/gemini-2.0-flash-001:free',
       'gemini-flash': 'google/gemini-2.0-flash-001:free',
-      
+
       // Coding-specific models
       'qwen-coder': 'qwen/qwen-2.5-coder-32b-instruct',
-      
+
       // Reasoning models
       'deepseek-r1': 'deepseek/deepseek-r1',
     };

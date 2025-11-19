@@ -16,5 +16,3 @@ export {
   type ContainerAuthResult,
   ContainerAuthError,
 } from './container-registry-auth.service';
-
-
