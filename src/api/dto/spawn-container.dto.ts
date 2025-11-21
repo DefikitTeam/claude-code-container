@@ -44,7 +44,7 @@ export function parseSpawnContainerDTO(
     resourceLimits: resourceLimits || {
       cpuMillis: 1000,
       memoryMb: 256,
-      timeoutSeconds: 300,
+      timeoutSeconds: 900,
     },
   };
 }
