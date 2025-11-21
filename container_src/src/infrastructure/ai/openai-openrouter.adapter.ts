@@ -72,7 +72,7 @@ const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterConfig, 'apiKey'>> = {
     process.env.OPENROUTER_HTTP_REFERER ||
     'https://github.com/DefikitTeam/claude-code-container',
   siteName: process.env.OPENROUTER_SITE_NAME || 'Claude Code Container',
-  timeout: Number(process.env.OPENROUTER_TIMEOUT || 180000), // 3 minutes
+  timeout: Number(process.env.OPENROUTER_TIMEOUT || 900000), // 15 minutes
   maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES || 2),
 };
 
