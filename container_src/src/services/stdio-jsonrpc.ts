@@ -4,6 +4,8 @@
  */
 
 import { EventEmitter } from 'events';
+import postToBroker from '../api/utils/streaming.js';
+import { getStreamBrokerConfig } from '../config/index.js';
 import {
   JSONRPCRequest,
   JSONRPCResponse,
@@ -27,6 +29,7 @@ export class StdioJSONRPCServer extends EventEmitter {
   private handlers = new Map<string, JSONRPCHandler['handler']>();
   private isRunning = false;
   private buffer = '';
+  private seqCounters = new Map<string, number>();
 
   constructor() {
     super();
@@ -272,12 +275,56 @@ export class StdioJSONRPCServer extends EventEmitter {
    * Send a notification to the client
    */
   sendNotification(method: string, params: any): void {
+    // ensure timestamp and seqNo are present for session notifications
+    if (typeof method === 'string' && method.startsWith('session/')) {
+      const sessionId = params?.sessionId || params?.session?.sessionId;
+      if (!params.timestamp) params.timestamp = Date.now();
+      if (sessionId && params.seqNo === undefined) {
+        const last = this.seqCounters.get(sessionId) ?? 0;
+        const next = last + 1;
+        this.seqCounters.set(sessionId, next);
+        params.seqNo = next;
+      }
+    }
+
     const notification: JSONRPCNotification = {
       jsonrpc: '2.0',
       method,
       params,
     };
     this.sendResponse(notification);
+
+    // Optionally POST session.* notifications to configured Stream Broker (non-blocking)
+    try {
+      const isSessionNotification =
+        typeof method === 'string' && method.startsWith('session/');
+      const cfg = getStreamBrokerConfig();
+      const envSet = !!cfg.url;
+      const requestedStream = params && params.stream === true;
+      const streamEnabled = !!cfg.enabled;
+      if (isSessionNotification && (envSet || requestedStream)) {
+        // gate by explicit config flag (T021)
+        if (!streamEnabled) return;
+        const sessionId = params?.sessionId || params?.session?.sessionId;
+        if (sessionId) {
+          // Fire-and-forget: post but attach .catch to avoid unhandled promise rejection
+          postToBroker(
+            sessionId,
+            { method, params },
+            params?.streamToken,
+          ).catch((err) => {
+            console.error('[postToBroker] async error', err);
+          });
+        } else {
+          console.warn(
+            '[postToBroker] Missing sessionId for session notification; skipping broker post',
+          );
+        }
+      }
+    } catch (err) {
+      // Protect notification path from broker errors; log and continue
+      console.error('[postToBroker] unexpected error in sendNotification', err);
+    }
   }
 
   /**

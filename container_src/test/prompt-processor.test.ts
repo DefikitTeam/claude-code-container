@@ -228,6 +228,30 @@ describe('PromptProcessor', () => {
     expect(res.githubOperations?.branchCreated).toBe(automationResult.branch);
   });
 
+  it('adds seqNo and timestamp to session/update notifications', async () => {
+    const calls: Array<{ method: string; params: any }> = [];
+    const notificationSender = (method: string, params: any) => {
+      calls.push({ method, params });
+    };
+
+    await processor.processPrompt({
+      sessionId: 'sess-1',
+      content: [{ type: 'text', text: 'Test' }],
+      notificationSender,
+    });
+
+    // We expect at least 3 session/update notifications: onStart, onDelta, onComplete
+    const sessionUpdates = calls.filter((c) => c.method === 'session/update');
+    expect(sessionUpdates.length).toBeGreaterThanOrEqual(3);
+    let lastSeq: number | null = null;
+    for (const u of sessionUpdates) {
+      expect(typeof u.params.timestamp).toBe('number');
+      expect(typeof u.params.seqNo).toBe('number');
+      if (lastSeq !== null) expect(u.params.seqNo).toBeGreaterThan(lastSeq);
+      lastSeq = u.params.seqNo;
+    }
+  });
+
   describe('GitHub automation integration', () => {
     it('executes automation end-to-end and merges legacy githubOperations', async () => {
       const git = createIntegrationGitService();
