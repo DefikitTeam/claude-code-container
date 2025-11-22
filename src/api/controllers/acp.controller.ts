@@ -20,6 +20,10 @@ export class ACPController {
       const jsonRpcRequest = await c.req.json();
       // Extract params from JSON-RPC envelope (params field contains actual parameters)
       const params = jsonRpcRequest.params || jsonRpcRequest;
+      // Allow the worker to be requested to stream via query param: ?stream=true
+      if (c.req.query('stream') === 'true') {
+        params.stream = true;
+      }
       const result = await this.acpBridgeService.routeACPMethod(
         'initialize',
         params,
@@ -40,6 +44,9 @@ export class ACPController {
       const jsonRpcRequest = await c.req.json();
       // Extract params from JSON-RPC envelope (params field contains actual parameters)
       const params = jsonRpcRequest.params || jsonRpcRequest;
+      if (c.req.query('stream') === 'true') {
+        params.stream = true;
+      }
       const result = await this.acpBridgeService.routeACPMethod(
         'session/new',
         params,
