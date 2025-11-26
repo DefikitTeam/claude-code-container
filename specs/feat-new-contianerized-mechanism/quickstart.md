@@ -11,17 +11,23 @@ This guide covers setting up the development environment for Daytona sandbox int
 
 - Node.js 22+
 - pnpm 8+
+- Homebrew (for macOS)
 - Daytona API Key ([Get one here](https://www.daytona.io/))
 - Anthropic API Key
 - GitHub App credentials (for full flow testing)
 
-## 1. Install Daytona CLI (Optional)
+## 1. Install Daytona CLI
 
 The CLI can be useful for managing workspaces manually.
 
 ```bash
-# Installation instructions for Daytona CLI would go here if available
-# For now, we will rely on the SDK
+# For macOS
+brew install daytonaio/daytona/daytona
+```
+
+Authenticate:
+```bash
+daytona login
 ```
 
 ## 2. Add Daytona SDK to Worker
@@ -69,9 +75,8 @@ async function testDaytonaSandbox() {
   
   // Test file operations
   await sandbox.fs.uploadFile(Buffer.from('Hello World'), '/tmp/test.txt');
-  // Note: Daytona SDK might have a different method for reading files, assuming one exists.
-  // const content = await sandbox.fs.readFile('/tmp/test.txt');
-  // console.log('File content:', content);
+  const content = await sandbox.fs.downloadFile('/tmp/test.txt');
+  console.log('File content:', content.toString());
   
   // Cleanup
   await sandbox.delete();
