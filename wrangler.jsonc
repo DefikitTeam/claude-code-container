@@ -36,6 +36,10 @@
         "class_name": "AsyncJobDO",
         "name": "ASYNC_JOB",
       },
+      {
+        "class_name": "SandboxManagerDO",
+        "name": "SANDBOX_MANAGER_DO",
+      },
     ],
   },
   "migrations": [
@@ -55,6 +59,10 @@
       "new_sqlite_classes": ["AsyncJobDO"],
       "tag": "v4",
     },
+    {
+      "new_classes": ["SandboxManagerDO"],
+      "tag": "v5",
+    }
   ],
   "build": {
     "command": "npm run build:all",
@@ -62,6 +70,7 @@
   "vars": {
     "ENVIRONMENT": "development",
     "ENABLE_DEEP_REASONING": "false",
+    "USE_DAYTONA_SANDBOXES": "false",
   },
   "env": {
     "production": {
@@ -69,6 +78,7 @@
       "vars": {
         "ENVIRONMENT": "production",
         "ENABLE_DEEP_REASONING": "false",
+        "USE_DAYTONA_SANDBOXES": "false",
       },
       "containers": [
         {
@@ -98,6 +108,10 @@
           {
             "class_name": "AsyncJobDO",
             "name": "ASYNC_JOB",
+          },
+          {
+            "class_name": "SandboxManagerDO",
+            "name": "SANDBOX_MANAGER_DO",
           },
         ],
       },
@@ -107,6 +121,7 @@
       "vars": {
         "ENVIRONMENT": "development",
         "ENABLE_DEEP_REASONING": "false",
+        "USE_DAYTONA_SANDBOXES": "false",
       },
       "containers": [
         {
@@ -136,6 +151,10 @@
           {
             "class_name": "AsyncJobDO",
             "name": "ASYNC_JOB",
+          },
+          {
+            "class_name": "SandboxManagerDO",
+            "name": "SANDBOX_MANAGER_DO",
           },
         ],
       },
@@ -145,6 +164,7 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "ENABLE_DEEP_REASONING": "false",
+        "USE_DAYTONA_SANDBOXES": "false",
       },
       "containers": [
         {
@@ -174,6 +194,10 @@
           {
             "class_name": "AsyncJobDO",
             "name": "ASYNC_JOB",
+          },
+          {
+            "class_name": "SandboxManagerDO",
+            "name": "SANDBOX_MANAGER_DO",
           },
         ],
       },

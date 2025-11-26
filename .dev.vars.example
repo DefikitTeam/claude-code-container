@@ -1,54 +1,23 @@
-# .dev.vars - Cloudflare Worker Development Environment Variables
-# Copy this file to .dev.vars and fill in your actual values
-# This file is git-ignored for security
+# This is a developer-specific environment file.
+# It is not tracked by git and should be created locally by each developer.
 
-# ===== REQUIRED VARIABLES =====
+# To use this file, you must have a `.dev.vars` file in the root of your project.
+# You can create one by running `cp .dev.vars.example .dev.vars` in your terminal.
+# You can then fill in the values for the variables in the `.dev.vars` file.
 
-# Anthropic API Key for Claude Code functionality
-# Get this from: https://console.anthropic.com/
-ANTHROPIC_API_KEY=sk-ant-api03-your-anthropic-api-key-here
+# The `wrangler dev` command will automatically load the variables from the `.dev.vars` file.
+# The `wrangler deploy` command will not use this file, and you will need to set the secrets in the Cloudflare dashboard.
 
-# ===== OPTIONAL VARIABLES =====
+# GitHub App
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=
+GITHUB_WEBHOOK_SECRET=
 
-# GitHub App ID (can be set via config endpoint instead)
-# This is the numeric ID of your GitHub App
-# GITHUB_APP_ID=123456
+# Anthropic API Key
+ANTHROPIC_API_KEY=
 
-# GitHub Webhook Secret (can be set via config endpoint instead)
-# This is the secret you set when creating the GitHub App webhook
-# GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
+# Encryption Key
+ENCRYPTION_KEY=
 
-# Development Environment Override
-# This overrides the default environment setting
-# ENVIRONMENT=development
-
-# ===== DEBUG & LOGGING =====
-
-# Enable debug logging (optional)
-# DEBUG=*
-
-# Log level for development (optional)
-# LOG_LEVEL=debug
-
-# ===== DEVELOPMENT SETTINGS =====
-
-# Development mode flag (optional)
-# DEV_MODE=true
-
-# Local development port override (optional)
-# DEV_PORT=8788
-
-# ===== SECURITY SETTINGS =====
-
-# Skip webhook signature verification in development (NOT RECOMMENDED)
-# Only use for local testing with mock webhooks
-# SKIP_WEBHOOK_VERIFICATION=false
-
-# ===== NOTES =====
-# 
-# 1. ANTHROPIC_API_KEY is the only required variable
-# 2. GitHub App credentials can be set via the /config API endpoint
-# 3. This file should NEVER be committed to version control
-# 4. For production, set variables in Cloudflare Workers dashboard
-# 5. Environment variables here are available in the Worker runtime
-# 6. Container environment variables are passed through the MyContainer class
+# Daytona API Key
+DAYTONA_API_KEY=
