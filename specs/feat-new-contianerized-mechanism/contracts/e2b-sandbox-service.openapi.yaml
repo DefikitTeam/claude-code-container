@@ -1,0 +1,472 @@
+openapi: 3.1.0
+info:
+  title: E2B Sandbox Service API
+  description: Internal API contracts for E2B sandbox orchestration from Cloudflare Worker
+  version: 1.0.0
+
+servers:
+  - url: https://claude-code-containers.{account}.workers.dev
+    description: Cloudflare Worker (orchestrator)
+  - url: https://{sandboxId}-8080.e2b.dev
+    description: E2B Sandbox (agent)
+
+paths:
+  # ============================================
+  # Worker → E2B Platform (SDK abstraction)
+  # ============================================
+  
+  /internal/sandbox:
+    post:
+      operationId: spawnSandbox
+      summary: Spawn a new E2B sandbox
+      description: |
+        Internal endpoint for spawning E2B sandboxes.
+        This is an abstraction over the E2B SDK `Sandbox.create()` method.
+      tags:
+        - Sandbox Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpawnSandboxRequest'
+      responses:
+        '201':
+          description: Sandbox created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpawnSandboxResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '402':
+          description: Quota exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /internal/sandbox/{sandboxId}:
+    get:
+      operationId: getSandboxStatus
+      summary: Get sandbox status
+      tags:
+        - Sandbox Management
+      parameters:
+        - $ref: '#/components/parameters/SandboxId'
+      responses:
+        '200':
+          description: Sandbox status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxStatusResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: terminateSandbox
+      summary: Terminate a sandbox
+      tags:
+        - Sandbox Management
+      parameters:
+        - $ref: '#/components/parameters/SandboxId'
+      responses:
+        '204':
+          description: Sandbox terminated
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================
+  # Worker → Sandbox (HTTP via E2B URL)
+  # ============================================
+
+  /health:
+    get:
+      operationId: sandboxHealthCheck
+      summary: Sandbox health check
+      description: Verify sandbox is running and responsive
+      tags:
+        - Sandbox Communication
+      servers:
+        - url: https://{sandboxId}-8080.e2b.dev
+      responses:
+        '200':
+          description: Sandbox is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /acp:
+    post:
+      operationId: acpJsonRpc
+      summary: ACP JSON-RPC endpoint
+      description: Main endpoint for Agent-Client Protocol communication
+      tags:
+        - Sandbox Communication
+      servers:
+        - url: https://{sandboxId}-8080.e2b.dev
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JsonRpcRequest'
+      responses:
+        '200':
+          description: JSON-RPC response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonRpcResponse'
+
+  /acp/session/prompt:
+    post:
+      operationId: sessionPrompt
+      summary: Send prompt to agent session
+      description: Convenience endpoint for session/prompt ACP method
+      tags:
+        - Sandbox Communication
+      servers:
+        - url: https://{sandboxId}-8080.e2b.dev
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionPromptRequest'
+      responses:
+        '200':
+          description: Prompt response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionPromptResponse'
+
+components:
+  parameters:
+    SandboxId:
+      name: sandboxId
+      in: path
+      required: true
+      description: E2B Sandbox identifier
+      schema:
+        type: string
+        pattern: '^sbx_[a-zA-Z0-9]+$'
+        example: sbx_abc123xyz
+
+  schemas:
+    # ============================================
+    # Sandbox Management
+    # ============================================
+    
+    SpawnSandboxRequest:
+      type: object
+      required:
+        - configId
+        - userId
+        - environmentVariables
+      properties:
+        configId:
+          type: string
+          description: Configuration/task identifier
+          example: config_001
+        userId:
+          type: string
+          description: User who triggered the sandbox
+          example: usr_123
+        installationId:
+          type: string
+          description: GitHub App installation ID
+          example: '12345678'
+        templateId:
+          type: string
+          description: E2B template to use
+          default: claude-code-agent
+          example: claude-code-agent
+        timeout:
+          type: integer
+          description: Sandbox timeout in seconds
+          minimum: 60
+          maximum: 86400
+          default: 3600
+          example: 3600
+        environmentVariables:
+          type: object
+          description: Environment variables for the sandbox
+          additionalProperties:
+            type: string
+          required:
+            - ANTHROPIC_API_KEY
+          example:
+            ANTHROPIC_API_KEY: sk-ant-...
+            GITHUB_TOKEN: ghs_...
+        metadata:
+          type: object
+          description: Additional tracking metadata
+          additionalProperties:
+            type: string
+          example:
+            issueId: '456'
+            repository: owner/repo
+
+    SpawnSandboxResponse:
+      type: object
+      required:
+        - sandboxId
+        - status
+        - url
+      properties:
+        sandboxId:
+          type: string
+          example: sbx_abc123xyz
+        status:
+          $ref: '#/components/schemas/SandboxStatus'
+        url:
+          type: string
+          format: uri
+          description: Base URL for sandbox HTTP access
+          example: https://sbx_abc123xyz-8080.e2b.dev
+        createdAt:
+          type: string
+          format: date-time
+
+    SandboxStatusResponse:
+      type: object
+      required:
+        - sandboxId
+        - status
+      properties:
+        sandboxId:
+          type: string
+        status:
+          $ref: '#/components/schemas/SandboxStatus'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        timeout:
+          type: integer
+          description: Configured timeout in seconds
+
+    SandboxStatus:
+      type: string
+      enum:
+        - creating
+        - running
+        - paused
+        - stopped
+        - error
+
+    # ============================================
+    # Sandbox Communication
+    # ============================================
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          example: '1.0.0'
+
+    JsonRpcRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+      properties:
+        jsonrpc:
+          type: string
+          const: '2.0'
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+        method:
+          type: string
+          enum:
+            - initialize
+            - session/new
+            - session/prompt
+            - session/load
+            - cancel
+        params:
+          type: object
+
+    JsonRpcResponse:
+      oneOf:
+        - $ref: '#/components/schemas/JsonRpcSuccess'
+        - $ref: '#/components/schemas/JsonRpcError'
+
+    JsonRpcSuccess:
+      type: object
+      required:
+        - jsonrpc
+        - result
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          const: '2.0'
+        result:
+          type: object
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+
+    JsonRpcError:
+      type: object
+      required:
+        - jsonrpc
+        - error
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          const: '2.0'
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            data:
+              type: object
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+
+    SessionPromptRequest:
+      type: object
+      required:
+        - prompt
+        - sessionId
+      properties:
+        sessionId:
+          type: string
+          description: ACP session identifier
+        prompt:
+          type: string
+          description: User prompt to process
+        anthropicApiKey:
+          type: string
+          description: Anthropic API key (if not in env)
+        githubToken:
+          type: string
+          description: GitHub token for operations
+        context:
+          type: object
+          properties:
+            repository:
+              type: object
+              properties:
+                owner:
+                  type: string
+                name:
+                  type: string
+                defaultBranch:
+                  type: string
+            operation:
+              type: object
+
+    SessionPromptResponse:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          properties:
+            stopReason:
+              type: string
+              enum:
+                - end_turn
+                - cancelled
+                - refusal
+                - max_turn_requests
+            messages:
+              type: array
+              items:
+                type: object
+
+    # ============================================
+    # Errors
+    # ============================================
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable message
+        details:
+          type: object
+          description: Additional error details
+
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: VALIDATION_ERROR
+            message: Invalid configuration
+            details:
+              field: timeout
+              reason: Must be between 60 and 86400
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: NOT_FOUND
+            message: Sandbox not found
+            details:
+              sandboxId: sbx_invalid
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: INTERNAL_ERROR
+            message: An unexpected error occurred
