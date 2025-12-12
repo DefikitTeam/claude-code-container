@@ -10,6 +10,11 @@
 !.yarn/releases
 !.yarn/versions
 
+.gemini/
+.gemini-clipboard/
+
+.idea/
+
 .claude/
 .specify/
 specs/
