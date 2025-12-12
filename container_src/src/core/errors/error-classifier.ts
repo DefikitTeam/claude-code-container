@@ -3,6 +3,7 @@ export enum ClassifiedErrorCode {
   CliMissing = 'cli_missing',
   WorkspaceMissing = 'workspace_missing',
   FsPermission = 'fs_permission',
+  GitPullFailed = 'git_pull_failed',
   InternalCliFailure = 'internal_cli_failure',
   Cancelled = 'cancelled',
   Unknown = 'unknown',
