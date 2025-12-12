@@ -1,21 +1,20 @@
 /**
- * Container Service Implementation
- * Provides Durable Object backed container lifecycle operations using real Cloudflare Containers
+ * Cloudflare-backed implementation of {@link IContainerService}.
  *
- * Implements: IContainerService
- *
- * This service communicates with ContainerDO which extends Container<any>
- * from @cloudflare/containers. The container runs an HTTP server (container_src)
- * that handles requests at /health, /process, and /acp endpoints.
+ * Operates Durable Object containers through ContainerDO (extends
+ * `@cloudflare/containers`). The underlying Container runs the HTTP server in
+ * `container_src` and exposes `/health`, `/process`, and `/acp` for health,
+ * command execution, and ACP requests respectively.
  */
 
 import { IContainerService } from '../../core/interfaces/services/container.service';
 import { ValidationError } from '../../shared/errors/validation.error';
 
 /**
- * Durable Object backed container service using real Cloudflare Workers Containers
+ * Adapter that fulfills the container service contract using Cloudflare
+ * containers.
  */
-export class ContainerServiceImpl implements IContainerService {
+export class CloudflareContainerService implements IContainerService {
   constructor(private readonly namespace: DurableObjectNamespace) {}
 
   /**
