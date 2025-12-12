@@ -1,54 +1,28 @@
-# .dev.vars - Cloudflare Worker Development Environment Variables
+# ============================================================================
+# Cloudflare Worker Development Environment Variables
+# ============================================================================
 # Copy this file to .dev.vars and fill in your actual values
-# This file is git-ignored for security
+# ============================================================================
 
-# ===== REQUIRED VARIABLES =====
+# ============================================================================
+# Integration & Security (REQUIRED)
+# ============================================================================
 
-# Anthropic API Key for Claude Code functionality
-# Get this from: https://console.anthropic.com/
-ANTHROPIC_API_KEY=sk-ant-api03-your-anthropic-api-key-here
+# LumiLink Integration - Worker authenticates using your JWT token
+# Backend securely manages GitHub App credentials at platform level
+LUMILINK_API_URL=http://localhost:8787
+LUMILINK_JWT_TOKEN=your_lumilink_jwt_token_here
 
-# ===== OPTIONAL VARIABLES =====
+# Encryption key for sensitive user data (Anthropic API keys, etc.)
+# Generate with: openssl rand -hex 32
+ENCRYPTION_KEY=your_32_byte_hex_encryption_key_here
 
-# GitHub App ID (can be set via config endpoint instead)
-# This is the numeric ID of your GitHub App
-# GITHUB_APP_ID=123456
+# ============================================================================
+# LLM Providers (FALLBACK/ORCHESTRATION)
+# ============================================================================
 
-# GitHub Webhook Secret (can be set via config endpoint instead)
-# This is the secret you set when creating the GitHub App webhook
-# GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
+# Optional default Anthropic API key for fallback operations
+ANTHROPIC_API_KEY=sk-ant-api03-your_anthropic_key_here
 
-# Development Environment Override
-# This overrides the default environment setting
-# ENVIRONMENT=development
-
-# ===== DEBUG & LOGGING =====
-
-# Enable debug logging (optional)
-# DEBUG=*
-
-# Log level for development (optional)
-# LOG_LEVEL=debug
-
-# ===== DEVELOPMENT SETTINGS =====
-
-# Development mode flag (optional)
-# DEV_MODE=true
-
-# Local development port override (optional)
-# DEV_PORT=8788
-
-# ===== SECURITY SETTINGS =====
-
-# Skip webhook signature verification in development (NOT RECOMMENDED)
-# Only use for local testing with mock webhooks
-# SKIP_WEBHOOK_VERIFICATION=false
-
-# ===== NOTES =====
-# 
-# 1. ANTHROPIC_API_KEY is the only required variable
-# 2. GitHub App credentials can be set via the /config API endpoint
-# 3. This file should NEVER be committed to version control
-# 4. For production, set variables in Cloudflare Workers dashboard
-# 5. Environment variables here are available in the Worker runtime
-# 6. Container environment variables are passed through the MyContainer class
+# OpenRouter API key for ACP bridge operations
+OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key_here

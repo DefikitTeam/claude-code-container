@@ -82,6 +82,7 @@ export interface Env {
   // User-specific credentials
   ENCRYPTION_KEY: string; // For encrypting user data (Anthropic API keys, etc.)
   ANTHROPIC_API_KEY?: string; // Optional default Anthropic API key
+  OPENROUTER_API_KEY?: string; // OpenRouter API key for ACP bridge operations
 }
 
 /**
