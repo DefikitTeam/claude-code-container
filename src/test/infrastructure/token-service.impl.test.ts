@@ -7,8 +7,10 @@ describe('TokenServiceImpl', () => {
 
   beforeEach(() => {
     generator = vi.fn(
-      async (installationId: string) =>
-        `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`,
+      async (installationId: string) => ({
+        token: `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`,
+        expiresAt: Date.now() + 3600000,
+      }),
     );
   });
 
@@ -17,7 +19,7 @@ describe('TokenServiceImpl', () => {
   });
 
   it('generates and caches installation tokens', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl({ getToken: generator });
 
     const first = await service.getInstallationToken('inst-1');
     const second = await service.getInstallationToken('inst-1');
@@ -28,14 +30,14 @@ describe('TokenServiceImpl', () => {
   });
 
   it('validates installation identifiers before generating tokens', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl({ getToken: generator });
     await expect(service.getInstallationToken('')).rejects.toThrow(
       ValidationError,
     );
   });
 
   it('invalidates cached tokens explicitly', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl({ getToken: generator });
     await service.getInstallationToken('inst-2');
 
     expect(generator).toHaveBeenCalledTimes(1);
@@ -46,7 +48,7 @@ describe('TokenServiceImpl', () => {
   });
 
   it('detects tokens nearing expiration via buffer logic', () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl({ getToken: generator });
     const nowSpy = vi.spyOn(Date, 'now');
 
     nowSpy.mockReturnValue(0);
@@ -59,7 +61,7 @@ describe('TokenServiceImpl', () => {
   });
 
   it('refreshes expired tokens and clears cache', async () => {
-    const service = new TokenServiceImpl(generator);
+    const service = new TokenServiceImpl({ getToken: generator });
     const nowSpy = vi.spyOn(Date, 'now');
 
     nowSpy.mockReturnValue(0);

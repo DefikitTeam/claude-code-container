@@ -51,11 +51,11 @@ describe('OpenAIOpenRouterAdapter', () => {
     });
 
     it('should return true when API key is in environment', () => {
-      const originalKey = process.env.OPENROUTER_API_KEY;
-      process.env.OPENROUTER_API_KEY = 'test-env-key';
+      vi.stubEnv('OPENROUTER_API_KEY', 'test-env-key');
+      adapter = new OpenAIOpenRouterAdapter();
 
       const context: ClaudeRuntimeContext = {
-        apiKey: '',
+        apiKey: undefined,
         runningAsRoot: false,
         disableSdk: false,
         disableCli: false,
@@ -64,21 +64,15 @@ describe('OpenAIOpenRouterAdapter', () => {
       };
 
       expect(adapter.canHandle(context)).toBe(true);
-
-      // Cleanup
-      if (originalKey) {
-        process.env.OPENROUTER_API_KEY = originalKey;
-      } else {
-        delete process.env.OPENROUTER_API_KEY;
-      }
+      vi.unstubAllEnvs();
     });
 
     it('should return false when no API key is available', () => {
-      const originalKey = process.env.OPENROUTER_API_KEY;
-      delete process.env.OPENROUTER_API_KEY;
+      vi.stubEnv('OPENROUTER_API_KEY', '');
+      adapter = new OpenAIOpenRouterAdapter();
 
       const context: ClaudeRuntimeContext = {
-        apiKey: '',
+        apiKey: undefined,
         runningAsRoot: false,
         disableSdk: false,
         disableCli: false,
@@ -87,11 +81,7 @@ describe('OpenAIOpenRouterAdapter', () => {
       };
 
       expect(adapter.canHandle(context)).toBe(false);
-
-      // Cleanup
-      if (originalKey) {
-        process.env.OPENROUTER_API_KEY = originalKey;
-      }
+      vi.unstubAllEnvs();
     });
 
     it('should return false when explicitly disabled', () => {

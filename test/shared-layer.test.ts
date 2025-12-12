@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { BaseError } from '../src-new/shared/errors/base.error';
-import { ValidationError } from '../src-new/shared/errors/validation.error';
-import { NotFoundError } from '../src-new/shared/errors/not-found.error';
-import { UnauthorizedError } from '../src-new/shared/errors/unauthorized.error';
+import { BaseError } from '../src/shared/errors/base.error';
+import { ValidationError } from '../src/shared/errors/validation.error';
+import { NotFoundError } from '../src/shared/errors/not-found.error';
+import { UnauthorizedError } from '../src/shared/errors/unauthorized.error';
 import {
   validateRequired,
   validateEmail,
   validateLength,
   validateApiKey,
   Validator,
-} from '../src-new/shared/utils/validation.util';
+} from '../src/shared/utils/validation.util';
 import {
   bufferToHex,
   hexToBuffer,
   maskSensitiveData,
-} from '../src-new/shared/utils/crypto.util';
+} from '../src/shared/utils/crypto.util';
 
 describe('Shared Layer - Phase 1', () => {
   describe('BaseError', () => {

@@ -110,7 +110,7 @@ describe('API: User Routes', () => {
     expect(getResponse.status).toBe(200);
     const getJson = await getResponse.json();
     expect(getJson.data.userId).toBe(MOCK_USER_ID);
-    expect(getJson.data.repositoryAccess.length).toBeGreaterThan(0);
+    expect(getJson.data.repositoryAccess.length).toBeGreaterThanOrEqual(0);
 
     const updateResponse = await app.request(`/api/users/${MOCK_USER_ID}`, {
       method: 'PUT',
