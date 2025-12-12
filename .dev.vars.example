@@ -12,3 +12,9 @@ ANTHROPIC_API_KEY=sk-ant-api03-your_anthropic_key_here
 
 # OpenRouter API key for ACP bridge operations
 OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key_here
+
+# Container provider selection ("cloudflare" or "daytona")
+CONTAINER_PROVIDER=cloudflare
+# Daytona API credentials (required when CONTAINER_PROVIDER=daytona)
+DAYTONA_API_URL=https://your-daytona-instance/api
+DAYTONA_API_KEY=your_daytona_api_key

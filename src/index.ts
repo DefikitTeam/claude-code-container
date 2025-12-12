@@ -39,6 +39,7 @@ import { SpawnContainerUseCase } from './core/use-cases/container/spawn-containe
 import { ProcessPromptUseCase } from './core/use-cases/container/process-prompt.use-case';
 import { GetLogsUseCase } from './core/use-cases/container/get-logs.use-case';
 import { TerminateContainerUseCase } from './core/use-cases/container/terminate-container.use-case';
+import { IContainerService } from './core/interfaces/services/container.service';
 
 // Use Cases - Deployment
 import { DeployWorkerUseCase } from './core/use-cases/deployment/deploy-worker.use-case';
@@ -53,6 +54,7 @@ import { TokenServiceImpl } from './infrastructure/services/token.service.impl';
 import { LumiLinkTokenProvider } from './infrastructure/adapters/lumilink-token-provider';
 import { DeploymentServiceImpl } from './infrastructure/services/deployment.service.impl';
 import { CloudflareContainerService } from './infrastructure/services/cloudflare-container.service';
+import { DaytonaContainerService } from './infrastructure/services/daytona-container.service';
 import { ACPBridgeService } from './infrastructure/services/acp-bridge.service';
 import { ContainerRegistryAuthService } from './infrastructure/services/container-registry-auth.service';
 import { DeploymentRepositoryImpl } from './infrastructure/repositories/deployment-repository.impl';
@@ -78,6 +80,11 @@ export interface Env {
   // LumiLink Integration - Simple authentication with user JWT token
   LUMILINK_API_URL?: string; // LumiLink API base URL (e.g., http://localhost:8788 or https://api.lumilink.ai)
   LUMILINK_JWT_TOKEN?: string; // User's JWT token from LumiLink authentication
+
+  // Container provider configuration for Daytona support
+  CONTAINER_PROVIDER?: 'cloudflare' | 'daytona';
+  DAYTONA_API_URL?: string;
+  DAYTONA_API_KEY?: string;
 
   // User-specific credentials
   ENCRYPTION_KEY: string; // For encrypting user data (Anthropic API keys, etc.)
@@ -149,10 +156,24 @@ async function setupDI(env: Env): Promise<Controllers> {
   const githubService = new GitHubServiceImpl(tokenService);
 
   const deploymentService = new DeploymentServiceImpl();
-  const userRepository = new UserRepositoryDurableObjectAdapter(
-    env.USER_CONFIG,
-  );
-  const containerService = new CloudflareContainerService(env.MY_CONTAINER);
+  const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG);
+  let containerService: IContainerService;
+
+  if (env.CONTAINER_PROVIDER === 'daytona') {
+    if (!env.DAYTONA_API_URL || !env.DAYTONA_API_KEY) {
+      throw new Error(
+        'CONTAINER_PROVIDER=daytona requires DAYTONA_API_URL and DAYTONA_API_KEY',
+      );
+    }
+    console.log('[DI] ✅ Using Daytona container provider');
+    containerService = new DaytonaContainerService(
+      env.DAYTONA_API_URL,
+      env.DAYTONA_API_KEY,
+    );
+  } else {
+    console.log('[DI] ✅ Using Cloudflare container provider');
+    containerService = new CloudflareContainerService(env.MY_CONTAINER);
+  }
   const deploymentRepository = new DeploymentRepositoryImpl();
 
   // Initialize ACP Bridge and Container Registry Auth services
