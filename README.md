@@ -147,6 +147,17 @@ GitHub Webhooks → Worker (Hono Router) → Container (Node.js + Claude Code) �
   containers. This adapter makes it easy to introduce alternative providers
   (Daytona workspaces, etc.) without touching the core use cases or controllers.
 
+### Container Providers
+
+| Provider | Description | When to use |
+| --- | --- | --- |
+| `cloudflare` | The default implementation using `CloudflareContainerService`, which manages ephemeral Durable Object containers with auto-sleep after the configured timeout. | Quick, stateless jobs where you want extremely fast startup times. |
+| `daytona` | Uses `DaytonaContainerService` to talk to Daytona Workspaces via REST. Workspaces stay alive, retain their state between prompts, and expose the same `/process` and `/health` endpoints. | Long-running, stateful tasks where you want to reuse a workspace across multiple prompts. |
+
+#### Choosing a Provider
+
+Set `CONTAINER_PROVIDER` to either `cloudflare` or `daytona`. When `daytona` is selected, you must also provide `DAYTONA_API_URL` and `DAYTONA_API_KEY` so the Worker can create and control workspaces against your Daytona deployment.
+
 ## 🚀 Quick Start Options
 
 <div align="center">
@@ -270,6 +281,9 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/config \
 | `GITHUB_WEBHOOK_SECRET` | ⚠️       | Webhook secret (can be set via `/config` endpoint)                                                                                                                        |
 | `ENVIRONMENT`           | ❌       | Environment name (default: `development`)                                                                                                                                 |
 | `ENABLE_DEEP_REASONING` | ❌       | Enable advanced reasoning (default: `false`)                                                                                                                              |
+| `CONTAINER_PROVIDER`    | ❌       | Determines the compute provider: `cloudflare` (default) or `daytona`.                                                                                                     |
+| `DAYTONA_API_URL`       | ⚠️       | Base URL for your Daytona Workspaces API (e.g., `https://example.com/api`). Required when `CONTAINER_PROVIDER=daytona`.                                                    |
+| `DAYTONA_API_KEY`       | ⚠️       | Authentication key/token for the Daytona Workspaces API. Required alongside `DAYTONA_API_URL` when using the Daytona provider.                                              |
 
 ## 📖 Usage
 
