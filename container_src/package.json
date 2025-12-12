@@ -1,6 +1,6 @@
 {
   "name": "@defikitteam/claude-acp-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lightweight ACP client for Claude Code with remote worker communication",
   "main": "dist/index.js",
   "type": "module",

@@ -96,6 +96,18 @@ export class ErrorClassifier {
         };
       }
       if (
+        combined.includes('git pull failed') ||
+        /pull.*rejected/i.test(combined)
+      ) {
+        return {
+          code: ClassifiedErrorCode.GitPullFailed,
+          message: (err as any)?.message || String(err),
+          isRetryable: true,
+          original: this.includeOriginal ? err : undefined,
+          meta: { matched: 'git_pull_failed' },
+        };
+      }
+      if (
         combined.includes('stack') ||
         combined.match(/referenceerror|typeerror|syntaxerror/)
       ) {

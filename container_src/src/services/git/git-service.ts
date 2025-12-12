@@ -82,10 +82,14 @@ export class GitService implements IGitService {
     repoPath: string,
     opts?: { defaultBranch?: string; cloneUrl?: string },
   ): Promise<void> {
+    const isPersistent = Boolean(process.env.DAYTONA_WORKSPACE_ID);
     try {
       const gitDir = path.join(repoPath, '.git');
       // If .git exists, assume repo exists
       await fs.access(gitDir);
+      if (isPersistent) {
+        await this.syncPersistentWorkspace(repoPath, opts);
+      }
       return;
     } catch (e) {
       // not a git repo; attempt to create or clone
@@ -127,6 +131,76 @@ export class GitService implements IGitService {
       // create and switch to default branch
       await this.runGit(repoPath, ['checkout', '-b', opts.defaultBranch]);
     }
+  }
+
+  private async syncPersistentWorkspace(
+    repoPath: string,
+    opts?: { defaultBranch?: string; cloneUrl?: string },
+  ): Promise<void> {
+    const branch = opts?.defaultBranch ?? 'main';
+    const cloneSlug = opts?.cloneUrl
+      ? this.getRepoSlug(opts.cloneUrl)
+      : undefined;
+    const remoteUrl = await this.getRemoteUrl(repoPath);
+    const remoteSlug = remoteUrl ? this.getRepoSlug(remoteUrl) : undefined;
+
+    if (cloneSlug && remoteSlug && cloneSlug !== remoteSlug) {
+      console.warn(
+        `[GitService] Remote URL mismatch for persistent workspace ${repoPath}: expected ${cloneSlug}, got ${remoteSlug}`,
+      );
+    }
+
+    try {
+      await this.fetchAndPull(repoPath, branch);
+    } catch (e) {
+      console.error(
+        `[GitService] Failed to update persistent workspace ${repoPath}:`,
+        e,
+      );
+      await this.resetWorkspace(repoPath);
+      try {
+        await this.fetchAndPull(repoPath, branch);
+      } catch (pullError) {
+        console.error(
+          `[GitService] Recovery pull failed for ${repoPath}:`,
+          pullError,
+        );
+      }
+    }
+  }
+
+  private getRepoSlug(url: string): string | undefined {
+    const cleaned = url.replace(/https:\/\/[^@]+@/, 'https://');
+    const match = cleaned.match(/github\.com[:\/](?<slug>[^\/]+\/[^\/]+)(?:\.git)?$/i);
+    return match?.groups?.slug.toLowerCase();
+  }
+
+  private async fetchAndPull(repoPath: string, branch: string): Promise<void> {
+    const fetchRes = await this.runGit(repoPath, ['fetch', 'origin', branch]);
+    if (fetchRes.code !== 0) {
+      throw new Error(`git fetch failed (${fetchRes.stderr.trim()})`);
+    }
+
+    try {
+      await this.checkoutBranch(repoPath, branch);
+    } catch (e) {
+      await this.runGit(repoPath, ['checkout', '-B', branch]);
+    }
+
+    const pullRes = await this.runGit(repoPath, [
+      'pull',
+      '--ff-only',
+      'origin',
+      branch,
+    ]);
+    if (pullRes.code !== 0) {
+      throw new Error(`git pull failed (${pullRes.stderr.trim()})`);
+    }
+  }
+
+  private async resetWorkspace(repoPath: string): Promise<void> {
+    await this.runGit(repoPath, ['reset', '--hard']);
+    await this.runGit(repoPath, ['clean', '-fd']);
   }
 
   async getStatus(repoPath: string): Promise<string> {
