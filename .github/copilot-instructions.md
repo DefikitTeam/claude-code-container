@@ -1,5 +1,9 @@
 # AI Coding Agent Instructions
 
+## CRITICAL RULES:
+- When use `gemini-cli` mcp server, NEVER specify a model, only input the prompt, otherwise it will cause errors; Gemini can automatically determine the appropriate model. 
+- If the analysis task is very complex and requires deep reasoning and analysis, specify the model as `gemini-3-pro-preview`.
+
 ## Project Overview
 
 **Claude Code Containers** is a dual-tier AI-powered GitHub automation system:
