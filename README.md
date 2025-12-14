@@ -137,6 +137,16 @@ GitHub Webhooks → Worker (Hono Router) → Container (Node.js + Claude Code) �
 - **Durable Objects**: `GitHubAppConfigDO` (encrypted credentials),
   `MyContainer` (lifecycle management)
 
+### Container Provider Abstraction
+
+- **`IContainerService`** (`src/core/interfaces/services/container.service.ts`)
+  defines the contract for acquiring containers, executing commands, and
+  fetching diagnostics.
+- **`CloudflareContainerService`** (`src/infrastructure/services/cloudflare-container.service.ts`)
+  implements that interface and handles Cloudflare Durable Object-backed
+  containers. This adapter makes it easy to introduce alternative providers
+  (Daytona workspaces, etc.) without touching the core use cases or controllers.
+
 ## 🚀 Quick Start Options
 
 <div align="center">

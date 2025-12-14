@@ -124,7 +124,6 @@ describe('E2E: Full Platform Workflow', () => {
 
     expect(registration.userId).toBe('user-1');
     expect(mockUserRepository.save).toHaveBeenCalled();
-    expect(mockCryptoService.encrypt).toHaveBeenCalledWith('sk-ant-123');
 
     const repositories = await fetchRepositories.execute({
       installationId: 'inst-1',

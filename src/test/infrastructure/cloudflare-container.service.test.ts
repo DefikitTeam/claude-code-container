@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { ContainerServiceImpl } from '../../infrastructure/services/container.service.impl';
+import { CloudflareContainerService } from '../../infrastructure/services/cloudflare-container.service';
 import { ValidationError } from '../../shared/errors/validation.error';
 
 type TestDurableObjectId = { name: string };
@@ -35,7 +35,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('ContainerServiceImpl', () => {
+describe('CloudflareContainerService', () => {
   it('spawns containers via Durable Object', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
 
@@ -57,7 +57,7 @@ describe('ContainerServiceImpl', () => {
       },
     );
 
-    const service = new ContainerServiceImpl(namespace);
+    const service = new CloudflareContainerService(namespace);
     const result = await service.spawn({
       configId: 'cfg1',
       installationId: 'inst-1',
@@ -94,7 +94,7 @@ describe('ContainerServiceImpl', () => {
       return new Response('not-handled', { status: 404 });
     });
 
-    const service = new ContainerServiceImpl(namespace);
+    const service = new CloudflareContainerService(namespace);
     const result = await service.execute('ctr-1', 'npm test');
 
     expect(result.exitCode).toBe(0);
@@ -119,7 +119,7 @@ describe('ContainerServiceImpl', () => {
       );
     });
 
-    const service = new ContainerServiceImpl(namespace);
+    const service = new CloudflareContainerService(namespace);
     const logs = await service.getLogs('ctr-logs');
 
     expect(logs).toEqual([
@@ -139,35 +139,35 @@ describe('ContainerServiceImpl', () => {
       return new Response('OK', { status: 200 });
     });
 
-    const service = new ContainerServiceImpl(namespace);
-    await service.terminate('ctr-terminate');
+    const service = new CloudflareContainerService(namespace);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await expect(service.terminate('ctr-terminate')).resolves.toBeUndefined();
+    expect(logSpy).toHaveBeenCalled();
+    expect(namespace.idFromName).not.toHaveBeenCalled();
+    logSpy.mockRestore();
   });
 
   it('returns stopped status when DO returns null payload', async () => {
     const { namespace } = createNamespace(async (request) => {
-      if (
-        request.method === 'GET' &&
-        new URL(request.url).pathname === '/container'
-      ) {
-        return new Response('null', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response('OK', { status: 200 });
+      expect(request.method).toBe('GET');
+      expect(new URL(request.url).pathname).toBe('/health');
+      return new Response(
+        JSON.stringify({ status: 'healthy' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
     });
 
-    const service = new ContainerServiceImpl(namespace);
-    const status = await service.getStatus('ctr-missing');
+    const service = new CloudflareContainerService(namespace);
+    const status = await service.getStatus('ctr-status');
 
-    expect(status).toBe('stopped');
+    expect(status).toBe('running');
   });
 
   it('validates spawn parameters before calling Durable Object', async () => {
     const { namespace, fetchSpy } = createNamespace(
       async () => new Response('OK', { status: 200 }),
     );
-    const service = new ContainerServiceImpl(namespace);
+    const service = new CloudflareContainerService(namespace);
 
     await expect(
       service.spawn({

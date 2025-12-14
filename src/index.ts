@@ -52,7 +52,7 @@ import { CryptoServiceImpl } from './infrastructure/services/crypto.service.impl
 import { TokenServiceImpl } from './infrastructure/services/token.service.impl';
 import { LumiLinkTokenProvider } from './infrastructure/adapters/lumilink-token-provider';
 import { DeploymentServiceImpl } from './infrastructure/services/deployment.service.impl';
-import { ContainerServiceImpl } from './infrastructure/services/container.service.impl';
+import { CloudflareContainerService } from './infrastructure/services/cloudflare-container.service';
 import { ACPBridgeService } from './infrastructure/services/acp-bridge.service';
 import { ContainerRegistryAuthService } from './infrastructure/services/container-registry-auth.service';
 import { DeploymentRepositoryImpl } from './infrastructure/repositories/deployment-repository.impl';
@@ -151,7 +151,7 @@ async function setupDI(env: Env): Promise<Controllers> {
   const userRepository = new UserRepositoryDurableObjectAdapter(
     env.USER_CONFIG,
   );
-  const containerService = new ContainerServiceImpl(env.MY_CONTAINER);
+  const containerService = new CloudflareContainerService(env.MY_CONTAINER);
   const deploymentRepository = new DeploymentRepositoryImpl();
 
   // Initialize ACP Bridge and Container Registry Auth services
