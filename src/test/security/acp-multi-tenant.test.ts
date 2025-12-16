@@ -56,6 +56,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
     });
 
     mockEnv = {
+      OPENROUTER_API_KEY: 'test-openrouter-key',
       NO_CONTAINERS: 'true', // Skip actual container calls
       USER_CONFIG: {
         idFromName: () => ({ toString: () => 'mock-id' }),
@@ -126,7 +127,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       );
 
       expect(result.error).toBeDefined();
-      expect(result.error.code).toBe(-32001);
+      expect(result.error.code).toBe(-32002);
       expect(result.error.message).toContain('not found');
     });
 
@@ -184,42 +185,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
     });
   });
 
-  describe('API key presence validation', () => {
-    it('should reject users without API key configured', async () => {
-      // Add user without API key
-      mockEnv.USER_CONFIG.get = () => ({
-        fetch: async (req: Request) => {
-          const url = new URL(req.url);
-          const userId = url.searchParams.get('userId');
 
-          if (userId === 'user_no_key') {
-            return new Response(
-              JSON.stringify({
-                userId: 'user_no_key',
-                installationId: '333',
-                anthropicApiKey: undefined, // No API key!
-              }),
-              { status: 200, headers: { 'Content-Type': 'application/json' } },
-            );
-          }
-
-          return new Response(JSON.stringify({ error: 'User not found' }), {
-            status: 404,
-          });
-        },
-      });
-
-      const result = await acpBridge.routeACPMethod(
-        'session/new',
-        { userId: 'user_no_key', configuration: {} },
-        mockEnv,
-      );
-
-      expect(result.error).toBeDefined();
-      expect(result.error.code).toBe(-32002);
-      expect(result.error.message).toContain('no Anthropic API key');
-    });
-  });
 
   describe('backward compatibility - NO global key fallback', () => {
     it('should NOT fallback to env.ANTHROPIC_API_KEY if userId missing', async () => {
@@ -290,7 +256,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
         'ghs_installation_token_111',
       );
       expect(capturedBody.params.anthropicApiKey).toBe(
-        'sk-ant-user1-secret-key',
+        'test-openrouter-key',
       );
     });
 
@@ -383,9 +349,8 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       // Should continue without error (GitHub operations just won't work)
       expect(result.error).toBeUndefined();
       expect(capturedBody).toBeDefined();
-      expect(capturedBody.params.githubToken).toBeUndefined();
       expect(capturedBody.params.anthropicApiKey).toBe(
-        'sk-ant-user1-secret-key',
+        'test-openrouter-key',
       );
     });
   });

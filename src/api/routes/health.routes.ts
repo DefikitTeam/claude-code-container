@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-export function createHealthRoutes(): Hono {
+export function createHealthRoutes(containerProvider?: string): Hono {
   const router = new Hono();
 
   router.get('/', (c) => {
@@ -8,6 +8,7 @@ export function createHealthRoutes(): Hono {
       status: 'ok',
       timestamp: Date.now(),
       version: '2.0.0-clean-architecture',
+      containerProvider: containerProvider || 'not-specified',
     });
   });
 

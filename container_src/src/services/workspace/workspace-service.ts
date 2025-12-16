@@ -162,6 +162,8 @@ export class WorkspaceService implements IWorkspaceService {
     sessionOptions?: { enableGitOps?: boolean };
   }): Promise<WorkspaceDescriptor> {
     const { sessionId, reuse = true, workspaceUri, sessionOptions } = opts;
+    const isPersistent = Boolean(process.env.DAYTONA_WORKSPACE_ID);
+    const persistentRoot = process.env.WORKSPACE_ROOT;
 
     if (reuse && this.map.has(sessionId)) {
       return this.map.get(sessionId)!;
@@ -184,9 +186,21 @@ export class WorkspaceService implements IWorkspaceService {
         resolvedPath = await prepareEphemeralWorkspace(sessionId);
         isEphemeral = true;
       }
+    } else if (isPersistent && persistentRoot) {
+      resolvedPath = persistentRoot;
     } else {
       resolvedPath = await prepareEphemeralWorkspace(sessionId);
       isEphemeral = true;
+    }
+
+    if (isPersistent) {
+      isEphemeral = false;
+    }
+
+    try {
+      await fs.mkdir(resolvedPath, { recursive: true });
+    } catch (e) {
+      // ignore mkdir errors for existing paths
     }
 
     const desc: WorkspaceDescriptor = {

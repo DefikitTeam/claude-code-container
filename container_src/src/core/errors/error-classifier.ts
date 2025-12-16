@@ -3,6 +3,7 @@ export enum ClassifiedErrorCode {
   CliMissing = 'cli_missing',
   WorkspaceMissing = 'workspace_missing',
   FsPermission = 'fs_permission',
+  GitPullFailed = 'git_pull_failed',
   InternalCliFailure = 'internal_cli_failure',
   Cancelled = 'cancelled',
   Unknown = 'unknown',
@@ -93,6 +94,18 @@ export class ErrorClassifier {
           isRetryable: false,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'fs_permission' },
+        };
+      }
+      if (
+        combined.includes('git pull failed') ||
+        /pull.*rejected/i.test(combined)
+      ) {
+        return {
+          code: ClassifiedErrorCode.GitPullFailed,
+          message: (err as any)?.message || String(err),
+          isRetryable: true,
+          original: this.includeOriginal ? err : undefined,
+          meta: { matched: 'git_pull_failed' },
         };
       }
       if (

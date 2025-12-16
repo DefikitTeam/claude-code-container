@@ -28,6 +28,7 @@
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.27",
     "@cloudflare/containers": "^0.0.19",
+    "@daytonaio/sdk": "^0.125.0",
     "@octokit/rest": "^22.0.0",
     "@openrouter/ai-sdk-provider": "^1.2.0",
     "ai": "^5.0.81",
