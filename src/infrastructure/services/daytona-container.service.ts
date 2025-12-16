@@ -4,6 +4,8 @@ import { ValidationError } from '../../shared/errors/validation.error';
 const PROVISION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes for create/delete
 const EXECUTE_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes for execute/status
 const PROCESS_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes for forwarding commands
+const WORKSPACE_READY_POLL_INTERVAL_MS = 2000; // 2 seconds between status checks
+const WORKSPACE_READY_MAX_ATTEMPTS = 60; // Max 2 minutes waiting for ready state
 
 interface DaytonaWorkspaceDto {
   id: string;
@@ -43,6 +45,11 @@ export class DaytonaContainerService implements IContainerService {
       timeoutSeconds: number;
     };
   }): Promise<{ containerId: string }> {
+    // Note: Daytona API does not currently support applying resource limits such as CPU, memory,
+    // or execution timeout to workspaces. We still call `validateSpawnParams` so that
+    // `resourceLimits` are validated consistently with other providers, but these limits are
+    // not actually sent in the `/sandbox` payload. If Daytona adds support for resource limits
+    // in the future, the payload construction below should be updated to include them.
     this.validateSpawnParams(params);
 
     const existingWorkspace = await this.findExistingWorkspace(
@@ -73,7 +80,9 @@ export class DaytonaContainerService implements IContainerService {
       PROVISION_TIMEOUT_MS,
     );
 
-    return { containerId: this.toContainerId(workspace.id) };
+    // Poll until workspace is ready (running/ready/started)
+    const readyWorkspace = await this.waitForWorkspaceReady(workspace.id);
+    return { containerId: this.toContainerId(readyWorkspace.id) };
   }
 
   async execute(
@@ -145,12 +154,21 @@ export class DaytonaContainerService implements IContainerService {
     this.validateContainerId(containerId);
 
     const workspaceId = this.getWorkspaceId(containerId);
-    await this.doRequest<void>(
-      'DELETE',
-      `/sandbox/${workspaceId}`,
-      undefined,
-      PROVISION_TIMEOUT_MS,
-    );
+    try {
+      await this.doRequest<void>(
+        'DELETE',
+        `/sandbox/${workspaceId}`,
+        undefined,
+        PROVISION_TIMEOUT_MS,
+      );
+    } catch (error) {
+      // Handle 404 gracefully for idempotent termination
+      // If workspace doesn't exist, consider it already terminated
+      if (error instanceof Error && error.message.includes('404')) {
+        return;
+      }
+      throw error;
+    }
   }
 
   async getStatus(
@@ -212,7 +230,45 @@ export class DaytonaContainerService implements IContainerService {
     );
 
     const workspaces = response ?? [];
-    return workspaces.find((ws) => this.isWorkspaceHealthy(ws)) ?? null;
+    // Filter by configId to prevent cross-config reuse in multi-tenant scenarios
+    return workspaces.find(
+      (ws) => ws.configId === configId && this.isWorkspaceHealthy(ws)
+    ) ?? null;
+  }
+
+  private async waitForWorkspaceReady(
+    workspaceId: string,
+  ): Promise<DaytonaWorkspaceDto> {
+    for (let attempt = 0; attempt < WORKSPACE_READY_MAX_ATTEMPTS; attempt++) {
+      const workspace = await this.doRequest<DaytonaWorkspaceDto>(
+        'GET',
+        `/sandbox/${workspaceId}`,
+        undefined,
+        EXECUTE_TIMEOUT_MS,
+      );
+
+      if (this.isWorkspaceHealthy(workspace)) {
+        return workspace;
+      }
+
+      // Check for terminal failure states
+      if (workspace.status === 'failed' || workspace.status === 'error') {
+        throw new Error(
+          `Daytona workspace ${workspaceId} failed to start: ${workspace.status}`,
+        );
+      }
+
+      // Wait before next poll
+      await this.sleep(WORKSPACE_READY_POLL_INTERVAL_MS);
+    }
+
+    throw new Error(
+      `Daytona workspace ${workspaceId} did not become ready within timeout`,
+    );
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private isWorkspaceHealthy(workspace: DaytonaWorkspaceDto): boolean {
