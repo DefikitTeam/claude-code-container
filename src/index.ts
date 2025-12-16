@@ -282,7 +282,7 @@ async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
 
   registerErrorMiddleware(app as unknown as Hono);
 
-  app.route('/health', createHealthRoutes());
+  app.route('/health', createHealthRoutes(env.CONTAINER_PROVIDER || 'cloudflare'));
   app.route('/api/users', createUserRoutes(controllers.userController));
   app.route('/api/github', createGitHubRoutes(controllers.githubController));
   app.route(

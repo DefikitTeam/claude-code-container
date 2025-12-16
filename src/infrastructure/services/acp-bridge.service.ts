@@ -77,7 +77,7 @@ export class ACPBridgeService implements IACPBridgeService {
   constructor(
     private readonly tokenService?: any,
     private readonly githubService?: IGitHubService,
-  ) {}
+  ) { }
 
   /**
    * Route an ACP method to the container's ACP server
@@ -212,12 +212,10 @@ export class ACPBridgeService implements IACPBridgeService {
         );
       }
 
-      // Route all ACP operations to a consistent container instance to maintain session state
-      // Using single container pool since session state is stored in memory
+      // Route all ACP operations to a consistent container instance to maintain session state.
+      // NOTE: This must be provider-aware; ACP endpoints previously hardwired to Cloudflare (env.MY_CONTAINER)
+      // which would wake Cloudflare containers even when CONTAINER_PROVIDER=daytona.
       const containerName = 'acp-session';
-
-      const containerId = env.MY_CONTAINER.idFromName(containerName);
-      const container = env.MY_CONTAINER.get(containerId);
 
       // Create JSON-RPC request for container ACP server
       // Use worker's OpenRouter API key (not user-provided)
@@ -239,16 +237,30 @@ export class ACPBridgeService implements IACPBridgeService {
             // Inject GitHub token in context.github.token (for handlers that expect it here)
             ...(githubToken
               ? {
-                  github: {
-                    ...(params.context?.github || {}),
-                    token: githubToken,
-                  },
-                }
+                github: {
+                  ...(params.context?.github || {}),
+                  token: githubToken,
+                },
+              }
               : {}),
           },
         },
         id: Date.now(),
       };
+
+      const cloudflareContainerId =
+        env.CONTAINER_PROVIDER === 'daytona'
+          ? undefined
+          : env.MY_CONTAINER.idFromName(containerName);
+      const cloudflareContainer =
+        cloudflareContainerId && env.CONTAINER_PROVIDER !== 'daytona'
+          ? env.MY_CONTAINER.get(cloudflareContainerId)
+          : undefined;
+
+      const containerIdForLogs =
+        env.CONTAINER_PROVIDER === 'daytona'
+          ? `daytona:${containerName}`
+          : cloudflareContainerId?.toString() ?? 'unknown';
 
       console.log(`[ACP-BRIDGE] Sending to container:`, {
         method,
@@ -260,7 +272,7 @@ export class ACPBridgeService implements IACPBridgeService {
         paramsKeys: Object.keys(params || {}),
         hasOpenRouterApiKey: !!openrouterApiKey,
         openrouterApiKeyLength: openrouterApiKey?.length || 0,
-        containerId: containerId.toString(),
+        containerId: containerIdForLogs,
       });
 
       // Debug: Log what we're actually sending
@@ -270,16 +282,27 @@ export class ACPBridgeService implements IACPBridgeService {
       );
 
       // Route to container ACP server via HTTP
-      const containerResponse = await container.fetch(
-        new Request('https://container/acp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-ACP-Bridge': 'true',
-          },
-          body: JSON.stringify(jsonRpcRequest),
-        }),
-      );
+      let containerResponse: Response;
+      if (env.CONTAINER_PROVIDER === 'daytona') {
+        containerResponse = await this.fetchDaytonaACP(env, jsonRpcRequest, {
+          containerName,
+          installationId: userConfig?.installationId,
+          userId,
+        });
+      } else {
+        containerResponse = await cloudflareContainer!.fetch(
+          new Request('https://container/acp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-ACP-Bridge': 'true',
+            },
+            body: JSON.stringify(jsonRpcRequest),
+          }),
+        );
+      }
+
+      const debugProcessUrl = containerResponse.headers.get('X-Debug-Process-Url');
 
       console.log(
         `[ACP-BRIDGE] Container response status:`,
@@ -294,7 +317,7 @@ export class ACPBridgeService implements IACPBridgeService {
           error: {
             code: -32603,
             message: 'Container processing failed',
-            data: { status: containerResponse.status, error: errorText },
+            data: { status: containerResponse.status, error: errorText, debugUrl: debugProcessUrl },
           },
           id: jsonRpcRequest.id,
         };
@@ -320,7 +343,7 @@ export class ACPBridgeService implements IACPBridgeService {
           error: {
             code: -32700,
             message: 'Parse error - container returned invalid JSON',
-            data: { response: responseText.substring(0, 200) },
+            data: { response: responseText.substring(0, 200), debugUrl: debugProcessUrl },
           },
           id: jsonRpcRequest.id,
         };
@@ -428,12 +451,14 @@ export class ACPBridgeService implements IACPBridgeService {
   ): Promise<{ success: boolean; bridge: any; container: any }> {
     try {
       // Get status from container as well (use consistent ACP container name)
-      const containerId = env.MY_CONTAINER.idFromName('acp-session');
-      const container = env.MY_CONTAINER.get(containerId);
-
-      const containerResponse = await container.fetch(
-        new Request('https://container/health'),
-      );
+      const containerResponse =
+        env.CONTAINER_PROVIDER === 'daytona'
+          ? await this.fetchDaytonaHealth(env, { containerName: 'acp-session' })
+          : await (async () => {
+            const containerId = env.MY_CONTAINER.idFromName('acp-session');
+            const container = env.MY_CONTAINER.get(containerId);
+            return container.fetch(new Request('https://container/health'));
+          })();
 
       let containerHealth = null;
       if (containerResponse.ok) {
@@ -468,6 +493,269 @@ export class ACPBridgeService implements IACPBridgeService {
     }
   }
 
+  private async fetchDaytonaACP(
+    env: any,
+    jsonRpcRequest: any,
+    meta: {
+      containerName: string;
+      installationId?: string;
+      userId?: string;
+    },
+  ): Promise<Response> {
+    const apiUrlRaw: string | undefined = env.DAYTONA_API_URL;
+    const apiKey: string | undefined = env.DAYTONA_API_KEY;
+    if (!apiUrlRaw || !apiKey) {
+      throw new Error(
+        'CONTAINER_PROVIDER=daytona requires DAYTONA_API_URL and DAYTONA_API_KEY (ACP bridge)',
+      );
+    }
+
+    // Sanitize API URL: remove hash and ensure trailing slash
+    let apiUrl = apiUrlRaw.split('#')[0];
+    if (!apiUrl.endsWith('/')) {
+      apiUrl += '/';
+    }
+
+    // Get registered snapshot name from environment (from Daytona Dashboard)
+    // This is the snapshot name like 'agent-coding-lumi', NOT the Docker image name
+    const snapshotName: string =
+      env.DAYTONA_ACP_SNAPSHOT_NAME || env.DAYTONA_SNAPSHOT_NAME || 'agent-coding-lumi';
+
+    const configId: string =
+      env.DAYTONA_ACP_CONFIG_ID || env.DAYTONA_CONFIG_ID || meta.containerName;
+
+    // Organization ID for JWT token auth (optional, but required when using JWT instead of API key)
+    const organizationId: string | undefined = env.DAYTONA_ORGANIZATION_ID;
+
+    console.log(`[ACP-BRIDGE] Using Daytona REST API with snapshot: ${snapshotName}`);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    };
+
+    // Add organization ID header if configured (required for JWT auth)
+    if (organizationId) {
+      headers['X-Daytona-Organization-ID'] = organizationId;
+      console.log(`[ACP-BRIDGE] Using organization ID: ${organizationId}`);
+    }
+
+    type Workspace = {
+      id: string;
+      status: string;
+      state?: string;
+      publicUrl?: string;
+      ports?: Record<string, string>;
+      configId?: string;
+    };
+
+    // Use relative path 'sandbox' to append to apiUrl (Daytona uses /sandbox not /workspace)
+    const listUrl = new URL('sandbox', apiUrl);
+    const listResp = await fetch(listUrl.toString(), {
+      method: 'GET',
+      headers,
+    });
+    if (!listResp.ok) {
+      const text = await listResp.text();
+      throw new Error(
+        `Daytona list sandboxes failed (${listResp.status}): ${text}`,
+      );
+    }
+    // Daytona /sandbox returns array directly
+    const listJson = (await listResp.json()) as Workspace[];
+    // Check for running/started sandbox - Daytona uses 'state' field
+    const existing = listJson.find(
+      (ws) => ws.state === 'started' || ws.status === 'running' || ws.status === 'ready',
+    );
+
+    const workspace = existing
+      ? existing
+      : await (async () => {
+        console.log(`[ACP-BRIDGE] Creating new sandbox from snapshot: ${snapshotName}`);
+
+        const createResp = await fetch(new URL('sandbox', apiUrl).toString(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            // Use 'snapshot' field with registered snapshot NAME (not Docker image)
+            // The snapshot must be pre-registered in Daytona Dashboard
+            snapshot: snapshotName,
+            // Set public:true to get a public URL for ACP communication
+            public: true,
+            // Override resources to bypass server limits
+            // The snapshot has cpu:1 but server may have cpu limit of 0
+            resources: {
+              cpu: 0,  // Use minimal resources to bypass limits
+            },
+            // Environment variables for the sandbox
+            envVars: {
+              OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
+              OPENROUTER_DEFAULT_MODEL: env.OPENROUTER_DEFAULT_MODEL,
+              OPENHANDS_API_KEY: env.OPENHANDS_API_KEY,
+              OPENHANDS_DEFAULT_MODEL: env.OPENHANDS_DEFAULT_MODEL,
+              ALLHANDS_API_KEY: env.ALLHANDS_API_KEY,
+              ENABLE_DEEP_REASONING: env.ENABLE_DEEP_REASONING,
+              DEEP_REASONING_THRESHOLD: env.DEEP_REASONING_THRESHOLD,
+              PROCESSING_TIMEOUT: env.PROCESSING_TIMEOUT,
+              CLAUDE_CODE_TIMEOUT: env.CLAUDE_CODE_TIMEOUT,
+            },
+            // Labels for identification (optional)
+            labels: {
+              configId,
+              installationId: meta.installationId || 'unknown',
+              userId: meta.userId || 'unknown',
+            },
+          }),
+        });
+        if (!createResp.ok) {
+          const text = await createResp.text();
+          throw new Error(
+            `Daytona create sandbox failed (${createResp.status}): ${text}`,
+          );
+        }
+        return (await createResp.json()) as Workspace;
+      })();
+
+    console.log(`[ACP-BRIDGE] Sandbox created: ${workspace.id}, state: ${workspace.state || workspace.status}`);
+
+    // Wait for sandbox to be ready (poll until state is 'started')
+    const maxWaitMs = 60000; // 60 seconds max wait
+    const pollIntervalMs = 2000; // Poll every 2 seconds
+    const startTime = Date.now();
+
+    while (workspace.state !== 'started' && workspace.status !== 'running') {
+      if (Date.now() - startTime > maxWaitMs) {
+        throw new Error(`Sandbox ${workspace.id} did not start within ${maxWaitMs / 1000}s (current state: ${workspace.state || workspace.status})`);
+      }
+
+      console.log(`[ACP-BRIDGE] Waiting for sandbox ${workspace.id} to start (state: ${workspace.state || workspace.status})...`);
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+
+      // Poll sandbox status
+      const statusUrl = new URL(`sandbox/${workspace.id}`, apiUrl);
+      const statusResp = await fetch(statusUrl.toString(), { method: 'GET', headers });
+      if (statusResp.ok) {
+        const updated = (await statusResp.json()) as Workspace;
+        workspace.state = updated.state;
+        workspace.status = updated.status;
+        workspace.publicUrl = updated.publicUrl;
+        workspace.ports = updated.ports;
+      }
+    }
+
+    console.log(`[ACP-BRIDGE] Sandbox ready: ${workspace.id}, state: ${workspace.state || workspace.status}`);
+
+    const processUrl = this.getDaytonaProcessUrl(workspace, env);
+    if (!processUrl) {
+      throw new Error('Daytona workspace has no public endpoint for ACP');
+    }
+
+    console.log(`[ACP-BRIDGE] Fetching Daytona ACP at: ${processUrl}/acp`);
+
+    const response = await fetch(`${processUrl}/acp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-ACP-Bridge': 'true',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(jsonRpcRequest),
+    });
+
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set('X-Debug-Process-Url', processUrl);
+    return newResponse;
+  }
+
+  private async fetchDaytonaHealth(
+    env: any,
+    meta: { containerName: string },
+  ): Promise<Response> {
+    // Reuse the same routing as ACP but hit /health.
+    const apiUrlRaw: string | undefined = env.DAYTONA_API_URL;
+    const apiKey: string | undefined = env.DAYTONA_API_KEY;
+    if (!apiUrlRaw || !apiKey) {
+      throw new Error(
+        'CONTAINER_PROVIDER=daytona requires DAYTONA_API_URL and DAYTONA_API_KEY (ACP bridge health)',
+      );
+    }
+
+    // Sanitize API URL
+    let apiUrl = apiUrlRaw.split('#')[0];
+    if (!apiUrl.endsWith('/')) {
+      apiUrl += '/';
+    }
+
+    const configId: string =
+      env.DAYTONA_ACP_CONFIG_ID || env.DAYTONA_CONFIG_ID || meta.containerName;
+
+    // Daytona uses /sandbox endpoint, not /workspace
+    const listUrl = new URL('sandbox', apiUrl);
+    // Note: configId filter removed - Daytona /sandbox doesn't support query params
+    const listResp = await fetch(listUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+    if (!listResp.ok) {
+      const text = await listResp.text();
+      return new Response(text, { status: listResp.status });
+    }
+    // Daytona /sandbox returns array directly, not {workspaces: []}
+    const listJson = (await listResp.json()) as Array<{
+      id: string;
+      status: string;
+      publicUrl?: string;
+      ports?: Record<string, string>;
+    }>;
+    const ws = listJson.find(
+      (w) => w.status === 'running' || w.status === 'ready' || w.status === 'started',
+    );
+    if (!ws) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'no_running_sandbox' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    const processUrl = this.getDaytonaProcessUrl(ws, env);
+    if (!processUrl) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'no_public_endpoint' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    return fetch(`${processUrl}/health`, { method: 'GET' });
+  }
+
+  private getDaytonaProcessUrl(
+    workspace: {
+      id?: string;
+      publicUrl?: string;
+      ports?: Record<string, string>;
+    },
+    env?: { DAYTONA_PROXY_URL?: string },
+  ): string | null {
+    // First try explicit URL fields
+    if (workspace.ports && typeof workspace.ports['8080'] === 'string') {
+      return workspace.ports['8080'];
+    }
+    if (typeof workspace.publicUrl === 'string' && workspace.publicUrl) {
+      return workspace.publicUrl;
+    }
+
+    // Construct preview URL from sandbox ID and proxy domain
+    // Format: https://{port}-{sandboxId}.{proxyDomain}
+    const proxyUrl = env?.DAYTONA_PROXY_URL;
+    if (proxyUrl && workspace.id) {
+      // e.g., https://8080-{sandboxId}.proxy.daytona.defikit.net
+      return `${proxyUrl.replace('{sandboxId}', workspace.id).replace('{port}', '8080')}`;
+    }
+
+    return null;
+  }
+
   /**
    * Get mock response for development/testing
    */
@@ -477,21 +765,21 @@ export class ACPBridgeService implements IACPBridgeService {
       result:
         method === 'session/prompt'
           ? {
-              stopReason: 'mock',
-              usage: { inputTokens: 0, outputTokens: 0 },
-              summary: 'Mocked (containers disabled)',
-            }
+            stopReason: 'mock',
+            usage: { inputTokens: 0, outputTokens: 0 },
+            summary: 'Mocked (containers disabled)',
+          }
           : method === 'session/new'
             ? {
-                sessionId: `mock-session-${Date.now()}`,
-                modes: { currentModeId: 'default', availableModes: [] },
-              }
+              sessionId: `mock-session-${Date.now()}`,
+              modes: { currentModeId: 'default', availableModes: [] },
+            }
             : method === 'initialize'
               ? {
-                  protocolVersion: 1,
-                  agentCapabilities: {},
-                  authMethods: [],
-                }
+                protocolVersion: 1,
+                agentCapabilities: {},
+                authMethods: [],
+              }
               : {},
       id: Date.now(),
     };

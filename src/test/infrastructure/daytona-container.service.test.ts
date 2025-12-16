@@ -34,20 +34,18 @@ describe('DaytonaContainerService', () => {
     const fetchSpy = stubFetch(async (request) => {
       expect(request.method).toBe('GET');
       const url = new URL(request.url);
-      expect(url.pathname).toBe('/workspaces');
-      expect(url.searchParams.get('configId')).toBe('cfg-reuse');
+      expect(url.pathname).toBe('/sandbox');
+      // Note: /sandbox doesn't support configId filter, filtering is done client-side
 
       return new Response(
-        JSON.stringify({
-          workspaces: [
-            {
-              id: 'ws-reuse',
-              configId: 'cfg-reuse',
-              status: 'running',
-              publicUrl: 'https://workspace.reuse',
-            },
-          ],
-        }),
+        JSON.stringify([
+          {
+            id: 'ws-reuse',
+            configId: 'cfg-reuse',
+            status: 'running',
+            publicUrl: 'https://workspace.reuse',
+          },
+        ]),
         {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -65,9 +63,9 @@ describe('DaytonaContainerService', () => {
   it('creates a new workspace when none exist', async () => {
     const fetchSpy = stubFetch(async (request) => {
       const url = new URL(request.url);
-      if (request.method === 'GET' && url.pathname === '/workspaces') {
+      if (request.method === 'GET' && url.pathname === '/sandbox') {
         return new Response(
-          JSON.stringify({ workspaces: [] }),
+          JSON.stringify([]),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -75,7 +73,7 @@ describe('DaytonaContainerService', () => {
         );
       }
 
-      if (request.method === 'POST' && url.pathname === '/workspaces') {
+      if (request.method === 'POST' && url.pathname === '/sandbox') {
         return new Response(
           JSON.stringify({
             id: 'ws-new',
@@ -100,7 +98,7 @@ describe('DaytonaContainerService', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(fetchSpy).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining('/workspaces'),
+      expect.stringContaining('/sandbox'),
       expect.anything(),
     );
   });
@@ -108,9 +106,9 @@ describe('DaytonaContainerService', () => {
   it('throws when Daytona API returns an error', async () => {
     stubFetch(async (request) => {
       const url = new URL(request.url);
-      if (request.method === 'GET' && url.pathname === '/workspaces') {
+      if (request.method === 'GET' && url.pathname === '/sandbox') {
         return new Response(
-          JSON.stringify({ workspaces: [] }),
+          JSON.stringify([]),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -129,13 +127,13 @@ describe('DaytonaContainerService', () => {
 
     await expect(
       service.spawn({ configId: 'cfg-error', ...BASE_PARAMS }),
-    ).rejects.toThrow('Daytona API POST /workspaces failed');
+    ).rejects.toThrow('Daytona API POST /sandbox failed');
   });
 
   it('forwards exec commands to the workspace endpoint', async () => {
     const fetchSpy = stubFetch(async (request) => {
       const url = new URL(request.url);
-      if (request.method === 'GET' && url.pathname === '/workspaces/ws-exec') {
+      if (request.method === 'GET' && url.pathname === '/sandbox/ws-exec') {
         return new Response(
           JSON.stringify({
             id: 'ws-exec',

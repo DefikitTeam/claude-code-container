@@ -54,17 +54,21 @@ export class DaytonaContainerService implements IContainerService {
     }
 
     const payload = {
-      configId: params.configId,
-      installationId: params.installationId,
-      userId: params.userId,
+      // Daytona API uses 'image' field for Docker/OCI images (auto-creates snapshot internally)
       image: params.containerImage,
-      env: params.environmentVariables,
-      resources: params.resourceLimits,
+      // Environment variables
+      envVars: params.environmentVariables,
+      // Labels for identification
+      labels: {
+        configId: params.configId,
+        installationId: params.installationId,
+        userId: params.userId,
+      },
     };
 
     const workspace = await this.doRequest<DaytonaWorkspaceDto>(
       'POST',
-      '/workspaces',
+      '/sandbox',
       payload,
       PROVISION_TIMEOUT_MS,
     );
@@ -95,7 +99,10 @@ export class DaytonaContainerService implements IContainerService {
       `${processUrl}/process`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
         body: JSON.stringify({ type: 'execute', command }),
       },
       PROCESS_TIMEOUT_MS,
@@ -126,7 +133,7 @@ export class DaytonaContainerService implements IContainerService {
     const workspaceId = this.getWorkspaceId(containerId);
     const response = await this.doRequest<DaytonaLogsResponse>(
       'GET',
-      `/workspaces/${workspaceId}/logs`,
+      `/sandbox/${workspaceId}/logs`,
       undefined,
       EXECUTE_TIMEOUT_MS,
     );
@@ -140,7 +147,7 @@ export class DaytonaContainerService implements IContainerService {
     const workspaceId = this.getWorkspaceId(containerId);
     await this.doRequest<void>(
       'DELETE',
-      `/workspaces/${workspaceId}`,
+      `/sandbox/${workspaceId}`,
       undefined,
       PROVISION_TIMEOUT_MS,
     );
@@ -196,20 +203,20 @@ export class DaytonaContainerService implements IContainerService {
   private async findExistingWorkspace(
     configId: string,
   ): Promise<DaytonaWorkspaceDto | null> {
-    const response = await this.doRequest<DaytonaWorkspacesResponse>(
+    // Daytona /sandbox returns array directly
+    const response = await this.doRequest<DaytonaWorkspaceDto[]>(
       'GET',
-      '/workspaces',
+      '/sandbox',
       undefined,
       PROVISION_TIMEOUT_MS,
-      { configId },
     );
 
-    const workspaces = response.workspaces ?? [];
+    const workspaces = response ?? [];
     return workspaces.find((ws) => this.isWorkspaceHealthy(ws)) ?? null;
   }
 
   private isWorkspaceHealthy(workspace: DaytonaWorkspaceDto): boolean {
-    return workspace.status === 'running' || workspace.status === 'ready';
+    return workspace.status === 'running' || workspace.status === 'ready' || workspace.status === 'started';
   }
 
   private async getWorkspace(
@@ -219,7 +226,7 @@ export class DaytonaContainerService implements IContainerService {
     const workspaceId = this.getWorkspaceId(containerId);
     return this.doRequest<DaytonaWorkspaceDto>(
       'GET',
-      `/workspaces/${workspaceId}`,
+      `/sandbox/${workspaceId}`,
       undefined,
       timeoutMs,
     );
@@ -252,11 +259,11 @@ export class DaytonaContainerService implements IContainerService {
   }
 
   private mapStatus(status: string): 'running' | 'stopped' | 'error' {
-    if (status === 'running' || status === 'ready') {
+    if (status === 'running' || status === 'ready' || status === 'started') {
       return 'running';
     }
 
-    if (status === 'terminated') {
+    if (status === 'terminated' || status === 'stopped') {
       return 'stopped';
     }
 
@@ -285,7 +292,15 @@ export class DaytonaContainerService implements IContainerService {
     timeoutMs: number,
     query?: Record<string, string>,
   ): Promise<T> {
-    const url = new URL(`${this.apiUrl}${path}`);
+    // Sanitize API URL
+    let apiUrl = this.apiUrl.split('#')[0];
+    if (!apiUrl.endsWith('/')) {
+      apiUrl += '/';
+    }
+
+    // Ensure path is relative (no leading slash)
+    const relativePath = path.startsWith('/') ? path.slice(1) : path;
+    const url = new URL(relativePath, apiUrl);
 
     if (query) {
       for (const [key, value] of Object.entries(query)) {

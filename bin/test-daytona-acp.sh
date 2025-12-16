@@ -128,7 +128,7 @@ SESSION_ID=""
 echo -e "${BLUE}[STEP 1]${NC} Health Check..."
 
 HEALTH_RESPONSE=$(curl -s -w "\n%{http_code}" "$WORKER_URL/health")
-HEALTH_BODY=$(echo "$HEALTH_RESPONSE" | head -n -1)
+HEALTH_BODY=$(echo "$HEALTH_RESPONSE" | sed '$d')
 HEALTH_STATUS=$(echo "$HEALTH_RESPONSE" | tail -n 1)
 
 if [[ "$HEALTH_STATUS" == "200" ]]; then
@@ -164,7 +164,7 @@ REGISTER_RESPONSE=$(curl -s -w "\n%{http_code}" \
     \"projectLabel\": \"Daytona ACP Test\"
   }")
 
-REGISTER_BODY=$(echo "$REGISTER_RESPONSE" | head -n -1)
+REGISTER_BODY=$(echo "$REGISTER_RESPONSE" | sed '$d')
 REGISTER_STATUS=$(echo "$REGISTER_RESPONSE" | tail -n 1)
 
 if [[ "$REGISTER_STATUS" == "200" ]] || [[ "$REGISTER_STATUS" == "201" ]]; then
@@ -200,7 +200,7 @@ SESSION_RESPONSE=$(curl -s -w "\n%{http_code}" \
     }
   }")
 
-SESSION_BODY=$(echo "$SESSION_RESPONSE" | head -n -1)
+SESSION_BODY=$(echo "$SESSION_RESPONSE" | sed '$d')
 SESSION_STATUS=$(echo "$SESSION_RESPONSE" | tail -n 1)
 
 if [[ "$SESSION_STATUS" == "200" ]]; then
@@ -245,7 +245,7 @@ PROMPT_RESPONSE=$(curl -s -w "\n%{http_code}" \
     }
   }")
 
-PROMPT_BODY=$(echo "$PROMPT_RESPONSE" | head -n -1)
+PROMPT_BODY=$(echo "$PROMPT_RESPONSE" | sed '$d')
 PROMPT_STATUS=$(echo "$PROMPT_RESPONSE" | tail -n 1)
 
 if [[ "$PROMPT_STATUS" == "200" ]]; then
