@@ -3,7 +3,9 @@
   "name": "claude-code-containers",
   "main": "src/index.ts",
   "compatibility_date": "2025-05-23",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "observability": {
     "enabled": true,
   },
@@ -40,19 +42,28 @@
   },
   "migrations": [
     {
-      "new_sqlite_classes": ["MyContainer", "GitHubAppConfigDO"],
+      "new_sqlite_classes": [
+        "MyContainer",
+        "GitHubAppConfigDO"
+      ],
       "tag": "v1",
     },
     {
-      "new_sqlite_classes": ["UserConfigDO"],
+      "new_sqlite_classes": [
+        "UserConfigDO"
+      ],
       "tag": "v2",
     },
     {
-      "new_sqlite_classes": ["ACPSessionDO"],
+      "new_sqlite_classes": [
+        "ACPSessionDO"
+      ],
       "tag": "v3",
     },
     {
-      "new_sqlite_classes": ["AsyncJobDO"],
+      "new_sqlite_classes": [
+        "AsyncJobDO"
+      ],
       "tag": "v4",
     },
   ],
@@ -62,10 +73,13 @@
   "vars": {
     "ENVIRONMENT": "development",
     "ENABLE_DEEP_REASONING": "false",
+    // Container Provider: "cloudflare" (default) or "daytona"
+    // ⚠️ Choose once and stick with it - switching causes context loss!
     "CONTAINER_PROVIDER": "cloudflare",
-    // Daytona-specific values should be provided via secrets when using daytona provider
+    // Daytona-specific values (required only when CONTAINER_PROVIDER=daytona)
+    // These should be provided via secrets in production
     "DAYTONA_API_URL": "",
-    "DAYTONA_API_KEY": "",
+    "DAYTONA_API_KEY": ""
   },
   "env": {
     "production": {

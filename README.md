@@ -25,14 +25,22 @@ deployment with 95%+ success rate.
 
 1. **[Fork this repository](https://github.com/DefikitTeam/claude-code-container/fork)**
    ← Click here
-2. **Add 4 secrets** in your fork: Settings → Secrets and variables → Actions
+2. **Add required secrets** in your fork: Settings → Secrets and variables → Actions
 
+**Required secrets:**
 - `CLOUDFLARE_API_TOKEN` (from Cloudflare dashboard)
 - `CLOUDFLARE_ACCOUNT_ID` (from Cloudflare dashboard)
-- `OPENROUTER_API_KEY` (OpenRouter API key for Claude/OpenRouter integration).
-  Note: currently only the OpenRouter provider is supported; additional
-  providers (Anthropic, etc.) will be supported soon.
+- `OPENROUTER_API_KEY` (OpenRouter API key for Claude/OpenRouter integration)
 - `ENCRYPTION_KEY` (generate with: `openssl rand -hex 32`)
+
+**Optional - Container Provider (default: Cloudflare):**
+- `CONTAINER_PROVIDER` - Set to `cloudflare` (default) or `daytona`
+
+**Required only if using Daytona provider:**
+- `DAYTONA_API_URL` - Your Daytona API base URL
+- `DAYTONA_API_KEY` - Daytona authentication key
+
+> ⚠️ **IMPORTANT**: Choose your container provider carefully! Once deployed, switching providers will cause loss of session context and conversation history. See [Container Providers](#container-providers) for details.
 
 3. **Push any change** to trigger automatic deployment
    [� Reliable Deployment Guide](./DEPLOYMENT_GUIDE.md) •
@@ -53,13 +61,18 @@ Click the **"Fork"** button above to create your own copy.
 
 In your forked repo, go to **Settings** → **Secrets** → **Actions** and add:
 
-- `CLOUDFLARE_API_TOKEN` -
-  [Get here](https://dash.cloudflare.com/profile/api-tokens)
+**Required:**
+- `CLOUDFLARE_API_TOKEN` - [Get here](https://dash.cloudflare.com/profile/api-tokens)
 - `CLOUDFLARE_ACCOUNT_ID` - Found in Cloudflare dashboard
-- `OPENROUTER_API_KEY` - OpenRouter API key for Claude/OpenRouter integration.
-  Get one at [https://openrouter.ai/](https://openrouter.ai/). Note: currently
-  only the OpenRouter provider is supported; additional providers (Anthropic,
-  etc.) will be supported soon.
+- `OPENROUTER_API_KEY` - [Get here](https://openrouter.ai/)
+- `ENCRYPTION_KEY` - Generate with: `openssl rand -hex 32`
+
+**Optional (Container Provider):**
+- `CONTAINER_PROVIDER` - `cloudflare` (default) or `daytona`
+
+**Daytona Provider Only (if `CONTAINER_PROVIDER=daytona`):**
+- `DAYTONA_API_URL` - Daytona API base URL (e.g., `https://api.daytona.io`)
+- `DAYTONA_API_KEY` - Daytona authentication token
 
 ### 3. Deploy
 
@@ -77,12 +90,6 @@ Visit: `https://your-worker-name.workers.dev/install` to configure GitHub App.
 📖 **Detailed instructions**: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)
 
 ---
-
-## 🚀 **Alternative: Deploy Button** (May have auth issues)
-
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/DefikitTeam/claude-code-container)
-
-_Note: If you get "Unauthorized" errors, use the Fork method above._
 
 **Automated GitHub issue processing system powered by Claude Code and Cloudflare
 Workers**
@@ -149,14 +156,36 @@ GitHub Webhooks → Worker (Hono Router) → Container (Node.js + Claude Code) �
 
 ### Container Providers
 
+> [!CAUTION]
+> **Choose your provider BEFORE deployment and stick with it!**
+> Switching providers after deployment will cause:
+> - Loss of conversation history and session context
+> - Need to re-clone repositories in new container environments
+> - Potential disruption to in-progress workflows
+>
+> This is by design - each provider maintains its own isolated state.
+
 | Provider | Description | When to use |
 | --- | --- | --- |
-| `cloudflare` | The default implementation using `CloudflareContainerService`, which manages ephemeral Durable Object containers with auto-sleep after the configured timeout. | Quick, stateless jobs where you want extremely fast startup times. |
-| `daytona` | Uses `DaytonaContainerService` to talk to Daytona Workspaces via REST. Workspaces stay alive, retain their state between prompts, and expose the same `/process` and `/health` endpoints. | Long-running, stateful tasks where you want to reuse a workspace across multiple prompts. |
+| `cloudflare` | Default. Uses `CloudflareContainerService` with ephemeral Durable Object containers. Auto-sleeps after timeout. | Quick, stateless jobs. Fast cold-start (~1-2s). No infrastructure to manage. |
+| `daytona` | Uses `DaytonaContainerService` via REST API. Workspaces persist between prompts, retain git state and dependencies. | Long-running, stateful tasks. Reuse workspace across multiple prompts. Self-hosted option. |
 
 #### Choosing a Provider
 
-Set `CONTAINER_PROVIDER` to either `cloudflare` or `daytona`. When `daytona` is selected, you must also provide `DAYTONA_API_URL` and `DAYTONA_API_KEY` so the Worker can create and control workspaces against your Daytona deployment.
+**For most users:** Stick with `cloudflare` (default). It requires no additional setup and works out of the box.
+
+**Choose `daytona` if you need:**
+- Persistent workspaces that survive between sessions
+- Self-hosted infrastructure
+- Longer running tasks (>5 minutes)
+- Custom development environment setup
+
+**Required secrets for Daytona:**
+
+| Secret | Description |
+| --- | --- |
+| `DAYTONA_API_URL` | Base URL of your Daytona API (e.g., `https://api.daytona.io`) |
+| `DAYTONA_API_KEY` | Authentication token for Daytona API |
 
 ## 🚀 Quick Start Options
 
@@ -274,16 +303,36 @@ curl -X POST https://your-worker.your-subdomain.workers.dev/config \
 
 ### Environment Variables
 
-| Variable                | Required | Description                                                                                                                                                               |
-| ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`    | ✅       | Your OpenRouter API key for Claude/OpenRouter integration. Currently only the OpenRouter provider is supported; other providers (Anthropic, etc.) will be supported soon. |
-| `GITHUB_APP_ID`         | ⚠️       | GitHub App ID (can be set via `/config` endpoint)                                                                                                                         |
-| `GITHUB_WEBHOOK_SECRET` | ⚠️       | Webhook secret (can be set via `/config` endpoint)                                                                                                                        |
-| `ENVIRONMENT`           | ❌       | Environment name (default: `development`)                                                                                                                                 |
-| `ENABLE_DEEP_REASONING` | ❌       | Enable advanced reasoning (default: `false`)                                                                                                                              |
-| `CONTAINER_PROVIDER`    | ❌       | Determines the compute provider: `cloudflare` (default) or `daytona`.                                                                                                     |
-| `DAYTONA_API_URL`       | ⚠️       | Base URL for your Daytona Workspaces API (e.g., `https://example.com/api`). Required when `CONTAINER_PROVIDER=daytona`.                                                    |
-| `DAYTONA_API_KEY`       | ⚠️       | Authentication key/token for the Daytona Workspaces API. Required alongside `DAYTONA_API_URL` when using the Daytona provider.                                              |
+#### Core Configuration
+
+| Variable                | Required | Description |
+| ----------------------- | -------- | ----------- |
+| `ENCRYPTION_KEY`        | ✅       | 256-bit hex key for encrypting user data. Generate with: `openssl rand -hex 32` |
+| `OPENROUTER_API_KEY`    | ✅       | Your OpenRouter API key for Claude/OpenRouter integration |
+| `GITHUB_APP_ID`         | ⚠️       | GitHub App ID (can be set via `/config` endpoint) |
+| `GITHUB_WEBHOOK_SECRET` | ⚠️       | Webhook secret (can be set via `/config` endpoint) |
+| `ENVIRONMENT`           | ❌       | Environment name (default: `development`) |
+| `ENABLE_DEEP_REASONING` | ❌       | Enable advanced reasoning (default: `false`) |
+
+#### Container Provider Configuration
+
+| Variable              | Required | Description |
+| --------------------- | -------- | ----------- |
+| `CONTAINER_PROVIDER`  | ❌       | `cloudflare` (default) or `daytona`. **Choose once and stick with it!** |
+
+#### Daytona Provider (only if `CONTAINER_PROVIDER=daytona`)
+
+| Variable          | Required | Description |
+| ----------------- | -------- | ----------- |
+| `DAYTONA_API_URL` | ✅       | Base URL for Daytona API (e.g., `https://api.daytona.io`) |
+| `DAYTONA_API_KEY` | ✅       | Authentication token for Daytona API |
+
+#### LumiLink Integration (Optional)
+
+| Variable              | Required | Description |
+| --------------------- | -------- | ----------- |
+| `LUMILINK_API_URL`    | ❌       | LumiLink API base URL |
+| `LUMILINK_JWT_TOKEN`  | ❌       | User's JWT token from LumiLink authentication |
 
 ## 📖 Usage
 

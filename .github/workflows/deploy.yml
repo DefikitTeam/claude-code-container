@@ -69,6 +69,10 @@ jobs:
 
           echo "🔐 Setting secrets for environment: $ENV"
 
+          # ========================================
+          # REQUIRED SECRETS
+          # ========================================
+
           # Set ENCRYPTION_KEY (required for encrypting user data)
           if [ -n "${{ secrets.ENCRYPTION_KEY }}" ]; then
             echo "${{ secrets.ENCRYPTION_KEY }}" | pnpm wrangler secret put ENCRYPTION_KEY --env "$ENV"
@@ -85,18 +89,59 @@ jobs:
             echo "⚠️  OPENROUTER_API_KEY not found in GitHub secrets"
           fi
 
+          # ========================================
+          # LUMILINK INTEGRATION (Optional)
+          # ========================================
+
           # Set LUMILINK_API_URL
           if [ -n "${{ secrets.LUMILINK_API_URL }}" ]; then
             echo "${{ secrets.LUMILINK_API_URL }}" | pnpm wrangler secret put LUMILINK_API_URL --env "$ENV"
             echo "✅ LUMILINK_API_URL set"
           else
-            echo "⚠️  LUMILINK_API_URL not found in GitHub secrets"
+            echo "ℹ️  LUMILINK_API_URL not set (optional)"
           fi
 
           # Set LumiLink JWT token (if using LumiLink integration)
           if [ -n "${{ secrets.LUMILINK_JWT_TOKEN }}" ]; then
             echo "${{ secrets.LUMILINK_JWT_TOKEN }}" | pnpm wrangler secret put LUMILINK_JWT_TOKEN --env "$ENV"
             echo "✅ LUMILINK_JWT_TOKEN set"
+          fi
+
+          # ========================================
+          # CONTAINER PROVIDER CONFIGURATION
+          # ⚠️ IMPORTANT: Choose ONE provider and stick with it!
+          # Switching providers mid-deployment will lose session context.
+          # ========================================
+
+          # Set CONTAINER_PROVIDER (cloudflare or daytona)
+          if [ -n "${{ secrets.CONTAINER_PROVIDER }}" ]; then
+            echo "${{ secrets.CONTAINER_PROVIDER }}" | pnpm wrangler secret put CONTAINER_PROVIDER --env "$ENV"
+            echo "✅ CONTAINER_PROVIDER set to: ${{ secrets.CONTAINER_PROVIDER }}"
+          else
+            echo "ℹ️  CONTAINER_PROVIDER not set (defaults to 'cloudflare')"
+          fi
+
+          # ========================================
+          # DAYTONA PROVIDER SECRETS
+          # Required only if CONTAINER_PROVIDER=daytona
+          # ========================================
+
+          if [ "${{ secrets.CONTAINER_PROVIDER }}" = "daytona" ]; then
+            echo "🐳 Configuring Daytona provider..."
+
+            if [ -n "${{ secrets.DAYTONA_API_URL }}" ]; then
+              echo "${{ secrets.DAYTONA_API_URL }}" | pnpm wrangler secret put DAYTONA_API_URL --env "$ENV"
+              echo "✅ DAYTONA_API_URL set"
+            else
+              echo "❌ ERROR: DAYTONA_API_URL is required when CONTAINER_PROVIDER=daytona"
+            fi
+
+            if [ -n "${{ secrets.DAYTONA_API_KEY }}" ]; then
+              echo "${{ secrets.DAYTONA_API_KEY }}" | pnpm wrangler secret put DAYTONA_API_KEY --env "$ENV"
+              echo "✅ DAYTONA_API_KEY set"
+            else
+              echo "❌ ERROR: DAYTONA_API_KEY is required when CONTAINER_PROVIDER=daytona"
+            fi
           fi
 
           echo "🔐 Secrets configuration completed"
