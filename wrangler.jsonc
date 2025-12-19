@@ -77,9 +77,11 @@
     // ⚠️ Choose once and stick with it - switching causes context loss!
     "CONTAINER_PROVIDER": "cloudflare",
     // Daytona-specific values (required only when CONTAINER_PROVIDER=daytona)
-    // These should be provided via secrets in production
-    "DAYTONA_API_URL": "",
-    "DAYTONA_API_KEY": ""
+    // DAYTONA_API_URL is provided by LumiLink infrastructure
+    "DAYTONA_API_URL": "https://api.daytona.io",
+    // User-provided secrets (set via GitHub Actions secrets)
+    "DAYTONA_API_KEY": "",
+    "DAYTONA_ORGANIZATION_ID": ""
   },
   "env": {
     "production": {
@@ -88,8 +90,9 @@
         "ENVIRONMENT": "production",
         "ENABLE_DEEP_REASONING": "false",
         "CONTAINER_PROVIDER": "cloudflare",
-        "DAYTONA_API_URL": "",
-        "DAYTONA_API_KEY": ""
+        "DAYTONA_API_URL": "https://api.daytona.io",
+        "DAYTONA_API_KEY": "",
+        "DAYTONA_ORGANIZATION_ID": ""
       },
       "containers": [
         {
@@ -129,8 +132,9 @@
         "ENVIRONMENT": "development",
         "ENABLE_DEEP_REASONING": "false",
         "CONTAINER_PROVIDER": "cloudflare",
-        "DAYTONA_API_URL": "",
-        "DAYTONA_API_KEY": ""
+        "DAYTONA_API_URL": "https://api.daytona.io",
+        "DAYTONA_API_KEY": "",
+        "DAYTONA_ORGANIZATION_ID": ""
       },
       "containers": [
         {
@@ -170,8 +174,9 @@
         "ENVIRONMENT": "staging",
         "ENABLE_DEEP_REASONING": "false",
         "CONTAINER_PROVIDER": "cloudflare",
-        "DAYTONA_API_URL": "",
-        "DAYTONA_API_KEY": ""
+        "DAYTONA_API_URL": "https://api.daytona.io",
+        "DAYTONA_API_KEY": "",
+        "DAYTONA_ORGANIZATION_ID": ""
       },
       "containers": [
         {
