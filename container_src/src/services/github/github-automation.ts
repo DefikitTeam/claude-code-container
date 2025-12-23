@@ -425,16 +425,28 @@ export class GitHubAutomationService {
       email: context.git?.email || this.gitIdentity.email,
     };
 
-    await this.git.runGit(prepared.path, [
+    const nameRes = await this.git.runGit(prepared.path, [
       'config',
       'user.name',
       identity.name,
     ]);
-    await this.git.runGit(prepared.path, [
+    if (nameRes.code !== 0) {
+      this.log(logs, 'git.config.name.failed', {
+        stderr: nameRes.stderr,
+      });
+      // Try to proceed, but log it
+    }
+
+    const emailRes = await this.git.runGit(prepared.path, [
       'config',
       'user.email',
       identity.email,
     ]);
+    if (emailRes.code !== 0) {
+      this.log(logs, 'git.config.email.failed', {
+        stderr: emailRes.stderr,
+      });
+    }
 
     await this.git.runGit(prepared.path, ['add', '--all']);
 

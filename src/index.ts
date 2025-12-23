@@ -85,6 +85,7 @@ export interface Env {
   CONTAINER_PROVIDER?: 'cloudflare' | 'daytona';
   DAYTONA_API_URL?: string;
   DAYTONA_API_KEY?: string;
+  DAYTONA_ORGANIZATION_ID?: string;
 
   // User-specific credentials
   ENCRYPTION_KEY: string; // For encrypting user data (Anthropic API keys, etc.)
@@ -169,6 +170,7 @@ async function setupDI(env: Env): Promise<Controllers> {
     containerService = new DaytonaContainerService(
       env.DAYTONA_API_URL,
       env.DAYTONA_API_KEY,
+      env.DAYTONA_ORGANIZATION_ID,
     );
   } else {
     console.log('[DI] ✅ Using Cloudflare container provider');

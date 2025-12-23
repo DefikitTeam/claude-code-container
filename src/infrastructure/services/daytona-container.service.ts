@@ -27,6 +27,7 @@ export class DaytonaContainerService implements IContainerService {
   constructor(
     private readonly apiUrl: string,
     private readonly apiKey: string,
+    private readonly organizationId?: string,
   ) {
     if (!apiUrl || !apiKey) {
       throw new ValidationError('Daytona API URL and key are required');
@@ -97,43 +98,86 @@ export class DaytonaContainerService implements IContainerService {
       throw new ValidationError('containerId and command are required');
     }
 
-    const workspace = await this.getWorkspace(containerId, EXECUTE_TIMEOUT_MS);
-    const processUrl = this.getProcessUrl(workspace);
+    const workspaceId = this.getWorkspaceId(containerId);
+    
+    // Use Toolbox API with bash -c wrapper for proper shell interpretation
+    // This ensures shell operators (&&, ||, |, ;) are parsed correctly
+    const wrappedCommand = `bash -c ${JSON.stringify(command)}`;
+    
+    console.log(`[DAYTONA] Executing via Toolbox API: ${wrappedCommand.substring(0, 100)}...`);
 
-    if (!processUrl) {
-      throw new Error('Daytona workspace has no public endpoint');
-    }
-
-    const response = await this.fetchWithTimeout(
-      `${processUrl}/process`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({ type: 'execute', command }),
-      },
-      PROCESS_TIMEOUT_MS,
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to execute command in Daytona workspace: ${response.statusText}`,
-      );
-    }
-
-    const result = (await response.json()) as {
-      success: boolean;
-      logs?: string[];
-      message?: string;
-    };
+    const result = await this.executeViaToolbox(workspaceId, wrappedCommand);
 
     return {
-      exitCode: result.success ? 0 : 1,
-      stdout: result.logs?.join('\n') || result.message || '',
-      stderr: result.success ? '' : result.message || 'Execution failed',
+      exitCode: result.exitCode,
+      stdout: result.result || '',
+      stderr: result.exitCode !== 0 ? (result.result || 'Execution failed') : '',
     };
+  }
+
+  /**
+   * Execute command via Daytona Toolbox API
+   * This is the recommended way to run commands in Daytona sandboxes
+   */
+  private async executeViaToolbox(
+    sandboxId: string,
+    command: string,
+    timeoutSeconds: number = 120,
+  ): Promise<{ exitCode: number; result: string }> {
+    // Sanitize API URL
+    let apiUrl = this.apiUrl.split('#')[0];
+    if (!apiUrl.endsWith('/')) {
+      apiUrl += '/';
+    }
+
+    const url = `${apiUrl}toolbox/${sandboxId}/toolbox/process/execute`;
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), (timeoutSeconds + 10) * 1000);
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      };
+      
+      // Add Organization ID header for JWT authentication
+      if (this.organizationId) {
+        headers['X-Daytona-Organization-ID'] = this.organizationId;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          command,
+          timeout: timeoutSeconds,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[DAYTONA] Toolbox execute failed: ${response.status} - ${errorText}`);
+        return {
+          exitCode: 1,
+          result: `Toolbox API error: ${response.status} ${response.statusText}`,
+        };
+      }
+
+      const result = await response.json() as { exitCode: number; result: string };
+      console.log(`[DAYTONA] Toolbox execute result: exitCode=${result.exitCode}`);
+      
+      return result;
+    } catch (error) {
+      console.error(`[DAYTONA] Toolbox execute error:`, error);
+      return {
+        exitCode: 1,
+        result: error instanceof Error ? error.message : 'Unknown error',
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async getLogs(containerId: string): Promise<string[]> {

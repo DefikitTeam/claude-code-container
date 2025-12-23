@@ -90,6 +90,7 @@ export class GitService implements IGitService {
       if (isPersistent) {
         await this.syncPersistentWorkspace(repoPath, opts);
       }
+      await this.ensureGitUserConfigured(repoPath);
       return;
     } catch (e) {
       // not a git repo; attempt to create or clone
@@ -118,6 +119,7 @@ export class GitService implements IGitService {
         if (res.code !== 0) {
           // fall through to init
         } else {
+          await this.ensureGitUserConfigured(repoPath);
           return;
         }
       } catch (err) {
@@ -128,8 +130,13 @@ export class GitService implements IGitService {
     // Initialize a new repo and set default branch if provided
     await this.runGit(repoPath, ['init']);
     if (opts?.defaultBranch) {
-      // create and switch to default branch
       await this.runGit(repoPath, ['checkout', '-b', opts.defaultBranch]);
+    }
+
+    try {
+      await this.ensureGitUserConfigured(repoPath);
+    } catch (e) {
+      console.warn('[GitService] Failed to configure git user during ensureRepo:', e);
     }
   }
 
@@ -325,19 +332,17 @@ export class GitService implements IGitService {
   }
 
   async ensureGitUserConfigured(repoPath: string): Promise<void> {
-    try {
-      // Check if user.name is configured
-      await this.runGit(repoPath, ['config', 'user.name']);
-    } catch {
+    // Check if user.name is configured
+    const nameRes = await this.runGit(repoPath, ['config', 'user.name']);
+    if (nameRes.code !== 0) {
       // Not configured, set default
       await this.runGit(repoPath, ['config', 'user.name', 'Claude Code Bot']);
       console.error('[GitService] Set git user.name to "Claude Code Bot"');
     }
 
-    try {
-      // Check if user.email is configured
-      await this.runGit(repoPath, ['config', 'user.email']);
-    } catch {
+    // Check if user.email is configured
+    const emailRes = await this.runGit(repoPath, ['config', 'user.email']);
+    if (emailRes.code !== 0) {
       // Not configured, set default
       await this.runGit(repoPath, [
         'config',

@@ -75,6 +75,7 @@ export interface ProcessPromptOptions {
     installationId?: string;
   };
   githubToken?: string;
+  githubTokenError?: string;
   rawParams?: Record<string, unknown>;
 }
 
@@ -817,6 +818,12 @@ export class PromptProcessor {
     ]);
 
     if (installationId) {
+      // Check for specific token error propagated from worker
+      const explicitError = options.githubTokenError || this.getNested(options.rawParams, ['githubTokenError']) as string;
+      if (explicitError) {
+        console.error(`[PROMPT] ❌ GitHub Token Error from Worker: ${explicitError}`);
+      }
+      
       console.warn(
         '[PROMPT] ⚠️ Installation ID provided but no GitHub token found.\n' +
         '[PROMPT] Containers cannot generate tokens. Token must be provided by worker.\n' +

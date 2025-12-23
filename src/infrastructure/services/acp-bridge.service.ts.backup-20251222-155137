@@ -26,12 +26,6 @@ export interface IACPBridgeService {
   routeACPMethod(method: string, params: any, env: any): Promise<any>;
 
   /**
-   * Route an ACP method to the container and return the raw Response for streaming.
-   * This bypasses JSON parsing to enable end-to-end streaming and avoid Cloudflare 524 timeout.
-   */
-  routeACPMethodStream(method: string, params: any, env: any): Promise<Response>;
-
-  /**
    * Route an ACP method to the container asynchronously
    * Returns immediately with jobId, actual processing happens in background
    */
@@ -166,19 +160,15 @@ export class ACPBridgeService implements IACPBridgeService {
 
       // Generate GitHub installation token and fetch repository info
       let githubToken: string | undefined;
-      let githubTokenError: string | undefined;
       let repository: string | undefined;
 
-      // Fallback: Check params for installationId if not in userConfig
-      const installationId = userConfig.installationId || params.installationId || params.context?.installationId || params.agentContext?.installationId;
-
-      if (this.tokenService && installationId) {
+      if (this.tokenService && userConfig.installationId) {
         try {
           console.log(
-            `[ACP-BRIDGE] Generating GitHub token for installation: ${installationId}`,
+            `[ACP-BRIDGE] Generating GitHub token for installation: ${userConfig.installationId}`,
           );
           const tokenResult = await this.tokenService.getInstallationToken(
-            installationId,
+            userConfig.installationId,
           );
           githubToken = tokenResult.token;
           console.log(`[ACP-BRIDGE] GitHub token generated successfully`);
@@ -201,7 +191,7 @@ export class ACPBridgeService implements IACPBridgeService {
                 );
               } else {
                 console.warn(
-                  `[ACP-BRIDGE] No repositories found for installation ${installationId}`,
+                  `[ACP-BRIDGE] No repositories found for installation ${userConfig.installationId}`,
                 );
               }
             } catch (repoError) {
@@ -212,11 +202,9 @@ export class ACPBridgeService implements IACPBridgeService {
               // Continue without repository info - user can still pass it manually
             }
           }
-
-        } catch (error: any) {
+        } catch (error) {
           console.warn(`[ACP-BRIDGE] Failed to generate GitHub token:`, error);
-          githubTokenError = error instanceof Error ? error.message : String(error);
-          // Continue without GitHub token - container will skip GitHub operations but will know why
+          // Continue without GitHub token - container will skip GitHub operations
         }
       } else {
         console.log(
@@ -239,8 +227,6 @@ export class ACPBridgeService implements IACPBridgeService {
           anthropicApiKey: openrouterApiKey, // ✅ Use worker's OpenRouter API key
           // Also pass GitHub token at top level for container compatibility
           ...(githubToken ? { githubToken } : {}),
-           // Pass token error if generation failed
-          ...(githubTokenError ? { githubTokenError } : {}),
           // Auto-inject GitHub context (token + repository) from installation
           context: {
             ...(params.context || {}),
@@ -408,230 +394,6 @@ export class ACPBridgeService implements IACPBridgeService {
         id: Date.now(),
       };
     }
-  }
-
-  /**
-   * Route an ACP method to the container and return the raw Response for streaming.
-   * This method does NOT parse JSON - it returns the Response object directly.
-   * Use this for long-running operations to avoid Cloudflare 524 timeout.
-   */
-  async routeACPMethodStream(method: string, params: any, env: any): Promise<Response> {
-    // Validate userId for multi-tenant security
-    const userId = params?.userId;
-    if (!userId) {
-      console.error('[ACP-BRIDGE-STREAM] Missing userId in request params');
-      return new Response(JSON.stringify({
-        jsonrpc: '2.0',
-        error: {
-          code: -32602,
-          message: 'Invalid params: userId is required for multi-tenant security',
-        },
-        id: Date.now(),
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Validate OpenRouter API Key
-    const openrouterApiKey = env.OPENROUTER_API_KEY;
-    if (!openrouterApiKey) {
-      console.error('[ACP-BRIDGE-STREAM] Missing OPENROUTER_API_KEY');
-      return new Response(JSON.stringify({
-        jsonrpc: '2.0',
-        error: {
-          code: -32001,
-          message: 'Worker not configured: Missing OPENROUTER_API_KEY',
-        },
-        id: Date.now(),
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Fetch user config
-    let userConfig;
-    try {
-      userConfig = await this.fetchUserConfig(env, userId);
-    } catch (error) {
-      console.error('[ACP-BRIDGE-STREAM] User config fetch failed:', error);
-      return new Response(JSON.stringify({
-        jsonrpc: '2.0',
-        error: {
-          code: -32002,
-          message: 'User config not found',
-        },
-        id: Date.now(),
-      }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Build JSON-RPC request with injected credentials
-    const containerName = 'acp-session';
-    const jsonRpcRequest = {
-      jsonrpc: '2.0',
-      method: method,
-      params: {
-        ...params,
-        anthropicApiKey: openrouterApiKey,
-        installationId: userConfig.installationId,
-      },
-      id: Date.now(),
-    };
-
-    console.log(`[ACP-BRIDGE-STREAM] Routing ${method} to container (streaming mode)`);
-
-    try {
-      if (env.CONTAINER_PROVIDER === 'daytona') {
-        // Daytona: Use Public URL for direct streaming access
-        return await this.fetchDaytonaACPStream(env, jsonRpcRequest, {
-          containerName,
-          installationId: userConfig?.installationId,
-          userId,
-        });
-      } else {
-        // Cloudflare Container: Return fetch Response directly (no buffering)
-        const cloudflareContainerId = env.MY_CONTAINER.idFromName(containerName);
-        const cloudflareContainer = env.MY_CONTAINER.get(cloudflareContainerId);
-        
-        const response = await cloudflareContainer.fetch(
-          new Request('https://container/acp', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-ACP-Bridge': 'true',
-              'X-ACP-Streaming': 'true',
-            },
-            body: JSON.stringify(jsonRpcRequest),
-          }),
-        );
-        
-        console.log(`[ACP-BRIDGE-STREAM] Cloudflare container response status: ${response.status}`);
-        return response;
-      }
-    } catch (error) {
-      console.error(`[ACP-BRIDGE-STREAM] Stream routing error:`, error);
-      return new Response(JSON.stringify({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: 'Stream routing failed',
-          data: { error: error instanceof Error ? error.message : String(error) },
-        },
-        id: Date.now(),
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-  }
-
-  /**
-   * Daytona Streaming: Fetch ACP via Public URL (bypass Toolbox API buffering)
-   */
-  private async fetchDaytonaACPStream(
-    env: any,
-    jsonRpcRequest: any,
-    meta: { containerName: string; installationId?: string; userId?: string },
-  ): Promise<Response> {
-    const apiUrlRaw: string | undefined = env.DAYTONA_API_URL;
-    const apiKey: string | undefined = env.DAYTONA_API_KEY;
-    const organizationId: string | undefined = env.DAYTONA_ORGANIZATION_ID;
-
-    if (!apiUrlRaw || !apiKey) {
-      throw new Error('Daytona config missing: DAYTONA_API_URL and DAYTONA_API_KEY required');
-    }
-
-    let apiUrl = apiUrlRaw.split('#')[0];
-    if (!apiUrl.endsWith('/')) apiUrl += '/';
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    };
-    if (organizationId) {
-      headers['X-Daytona-Organization-ID'] = organizationId;
-    }
-
-    // 1. Get or Create Sandbox with Public URL enabled
-    const snapshotName = env.DAYTONA_ACP_SNAPSHOT_NAME || env.DAYTONA_SNAPSHOT_NAME || 'daytonaio/sandbox:0.5.0-slim';
-    
-    // List existing sandboxes
-    const listResp = await fetch(new URL('sandbox', apiUrl).toString(), {
-      method: 'GET',
-      headers,
-    });
-    if (!listResp.ok) {
-      throw new Error(`Daytona list sandboxes failed: ${listResp.status}`);
-    }
-    const sandboxes = (await listResp.json()) as any[];
-    let sandbox = sandboxes.find((s: any) => s.state === 'started' || s.status === 'running');
-
-    // Create if not exists
-    if (!sandbox) {
-      console.log(`[ACP-BRIDGE-STREAM] Creating new Daytona sandbox with public URL...`);
-      const createResp = await fetch(new URL('sandbox', apiUrl).toString(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          snapshot: snapshotName,
-          public: true, // CRITICAL: Enable public URL for streaming
-          envVars: {
-            OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
-          },
-          labels: {
-            configId: meta.containerName,
-            userId: meta.userId || 'unknown',
-          },
-        }),
-      });
-      if (!createResp.ok) {
-        const errText = await createResp.text();
-        throw new Error(`Daytona create sandbox failed: ${createResp.status} - ${errText}`);
-      }
-      sandbox = await createResp.json();
-
-      // Poll until started (max 60s)
-      const maxWait = 60000;
-      const pollInterval = 2000;
-      const startTime = Date.now();
-      while (sandbox.state !== 'started' && sandbox.status !== 'running') {
-        if (Date.now() - startTime > maxWait) {
-          throw new Error(`Sandbox did not start in ${maxWait / 1000}s`);
-        }
-        await new Promise(r => setTimeout(r, pollInterval));
-        const statusResp = await fetch(new URL(`sandbox/${sandbox.id}`, apiUrl).toString(), { headers });
-        if (statusResp.ok) sandbox = await statusResp.json();
-      }
-    }
-
-    // 2. Refresh to get public URL
-    const statusResp = await fetch(new URL(`sandbox/${sandbox.id}`, apiUrl).toString(), { headers });
-    if (statusResp.ok) sandbox = await statusResp.json();
-
-    if (!sandbox.publicUrl) {
-      console.error('[ACP-BRIDGE-STREAM] Sandbox has no publicUrl:', sandbox);
-      throw new Error('Daytona sandbox has no public URL. Ensure sandbox is created with public:true.');
-    }
-
-    // 3. Fetch directly via Proxy (streaming enabled)
-    // Direct Proxy Pattern: https://22222-<sandbox-id>.proxy.daytona.defikit.net/acp
-    const targetUrl = `https://22222-${sandbox.id}.proxy.daytona.defikit.net/acp`;
-    console.log(`[ACP-BRIDGE-STREAM] Proxying to Daytona Sandbox: ${targetUrl}`);
-
-    return fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-ACP-Streaming': 'true',
-        'Authorization': `Bearer ${apiKey}`,
-        ...(organizationId ? { 'X-Daytona-Organization-ID': organizationId } : {}),
-      },
-      body: JSON.stringify(jsonRpcRequest),
-    });
   }
 
   /**
@@ -877,37 +639,297 @@ export class ACPBridgeService implements IACPBridgeService {
 
     console.log(`[ACP-BRIDGE] Sandbox ready: ${workspace.id}, state: ${workspace.state || workspace.status}`);
 
-    // Direct Proxy Pattern: https://22222-<sandbox-id>.proxy.daytona.defikit.net/acp
-    // Use the exact pattern requested by user
-    const targetUrl = `https://22222-${workspace.id}.proxy.daytona.defikit.net/acp`;
-    
-    console.log(`[ACP-BRIDGE] Proxying to Daytona Sandbox: ${targetUrl}`);
+    // Execute ACP request via Toolbox API with bash -c wrapper
+    // This approach doesn't require HTTP server in sandbox
+    const toolboxResult = await this.executeViaToolbox(
+      apiUrl,
+      apiKey,
+      organizationId,
+      workspace.id,
+      jsonRpcRequest,
+    );
 
-    try {
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`, // Explicitly pass the Daytona API Key
-          ...(organizationId ? { 'X-Daytona-Organization-ID': organizationId } : {}),
-        },
-        body: JSON.stringify(jsonRpcRequest),
-      });
-      
-      return response;
-    } catch (error) {
-       console.error(`[ACP-BRIDGE] Proxy request failed:`, error);
-       throw error;
-    }
+    return new Response(JSON.stringify(toolboxResult), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Debug-Sandbox-Id': workspace.id,
+      },
+    });
   }
 
-
-
   /**
-   * Execute ACP request via Daytona Toolbox API using curl with files
-   * FIXED VERSION - Avoids node -e (which doesn't work) and uses file-based curl
+   * Execute ACP request via Daytona Toolbox API
+   * Uses bash -c wrapper for proper shell interpretation
    */
+  private async executeViaToolbox(
+    apiUrl: string,
+    apiKey: string,
+    organizationId: string | undefined,
+    sandboxId: string,
+    jsonRpcRequest: any,
+    timeoutSeconds: number = 180,
+  ): Promise<any> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    };
+    if (organizationId) {
+      headers['X-Daytona-Organization-ID'] = organizationId;
+    }
 
+    const url = `${apiUrl}toolbox/${sandboxId}/toolbox/process/execute`;
+    
+    // Build command to process ACP request
+    // Use base64 encoding to safely pass JSON payload and avoid shell escaping issues
+    // Note: btoa() only supports Latin1, so we use encodeURIComponent to handle UTF-8
+    const acpPayloadJson = JSON.stringify(jsonRpcRequest);
+    const acpPayloadBase64 = btoa(unescape(encodeURIComponent(acpPayloadJson)));
+    
+    // File paths
+    const payloadFile = '/tmp/acp_payload.txt';
+    const scriptFile = '/tmp/acp_runner.js';
+    
+    // Simple Node.js script that reads from file and calls OpenRouter
+    const nodeScript = `
+const fs = require('fs');
+const { OpenAI } = require('openai');
+
+async function main() {
+  try {
+    const b64 = fs.readFileSync('${payloadFile}', 'utf-8').trim();
+    const req = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
+    const apiKey = process.env.OPENROUTER_API_KEY || (req.params && req.params.anthropicApiKey) || '';
+    
+    if (!apiKey) {
+      console.log(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32603, message: 'No API key available' },
+        id: String(req.id || 'unknown')
+      }));
+      return;
+    }
+    
+    const client = new OpenAI({ apiKey: apiKey, baseURL: 'https://openrouter.ai/api/v1' });
+    const model = process.env.OPENROUTER_DEFAULT_MODEL || 'anthropic/claude-sonnet-4';
+    
+    // Extract prompt from params
+    let prompt = 'Hello';
+    if (req.params) {
+      if (typeof req.params.prompt === 'string') {
+        prompt = req.params.prompt;
+      } else if (Array.isArray(req.params.content)) {
+        // Extract text from content array
+        const textParts = req.params.content
+          .filter(c => c.type === 'text')
+          .map(c => c.text)
+          .join('\\n');
+        prompt = textParts || 'Hello';
+      } else if (typeof req.params.content === 'string') {
+        prompt = req.params.content;
+      }
+    }
+    
+    console.error('[ACP-RUNNER] Calling OpenRouter with model:', model);
+    console.error('[ACP-RUNNER] Prompt length:', prompt.length);
+    
+    const r = await client.chat.completions.create({
+      model: model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 4096
+    });
+    
+    console.log(JSON.stringify({
+      jsonrpc: '2.0',
+      result: {
+        stopReason: 'end_turn',
+        usage: { 
+          inputTokens: (r.usage && r.usage.prompt_tokens) || 0, 
+          outputTokens: (r.usage && r.usage.completion_tokens) || 0 
+        },
+        content: r.choices[0].message.content
+      },
+      id: String(req.id)
+    }));
+  } catch (e) {
+    console.error('[ACP-RUNNER] Error:', e.message || e);
+    console.log(JSON.stringify({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: e.message || String(e) },
+      id: 'error'
+    }));
+  }
+}
+
+main();
+`.trim();
+
+    // Command sequence:
+    // Pass payload via Environment Variable to avoid shell redirection/pipe issues
+    // Use inline node script with standard 'https' module (works on all Node versions)
+    
+    const inlineNodeScript = `
+const https = require('https');
+const b64 = process.env.ACP_PAYLOAD;
+if(!b64) { console.log(JSON.stringify({jsonrpc:'2.0',error:{code:-32603,message:'No payload env var'},id:'null'})); process.exit(1); }
+
+async function post(url, body, headers) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const options = {
+      hostname: u.hostname,
+      port: 443,
+      path: u.pathname,
+      method: 'POST',
+      headers: headers
+    };
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try { resolve(JSON.parse(data)); } catch(e) { reject(new Error('Invalid JSON')); }
+        } else {
+          reject(new Error('Status ' + res.statusCode + ': ' + data));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
+async function main() {
+  try {
+    const req = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
+    const apiKey = process.env.OPENROUTER_API_KEY || (req.params && req.params.anthropicApiKey) || '';
+    
+    if (!apiKey) {
+      console.log(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: 'No API key' }, id: String(req.id || 'unknown') }));
+      process.exit(0);
+    }
+
+    const model = process.env.OPENROUTER_DEFAULT_MODEL || 'anthropic/claude-sonnet-4';
+    
+    let prompt = 'Hello';
+    if (req.params) {
+      if (typeof req.params.prompt === 'string') prompt = req.params.prompt;
+      else if (Array.isArray(req.params.content)) prompt = req.params.content.filter(c => c.type === 'text').map(c => c.text).join('\\n') || 'Hello';
+      else if (typeof req.params.content === 'string') prompt = req.params.content;
+    }
+
+    try {
+      const r = await post('https://openrouter.ai/api/v1/chat/completions', {
+        model: model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 4096
+      }, {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://daytona.io',
+        'X-Title': 'Daytona ACP'
+      });
+
+      console.log(JSON.stringify({
+        jsonrpc: '2.0',
+        result: {
+          stopReason: 'end_turn',
+          usage: { inputTokens: r.usage?.prompt_tokens || 0, outputTokens: r.usage?.completion_tokens || 0 },
+          content: r.choices[0].message.content
+        },
+        id: String(req.id)
+      }));
+    } catch(apiErr) {
+       throw new Error('OpenRouter API error: ' + apiErr.message);
+    }
+
+  } catch(e) {
+    console.log(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: e.message || String(e) }, id: 'unknown' }));
+  }
+}
+
+main();
+`.trim().replace(/\n/g, ' ');
+
+    // Construct command:
+    // 1. Export env var
+    // 2. Run node -e directly (no npm install needed)
+    // Escape single quotes for bash string wrapping
+    const innerCommand = `export ACP_PAYLOAD='${acpPayloadBase64}' && node -e "${inlineNodeScript.replace(/"/g, '\\"')}"`;
+    
+    // IMPORTANT: Wrap in bash -c because 'export' and '&&' are shell builtins
+    const command = `bash -c '${innerCommand.replace(/'/g, "'\\''")}'`;
+
+    
+    console.log(`[ACP-BRIDGE] Executing via Toolbox API (sandboxId: ${sandboxId})`);
+    console.log(`[ACP-BRIDGE] Command length: ${command.length}`);
+    // console.log(`[ACP-BRIDGE] Payload base64 length: ${acpPayloadBase64.length}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          command: command,
+          timeout: timeoutSeconds,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[ACP-BRIDGE] Toolbox execute failed: ${response.status} - ${errorText}`);
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: `Toolbox API error: ${response.status} ${response.statusText}`,
+            data: { error: errorText },
+          },
+          id: String(jsonRpcRequest.id),
+        };
+      }
+
+      const result = await response.json() as { exitCode: number; result: string };
+      console.log(`[ACP-BRIDGE] Toolbox execute result: exitCode=${result.exitCode}`);
+      console.log(`[ACP-BRIDGE] Toolbox result length: ${result.result?.length || 0}`);
+      console.log(`[ACP-BRIDGE] Toolbox result preview: ${result.result?.substring(0, 500)}`);
+
+      // Parse the JSON output from the command
+      if (result.exitCode === 0 && result.result) {
+        try {
+          // Find and parse JSON from output
+          const jsonMatch = result.result.match(/\{.*"jsonrpc".*\}/s);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          }
+        } catch (parseError) {
+          console.error('[ACP-BRIDGE] Failed to parse Toolbox response:', parseError);
+        }
+      }
+
+      // Return raw result if parsing fails
+      return {
+        jsonrpc: '2.0',
+        result: {
+          stopReason: 'end_turn',
+          usage: { inputTokens: 0, outputTokens: 0 },
+          content: result.result || 'Command execution completed',
+        },
+        id: String(jsonRpcRequest.id),
+      };
+    } catch (error) {
+      console.error(`[ACP-BRIDGE] Toolbox execute error:`, error);
+      return {
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: error instanceof Error ? error.message : 'Unknown error',
+        },
+        id: String(jsonRpcRequest.id),
+      };
+    }
+  }
 
   private async fetchDaytonaHealth(
     env: any,

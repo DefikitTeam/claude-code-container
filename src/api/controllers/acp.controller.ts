@@ -71,6 +71,32 @@ export class ACPController {
       // Check if async mode is requested
       const isAsync = params.async === true || c.req.query('async') === 'true';
 
+      // Check if streaming mode is requested (to avoid Cloudflare 524 timeout)
+      const isStream = params.stream === true || c.req.query('stream') === 'true';
+
+      if (isStream) {
+        console.log('[ACP-CONTROLLER] Using STREAM mode (End-to-End Streaming)');
+        // Stream mode - return Response directly without buffering
+        const streamResponse = await this.acpBridgeService.routeACPMethodStream(
+          'session/prompt',
+          params,
+          c.env,
+        );
+        
+        // Return the raw Response with appropriate streaming headers
+        // Browser/Client will receive chunks as they arrive
+        return new Response(streamResponse.body, {
+          status: streamResponse.status,
+          headers: {
+            'Content-Type': streamResponse.headers.get('Content-Type') || 'application/json',
+            'Transfer-Encoding': 'chunked',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-ACP-Streaming': 'true',
+          },
+        });
+      }
+
       if (isAsync) {
         console.log('[ACP-CONTROLLER] Using ASYNC mode');
         // Async mode - return immediately with jobId

@@ -1,382 +1,418 @@
-# Claude Code Containers - Implementation Guide
+# CLAUDE.md
 
-## Overview
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-This project implements an automated GitHub issue processing system powered by
-Claude Code, built on Cloudflare Workers with containerized execution
-environments. The system integrates GitHub webhooks, secure credential
-management, and AI-driven code analysis to automatically respond to GitHub
-issues with intelligent solutions and pull requests.
+## Project Overview
 
-## ✅ DO
+This is an automated GitHub issue processing system built on Cloudflare Workers with containerized Claude Code execution. The system receives GitHub webhooks, spawns containers running Claude Code SDK, analyzes issues, generates code changes, and creates pull requests automatically.
 
-1. Update specifications when requirements change
-2. Link code to specification sections in comments
-3. Keep tasks.md current with progress
-4. Create integration specifications for cross-module features
-5. Run linters before committing (rubocop -A, pnpm lint:fix)
-6. Add tests for new functionality
-7. Follow project conventions in CLAUDE.md
-8. Manually test your changes
-
-## ❌ DON'T
-
-1. Write code without a specification
-2. Ignore specification constraints during implementation
-3. Leave specifications outdated after changes
-4. Skip the specification review process
-5. Commit debugging statements or commented code
-6. Use hardcoded values instead of constants
-7. Expose sensitive data in logs or commits
-8. Merge without passing CI checks
-9. Use legacy validation patterns for schedule events
-10. Create hardcoded schedule conversion logic
-11. Skip frequency-specific validation requirements
-
-## CRITICAL
-
-- NEVER write a fallback case for graceful degradation for any function, code,
-  flow,... unless explicitly specified.
-
-## Architecture
-
-### High-Level Architecture
-
-```
-GitHub Issues → Worker (Router) → Container (Claude Code) → GitHub PR/Comments
-                    ↓
-               Durable Objects (Secure Storage)
-```
-
-### Core Components
-
-1. **Cloudflare Worker** (`src/index.ts`)
-   - Request routing and GitHub integration
-   - Webhook processing and authentication
-   - Durable Object coordination
-
-2. **Containerized Claude Code Environment** (`container_src/src/main.js`)
-   - HTTP server on port 8080
-   - Claude Code SDK integration
-   - Git operations and workspace management
-   - GitHub API interactions
-
-3. **Durable Objects**
-   - `GitHubAppConfigDO`: Encrypted credential storage with AES-256-GCM
-   - `MyContainer`: Container lifecycle management
-
-## Setup Instructions
-
-### Prerequisites
-
-1. **Cloudflare Account** with Workers and Containers enabled
-2. **GitHub App** created and configured
-3. **Anthropic API Key** for Claude Code
-4. **Node.js 22+** for development
-
-### Installation
-
-1. **Clone and Install Dependencies**
-
-   ```bash
-   git clone <repository-url>
-   cd claudecode-modern-container
-   npm install
-   ```
-
-2. **Configure Environment Variables** Create `.dev.vars` file (git-ignored):
-
-   ```env
-   ANTHROPIC_API_KEY=your_anthropic_api_key_here
-   ```
-
-3. **Update Wrangler Configuration** The `wrangler.jsonc` is pre-configured
-   with:
-   - Container port 8080
-   - 45-second timeout
-   - Proper Durable Object bindings
-   - Environment-specific configurations
-
-### GitHub App Setup
-
-1. **Create GitHub App**
-   - Go to GitHub Settings > Developer settings > GitHub Apps
-   - Create new GitHub App with these permissions:
-     - Issues: Read & Write
-     - Pull Requests: Read & Write
-     - Contents: Read & Write
-     - Metadata: Read
-
-2. **Configure Webhook**
-   - Webhook URL:
-     `https://your-worker.your-subdomain.workers.dev/webhook/github`
-   - Content type: `application/json`
-   - Events: Issues
-   - Generate and save webhook secret
-
-3. **Install App**
-   - Install the app on target repositories
-   - Note the Installation ID from the URL
-
-### Configuration Storage
-
-Store GitHub App credentials securely using the configuration endpoint:
-
-```bash
-curl -X POST https://your-worker.your-subdomain.workers.dev/config \
-  -H "Content-Type: application/json" \
-  -d '{
-    "appId": "your_app_id",
-    "privateKey": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----",
-    "webhookSecret": "your_webhook_secret",
-    "installationId": "your_installation_id"
-  }'
-```
-
-## Development Workflow
-
-### Local Development
-
-```bash
-# Start local development server
-npm run dev
-
-# Generate types after config changes
-npm run cf-typegen
-
-# Test container health
-curl http://localhost:8787/container/health
-```
-
-### Container Development
-
-The container source is in `container_src/`:
-
-```bash
-cd container_src
-npm install
-npm run dev  # Local container development
-```
-
-### Deployment
-
-```bash
-# Deploy to production
-npm run deploy
-
-# Deploy to staging
-wrangler deploy --env staging
-```
-
-## API Endpoints
-
-### Main Worker Endpoints
-
-- `GET /` - System information
-- `GET /health` - Health check
-- `POST /webhook/github` - GitHub webhook endpoint
-- `GET /config` - Get GitHub App configuration (safe view)
-- `POST /config` - Store GitHub App configuration
-- `DELETE /config` - Clear configuration
-- `POST /container/process` - Direct container processing
-- `GET /container/health` - Container health check
-
-### Container Endpoints
-
-- `GET /` - Container information
-- `GET /health` - Container health check
-- `POST /process-issue` - Process GitHub issue
-- `GET /status` - Container status
-
-## Security Features
-
-### Encryption
-
-- AES-256-GCM encryption for sensitive credentials
-- GitHub App private keys encrypted at rest
-- Webhook secrets encrypted in Durable Objects
-- Installation tokens cached with expiry validation
-
-### Authentication
-
-- GitHub webhook signature verification (HMAC-SHA256)
-- GitHub App JWT authentication
-- Installation access token management
-- Secure credential storage
-
-### Input Validation
-
-- Request body validation
-- Signature verification
-- Bot detection to prevent loops
-- Error handling and logging
-
-## Monitoring and Logging
-
-### Health Checks
-
-- Worker health endpoint
-- Container health with metrics
-- Memory and CPU usage reporting
-- Uptime tracking
-
-### Logging
-
-- Structured logging throughout the system
-- Error tracking and reporting
-- Processing status updates
-- Performance metrics
-
-## Issue Processing Pipeline
-
-1. **Webhook Reception**: GitHub issue events trigger processing
-2. **Authentication**: Webhook signature verification
-3. **Container Spawn**: Create isolated container instance
-4. **Environment Setup**: Temporary workspace creation with git clone
-5. **Claude Code Analysis**: AI analysis of the issue and codebase
-6. **Solution Generation**: AI-powered code generation and fixes
-7. **Change Detection**: Git status monitoring for modifications
-8. **Branch Management**: Feature branch creation and commit
-9. **PR Creation**: Automated pull request with solution summary
-10. **Cleanup**: Workspace cleanup and resource management
-
-## Error Handling
-
-### Graceful Degradation
-
-- Container failures fallback to comment responses
-- Network issues handled with retries
-- Timeout management for long-running processes
-- Resource cleanup on failures
-
-### Error Recovery
-
-- Comprehensive error logging
-- Status reporting to GitHub issues
-- Automatic workspace cleanup
-- Container lifecycle management
-
-## Performance Characteristics
-
-### Resource Utilization
-
-- Container Memory: 100-500MB per instance
-- Startup Time: ~2-3 seconds (includes git clone)
-- Processing Time: Variable based on repository size and complexity
-- Concurrency: Up to 10 container instances
-
-### Bottlenecks
-
-1. Git Clone Operations: Network-dependent
-2. Claude Code Processing: AI inference time
-3. Container Startup: Image initialization
-
-### Scalability
-
-- Horizontal scaling via multiple container instances
-- Load balancing across container pool
-- Durable Objects for consistent state management
-- Cloudflare's global edge network distribution
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Container Won't Start**
-
-   ```bash
-   # Check container logs
-   wrangler tail
-
-   # Verify dependencies
-   npm list --depth=0
-   ```
-
-2. **GitHub Webhook Failing**
-
-   ```bash
-   # Test webhook locally
-   curl -X POST http://localhost:8787/webhook/github \
-     -H "X-GitHub-Event: ping" \
-     -H "X-Hub-Signature-256: sha256=..." \
-     -d '{"zen": "test"}'
-   ```
-
-3. **Claude Code Errors**
-   - Verify ANTHROPIC_API_KEY is set
-   - Check API key permissions
-   - Monitor rate limits
-
-### Debugging
-
-```bash
-# Enable debug logging
-DEBUG=* wrangler dev
-
-# Check Durable Object storage
-curl https://your-worker.your-subdomain.workers.dev/config
-
-# Test container directly
-curl -X POST https://your-worker.your-subdomain.workers.dev/container/process \
-  -H "Content-Type: application/json" \
-  -d '{"type": "process_issue", "payload": {...}, "config": {...}}'
-```
+**Key Technologies:**
+- TypeScript 5.8.3, Node.js 22+
+- Cloudflare Workers, Durable Objects, Containers
+- Hono web framework
+- Vercel AI SDK, OpenRouter OpenAI SDK, Anthropic Claude Code SDK
+- Vitest for testing
 
 ## Development Commands
 
+### Local Development
 ```bash
-# Local development
-npm run dev
+# Start local dev server (port 8788)
+pnpm dev
 
-# Type generation
-npm run cf-typegen
+# Generate TypeScript types from wrangler.jsonc
+pnpm cf-typegen
 
-# Deploy to production
-npm run deploy
+# Install all dependencies (worker + container)
+pnpm install:all
 
-# Container development
-cd container_src && npm run dev
-
-# Build container
-cd container_src && npm run build
+# Build everything (worker + container)
+pnpm build:all
 ```
 
-## Environment Variables
+### Testing
+```bash
+# Run all tests
+pnpm test
 
-### Worker Environment
+# Watch mode for TDD
+pnpm test:watch
 
-- `ANTHROPIC_API_KEY`: Claude Code API key
-- `ENVIRONMENT`: Deployment environment (development/staging/production)
+# Test with coverage
+pnpm test -- --coverage
+```
 
-### Container Environment
+### Container Development
+```bash
+# Work on container code in container_src/
+cd container_src
 
-- `ANTHROPIC_API_KEY`: Passed from worker
-- `NODE_ENV`: Set to production in container
-- `CONTAINER_ID`: Unique container identifier
+# Build container
+pnpm build
 
-## Contributing
+# Run container locally (requires .dev.vars)
+pnpm dev
+```
 
-1. Fork the repository
-2. Create feature branch
-3. Implement changes with tests
-4. Update documentation
-5. Submit pull request
+### Deployment
+```bash
+# Deploy to development
+wrangler deploy --env development
 
-## License
+# Deploy to staging
+wrangler deploy --env staging
 
-This project is licensed under the MIT License.
+# Deploy to production
+pnpm deploy:prod
+```
 
----
+## Architecture Overview
 
-_Generated and maintained by Claude Code - Automated GitHub Issue Processing
-System_
+### Three-Layer Architecture
 
-## Active Technologies
+```
+┌─────────────────────────────────────────────────┐
+│  API Layer (Hono Router)                        │
+│  - Controllers, Routes, Middleware, DTOs        │
+│  - src/api/                                     │
+└─────────────────┬───────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────┐
+│  Core Layer (Business Logic)                    │
+│  - Use Cases, Entities, Interfaces              │
+│  - src/core/                                    │
+└─────────────────┬───────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────┐
+│  Infrastructure Layer                           │
+│  - Durable Objects, Services, Adapters          │
+│  - src/infrastructure/                          │
+└─────────────────────────────────────────────────┘
+```
 
-- TypeScript 5.9.2, Node.js 22+
-- Vercel AI SDK, OpenRouter OpenAI SDK, Anthropic Claude Code SDK
+### Key Components
 
-## Recent Changes
+**Worker** (`src/index.ts`): Main entry point, DI setup, routing
+**Container** (`container_src/src/index.ts`): Claude Code SDK execution environment
+**Durable Objects** (`src/infrastructure/durable-objects/`):
+  - `UserConfigDO`: User settings and credentials (encrypted)
+  - `GitHubAppConfigDO`: GitHub App configuration (encrypted)
+  - `ACPSessionDO`: Agent Communication Protocol sessions
+  - `ContainerDO`: Container lifecycle management
+  - `AsyncJobDO`: Background job tracking
 
-- Removed OpenHands SDK and adapter - using only Vercel AI SDK, OpenRouter
-  OpenAI SDK, and Anthropic Claude Code SDK
+**Container Providers** (`src/infrastructure/services/`):
+  - `CloudflareContainerService`: Uses Cloudflare Containers (default)
+  - `DaytonaContainerService`: Uses Daytona cloud development environments
+  - Abstracted via `IContainerService` interface
+
+### Clean Architecture Pattern
+
+This project follows Clean Architecture with dependency inversion:
+
+1. **Core layer** (`src/core/`) - No dependencies on infrastructure
+   - `entities/` - Domain models
+   - `use-cases/` - Application business rules
+   - `interfaces/` - Contracts (repositories, services)
+
+2. **Infrastructure layer** (`src/infrastructure/`) - Implements core interfaces
+   - `services/` - External service implementations
+   - `repositories/` - Data persistence implementations
+   - `durable-objects/` - Cloudflare DO storage
+   - `adapters/` - Third-party API wrappers
+
+3. **API layer** (`src/api/`) - HTTP interface
+   - `controllers/` - Request/response handling
+   - `routes/` - Route definitions
+   - `middleware/` - Cross-cutting concerns
+   - `dto/` - Data transfer objects with Zod validation
+
+### Container Provider Abstraction
+
+The system supports pluggable container providers via `IContainerService`:
+
+```typescript
+// Core interface (src/core/interfaces/services/container.service.ts)
+interface IContainerService {
+  acquireContainer(userId: string, config: ContainerConfig): Promise<Container>
+  executeCommand(containerId: string, command: string): Promise<CommandResult>
+  getContainerDiagnostics(containerId: string): Promise<Diagnostics>
+  terminateContainer(containerId: string): Promise<void>
+}
+
+// Implementations
+- CloudflareContainerService (Durable Object backed)
+- DaytonaContainerService (Daytona API backed)
+```
+
+Set via `CONTAINER_PROVIDER` environment variable in `wrangler.jsonc`.
+
+## Environment Configuration
+
+### Required Variables
+
+Create `.dev.vars` file (git-ignored) for local development:
+
+```env
+ANTHROPIC_API_KEY=your_key_here
+OPENROUTER_API_KEY=your_key_here
+ENCRYPTION_KEY=generate_with_openssl_rand_hex_32
+```
+
+### Container Provider Selection
+
+In `wrangler.jsonc`:
+```json
+"vars": {
+  "CONTAINER_PROVIDER": "cloudflare"  // or "daytona"
+}
+```
+
+**IMPORTANT**: Choose once and stick with it - switching causes context loss!
+
+### Daytona-Specific Variables
+
+Only needed if `CONTAINER_PROVIDER=daytona`:
+```env
+DAYTONA_API_KEY=your_daytona_key
+DAYTONA_ORGANIZATION_ID=your_org_id
+```
+
+## Code Organization Rules
+
+### File Placement
+- **Use cases**: `src/core/use-cases/{domain}/{action}.use-case.ts`
+- **Services**: `src/infrastructure/services/{name}.service.impl.ts`
+- **Controllers**: `src/api/controllers/{domain}.controller.ts`
+- **Tests**: Mirror source structure in `src/test/` or `test/`
+
+### Naming Conventions
+- Use cases: `VerbNounUseCase` (e.g., `ProcessWebhookUseCase`)
+- Services: `NounServiceImpl` (e.g., `GitHubServiceImpl`)
+- Controllers: `NounController` (e.g., `UserController`)
+- DTOs: `action-noun.dto.ts` (e.g., `process-prompt.dto.ts`)
+- Interfaces: `INounService` (e.g., `IContainerService`)
+
+### Dependency Injection
+
+All dependencies are wired in `src/index.ts`:
+1. Instantiate services and repositories
+2. Inject into use cases
+3. Inject use cases into controllers
+4. Register routes with controllers
+
+Example:
+```typescript
+// 1. Create service
+const githubService = new GitHubServiceImpl(tokenService);
+
+// 2. Create use case
+const processWebhookUseCase = new ProcessWebhookUseCase(githubService, containerService);
+
+// 3. Create controller
+const githubController = new GitHubController(processWebhookUseCase);
+
+// 4. Register routes
+app.route('/webhook', createGitHubRoutes(githubController));
+```
+
+## Container Development
+
+### Container Structure
+
+The container (`container_src/`) is a separate Node.js application that:
+- Runs HTTP server on port 8080
+- Integrates Claude Code SDK (`@anthropic-ai/claude-code`)
+- Handles git operations via `simple-git`
+- Communicates with GitHub API via `@octokit/rest`
+- Supports ACP (Agent Communication Protocol) for streaming
+
+### Container Entry Points
+
+**Main**: `container_src/src/index.ts` - CLI entry with HTTP bridge mode
+**HTTP Server**: `container_src/src/http-server.ts` - Express-like server
+**ACP Agent**: `container_src/src/acp-agent.ts` - Streaming agent implementation
+
+### Container API Endpoints
+
+- `POST /process-issue` - Process GitHub issue with Claude Code
+- `POST /execute-prompt` - Execute arbitrary prompt
+- `GET /health` - Health check with uptime
+- `GET /status` - Container status and metrics
+
+## Testing Strategy
+
+### Test Structure
+
+```
+test/
+├── agent-communication/     # ACP protocol tests
+├── integration/             # Cross-component tests
+├── mocks/                   # Test doubles
+├── stubs/                   # Cloudflare API stubs
+└── shared-layer.test.ts     # Shared utilities tests
+```
+
+### Running Specific Tests
+
+```bash
+# Run single test file
+pnpm test src/test/api/github.routes.test.ts
+
+# Run tests matching pattern
+pnpm test -- --grep "webhook"
+
+# Run with debugging
+pnpm test -- --inspect-brk
+```
+
+### Writing Tests
+
+Use Vitest with Cloudflare Workers stubs:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+
+describe('MyUseCase', () => {
+  let useCase: MyUseCase;
+
+  beforeEach(() => {
+    const mockService = createMockService();
+    useCase = new MyUseCase(mockService);
+  });
+
+  it('should handle expected input', async () => {
+    const result = await useCase.execute({ data: 'test' });
+    expect(result).toBeDefined();
+  });
+});
+```
+
+## Durable Objects Pattern
+
+All Durable Objects follow this pattern:
+
+```typescript
+export class MyDO implements DurableObject {
+  private state: DurableObjectState;
+
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state;
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/get') {
+      const value = await this.state.storage.get<string>('key');
+      return Response.json({ value });
+    }
+
+    if (url.pathname === '/set') {
+      const { value } = await request.json();
+      await this.state.storage.put('key', value);
+      return Response.json({ success: true });
+    }
+
+    return new Response('Not Found', { status: 404 });
+  }
+}
+```
+
+Access pattern from worker:
+
+```typescript
+const id = env.MY_DO.idFromName(uniqueKey);
+const stub = env.MY_DO.get(id);
+const response = await stub.fetch('http://do/get');
+```
+
+## Critical Development Rules
+
+### Security
+- **NEVER** commit API keys or secrets
+- **ALWAYS** encrypt sensitive data in Durable Objects (use `CryptoServiceImpl`)
+- **ALWAYS** validate webhook signatures from GitHub
+- **NEVER** log sensitive data (API keys, private keys, tokens)
+
+### Container Provider
+- **DO NOT** switch `CONTAINER_PROVIDER` after deployment (causes context loss)
+- **TEST** provider changes thoroughly in development first
+- **DOCUMENT** any provider-specific behavior in code comments
+
+### Error Handling
+- **NEVER** create fallback cases for graceful degradation unless specified
+- **ALWAYS** propagate errors to API layer for proper HTTP status codes
+- **LOG** errors with context for debugging
+
+### TypeScript
+- **ALWAYS** run `pnpm cf-typegen` after modifying `wrangler.jsonc`
+- **USE** strict TypeScript settings (already configured)
+- **AVOID** `any` type - use `unknown` and narrow with type guards
+
+### Testing
+- **WRITE** tests for new use cases and services
+- **MOCK** external dependencies (GitHub API, Anthropic API)
+- **TEST** error paths, not just happy paths
+
+### Code Quality
+- **NO** debugging statements or commented code in commits
+- **NO** hardcoded values - use constants or environment variables
+- **FOLLOW** existing patterns in each layer (API, Core, Infrastructure)
+
+## Troubleshooting
+
+### Container Won't Start
+```bash
+# Check Wrangler logs
+wrangler tail
+
+# Verify container build
+cd container_src && pnpm build
+
+# Check dependencies
+pnpm list --depth=0
+```
+
+### GitHub Webhook Failing
+```bash
+# Test webhook locally
+curl -X POST http://localhost:8788/webhook/github \
+  -H "X-GitHub-Event: ping" \
+  -d '{"zen": "test"}'
+```
+
+### Type Errors After Config Changes
+```bash
+# Regenerate types
+pnpm cf-typegen
+
+# Restart TypeScript server in your editor
+```
+
+### Durable Object Migration Issues
+Migrations are defined in `wrangler.jsonc`. New DO classes require new migration tags:
+```json
+{
+  "new_sqlite_classes": ["NewDO"],
+  "tag": "v5"
+}
+```
+
+## Key Files Reference
+
+- `src/index.ts` - Worker entry point, DI container
+- `wrangler.jsonc` - Cloudflare configuration
+- `container_src/src/index.ts` - Container entry point
+- `tsconfig.json` - TypeScript configuration
+- `vitest.config.ts` - Test configuration
+- `.dev.vars` - Local environment variables (git-ignored)
+
+## Documentation
+
+- `README.md` - Quick start and overview
+- `docs/ARCHITECTURE.md` - Detailed architecture and configuration
+- `docs/API.md` - API endpoint reference
+- `docs/DEVELOPMENT.md` - Development setup guide
+- `docs/CONTAINER_PROVIDERS.md` - Container provider comparison
+- `DEPLOYMENT_GUIDE.md` - Deployment instructions

@@ -142,29 +142,18 @@ describe('DaytonaContainerService', () => {
     ).rejects.toThrow('Daytona API POST /sandbox failed');
   });
 
-  it('forwards exec commands to the workspace endpoint', async () => {
+  it('forwards exec commands to the Toolbox API endpoint', async () => {
     const fetchSpy = stubFetch(async (request) => {
       const url = new URL(request.url);
-      if (request.method === 'GET' && url.pathname === '/sandbox/ws-exec') {
+      
+      // Toolbox API endpoint: /toolbox/{sandboxId}/toolbox/process/execute
+      if (request.method === 'POST' && url.pathname === '/toolbox/ws-exec/toolbox/process/execute') {
+        const payload = (await request.json()) as { command: string; timeout: number };
+        // Verify command is wrapped with bash -c
+        expect(payload.command).toContain('bash -c');
+        expect(payload.command).toContain('echo hi');
         return new Response(
-          JSON.stringify({
-            id: 'ws-exec',
-            configId: 'cfg-exec',
-            status: 'running',
-            ports: { '8080': 'https://workspace.exec' },
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
-
-      if (url.origin === 'https://workspace.exec') {
-        const payload = (await request.json()) as { command: string };
-        expect(payload.command).toBe('echo hi');
-        return new Response(
-          JSON.stringify({ success: true, logs: ['echo hi'] }),
+          JSON.stringify({ exitCode: 0, result: 'echo hi\n' }),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -179,8 +168,8 @@ describe('DaytonaContainerService', () => {
     const result = await service.execute('daytona_ws-exec', 'echo hi');
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('echo hi');
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result.stdout).toContain('echo hi');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   // Additional lifecycle tests as per review feedback
