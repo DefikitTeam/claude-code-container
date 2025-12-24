@@ -497,15 +497,18 @@ export class ACPBridgeService implements IACPBridgeService {
         const cloudflareContainerId = env.MY_CONTAINER.idFromName(containerName);
         const cloudflareContainer = env.MY_CONTAINER.get(cloudflareContainerId);
         
+        // IMPORTANT: Call the dedicated streaming endpoint, NOT the generic /acp endpoint
+        // The /acp endpoint uses dispatchJsonRpc() which buffers the entire response
+        // The /acp/session/prompt?stream=true endpoint streams chunks in real-time
         const response = await cloudflareContainer.fetch(
-          new Request('https://container/acp', {
+          new Request('https://container/acp/session/prompt?stream=true', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'X-ACP-Bridge': 'true',
               'X-ACP-Streaming': 'true',
             },
-            body: JSON.stringify(jsonRpcRequest),
+            body: JSON.stringify(jsonRpcRequest.params), // Send params directly, not wrapped in JSON-RPC
           }),
         );
         
