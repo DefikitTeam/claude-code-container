@@ -308,6 +308,7 @@ export class PromptProcessor {
           sessionId,
           status: 'working',
           message: 'Claude streaming...',
+          delta: delta.text, // ✅ Send the actual text chunk
           progress: {
             current: Math.max(1, Math.floor(outputTokens / 50)),
             total: 3,

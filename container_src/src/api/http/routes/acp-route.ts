@@ -230,13 +230,135 @@ export function registerAcpRoutes(router: Router): void {
   router.register('POST', '/acp/session/prompt', async (ctx) => {
     const raw = await readRequestBody(ctx.req);
     const params = parseJsonBody<Record<string, unknown>>(raw);
-    const rpcRequest: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method: 'session/prompt',
-      params,
-    };
-    const response = await dispatchJsonRpc(rpcRequest);
-    jsonResponse(ctx.res, 200, response);
+
+    // Check if streaming is requested via query parameter
+    const url = new URL(ctx.url); // ctx.url is already a full URL
+    const streamMode = url.searchParams.get('stream') === 'true';
+
+    if (!streamMode) {
+      // Legacy mode: return JSON response (backward compatible)
+      logWithContext('ACP', 'Processing session/prompt (non-streaming)', {
+        requestId: ctx.requestId,
+      });
+      const rpcRequest: JsonRpcRequest = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'session/prompt',
+        params,
+      };
+      const response = await dispatchJsonRpc(rpcRequest);
+      jsonResponse(ctx.res, 200, response);
+      return;
+    }
+
+    // Streaming mode: return event stream
+    logWithContext('ACP', 'Processing session/prompt (streaming)', {
+      requestId: ctx.requestId,
+    });
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Create streaming notifier that writes chunks to HTTP response
+          const notifier = (method: string, payload: unknown) => {
+            const event = {
+              type: 'notification',
+              method,
+              payload,
+              timestamp: Date.now(),
+            };
+            const chunk = JSON.stringify(event) + '\n';
+            controller.enqueue(encoder.encode(chunk));
+
+            // Also log for debugging
+            logWithContext('ACP-STREAM', 'Notification sent', {
+              method,
+              payloadSize: JSON.stringify(payload).length,
+            });
+          };
+
+          // Build request context
+          const requestContext = buildRequestContext(Date.now(), params);
+
+          logWithContext('ACP-STREAM', 'Starting session prompt handler', {
+            requestId: requestContext.requestId,
+          });
+
+          // Process prompt with streaming notifier
+          const result = await sessionPromptHandler(
+            params as SessionPromptRequest['params'],
+            requestContext,
+            notifier,
+          );
+
+          logWithContext('ACP-STREAM', 'Session prompt completed', {
+            requestId: requestContext.requestId,
+          });
+
+          // Send final result as last chunk
+          const finalEvent = {
+            type: 'result',
+            jsonrpc: '2.0',
+            result,
+            id: Date.now(),
+          };
+          controller.enqueue(encoder.encode(JSON.stringify(finalEvent) + '\n'));
+          controller.close();
+
+          logWithContext('ACP-STREAM', 'Stream closed successfully', {
+            requestId: requestContext.requestId,
+          });
+        } catch (error) {
+          logWithContext('ACP-STREAM', 'Stream error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+
+          // Send error as stream chunk
+          const errorEvent = {
+            type: 'error',
+            jsonrpc: '2.0',
+            error: {
+              code: -32603,
+              message: error instanceof Error ? error.message : String(error),
+              data: error instanceof Error ? error.stack : undefined,
+            },
+            id: Date.now(),
+          };
+          controller.enqueue(encoder.encode(JSON.stringify(errorEvent) + '\n'));
+          controller.close();
+        }
+      },
+    });
+
+    // Set streaming headers
+    ctx.res.setHeader('Content-Type', 'text/event-stream');
+    ctx.res.setHeader('Cache-Control', 'no-cache');
+    ctx.res.setHeader('Connection', 'keep-alive');
+    ctx.res.setHeader('Transfer-Encoding', 'chunked');
+    ctx.res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+    logWithContext('ACP-STREAM', 'Streaming headers set', {
+      requestId: ctx.requestId,
+    });
+
+    // Return the streaming response
+    ctx.res.writeHead(200);
+
+    // Pipe the stream to the response
+    const reader = stream.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        ctx.res.write(value);
+      }
+      ctx.res.end();
+    } catch (error) {
+      logWithContext('ACP-STREAM', 'Error writing to response', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      ctx.res.end();
+    }
   });
 }
