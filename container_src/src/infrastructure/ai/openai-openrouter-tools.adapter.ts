@@ -211,8 +211,6 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           messages: conversationMessages,
           tools: tools as any,
           stream: true,
-          // Auto-truncate middle messages if context exceeds limit (OpenRouter feature)
-          transforms: conversationMessages.length > 10 ? ['middle-out'] : undefined,
         });
         logger.info(
           `✅ API call started successfully (iteration ${loopCount})`,
