@@ -13,7 +13,7 @@ import { OpenHandsAdapter } from '../ai/openhands.adapter.js';
 import { OpenAIOpenRouterAdapter } from '../ai/openai-openrouter.adapter.js';
 import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adapter.js';
 
-const DEFAULT_MODEL = 'claude-sonnet-4'; // Maps to anthropic/claude-sonnet-4 on OpenRouter
+const DEFAULT_MODEL = 'gpt-5'; // Maps to openai/gpt-5 on OpenRouter (high quality, large context)
 
 type InFlight = {
   sessionId: string;
