@@ -13,7 +13,7 @@ import { OpenHandsAdapter } from '../ai/openhands.adapter.js';
 import { OpenAIOpenRouterAdapter } from '../ai/openai-openrouter.adapter.js';
 import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adapter.js';
 
-const DEFAULT_MODEL = 'gpt-5'; // Maps to openai/gpt-5 on OpenRouter (high quality, large context)
+const DEFAULT_MODEL = 'gpt-5-mini'; // Cost-effective GPT-5-mini, good for code tasks, low credit usage
 
 type InFlight = {
   sessionId: string;
