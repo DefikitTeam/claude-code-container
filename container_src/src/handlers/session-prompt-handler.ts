@@ -52,7 +52,8 @@ export async function sessionPromptHandler(
     'metadata' in requestContext
       ? (requestContext as RequestContext).metadata?.anthropicApiKey
       : undefined) ||
-    process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.OPENROUTER_API_KEY;
   validateContentBlocks(content);
 
   console.error(

@@ -5,6 +5,7 @@ import { corsMiddleware } from './middleware/cors.js';
 import { errorHandlingMiddleware } from './middleware/error-handler.js';
 import { registerHealthRoute } from './routes/health-route.js';
 import { registerProcessRoute } from './routes/process-route.js';
+import { registerProcessPromptRoute } from './routes/process-prompt-route.js';
 import { registerAcpRoutes } from './routes/acp-route.js';
 import { logWithContext } from './utils/logger.js';
 import type {
@@ -24,6 +25,7 @@ export function createHttpServer(): http.Server {
   const router = new Router();
   registerHealthRoute(router);
   registerProcessRoute(router);
+  registerProcessPromptRoute(router);
   registerAcpRoutes(router);
 
   const middlewares: Middleware[] = [
@@ -55,7 +57,7 @@ export async function runHttpServer(argv: any = {}): Promise<void> {
         `HTTP server listening on http://0.0.0.0:${port}`,
       );
       logWithContext('SERVER', 'Routes registered', {
-        routes: ['GET /health', 'POST /process', 'POST /acp'],
+        routes: ['GET /health', 'POST /process', 'POST /process-prompt', 'POST /acp'],
       });
       resolve();
     });

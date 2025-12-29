@@ -4,6 +4,7 @@ import type { IWorkspaceService } from '../services/workspace/workspace-service.
 import type { GitService } from '../services/git/git-service.js';
 import type { IGitHubAutomationService } from '../core/interfaces/services/github-automation.service.js';
 import type { PromptProcessor } from '../services/prompt/prompt-processor.js';
+import type { ProcessPromptService } from '../services/process-prompt.service.js';
 import type { IClaudeService } from '../core/interfaces/services/claude.service.js';
 import type { Container } from './container.config.js';
 
@@ -14,6 +15,7 @@ export interface RuntimeServices {
   githubAutomationService: IGitHubAutomationService;
   claudeClient: IClaudeService;
   promptProcessor: PromptProcessor;
+  processPromptService: ProcessPromptService;
   container: Container;
 }
 
@@ -27,5 +29,6 @@ export function getRuntimeServices(): RuntimeServices {
     githubAutomationService: container.githubAutomationService,
     claudeClient: container.claudeClient,
     promptProcessor: container.promptProcessor,
+    processPromptService: container.processPromptService,
   };
 }
