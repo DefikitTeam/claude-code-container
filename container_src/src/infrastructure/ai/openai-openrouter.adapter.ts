@@ -338,7 +338,8 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       'gpt-4o': 'openai/gpt-4o',
       'gpt-4': 'openai/gpt-4',
       'gpt-5': 'openai/gpt-5',
-      o1: 'openai/o1',
+      'gpt-5-mini': 'openai/gpt-5-mini',
+      'o1': 'openai/o1',
 
       // Google models
       'gemini-2.0-flash': 'google/gemini-2.0-flash-001:free',
@@ -352,7 +353,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'openai/gpt-5'; // Default
+      return 'openai/gpt-5-mini'; // Default
     }
 
     // Check if it's already an OpenRouter model ID (contains /)

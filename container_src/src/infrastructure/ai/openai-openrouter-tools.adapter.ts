@@ -710,7 +710,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       'gpt-4o': 'openai/gpt-4o',
       'gpt-4': 'openai/gpt-4',
       'gpt-5': 'openai/gpt-5',
-      o1: 'openai/o1',
+      'gpt-5-mini': 'openai/gpt-5-mini',
+      'o1': 'openai/o1',
       'gemini-2.0-flash': 'google/gemini-2.0-flash-001:free',
       'gemini-flash': 'google/gemini-2.0-flash-001:free',
       'qwen-coder': 'qwen/qwen-2.5-coder-32b-instruct',
@@ -718,7 +719,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'anthropic/claude-sonnet-4';
+      return 'openai/gpt-5-mini';
     }
 
     if (requestedModel.includes('/')) {
