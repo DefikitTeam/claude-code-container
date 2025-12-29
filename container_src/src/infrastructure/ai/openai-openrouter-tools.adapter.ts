@@ -54,7 +54,7 @@ export interface OpenAIOpenRouterToolsConfig {
 
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5',
+  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5-mini',
   httpReferer:
     process.env.OPENROUTER_HTTP_REFERER ||
     'https://github.com/DefikitTeam/claude-code-container',
@@ -211,6 +211,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           messages: conversationMessages,
           tools: tools as any,
           stream: true,
+          max_tokens: 15600, // Reasonable limit to prevent credit exhaustion
         });
         logger.info(
           `✅ API call started successfully (iteration ${loopCount})`,
@@ -719,7 +720,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'anthropic/claude-sonnet-4';
+      return 'openai/gpt-5-mini';
     }
 
     if (requestedModel.includes('/')) {
