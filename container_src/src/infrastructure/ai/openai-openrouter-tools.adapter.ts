@@ -719,7 +719,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'openai/gpt-5-mini';
+      return 'anthropic/claude-sonnet-4';
     }
 
     if (requestedModel.includes('/')) {

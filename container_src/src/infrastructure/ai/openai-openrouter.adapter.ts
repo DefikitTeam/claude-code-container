@@ -353,7 +353,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'openai/gpt-5-mini'; // Default
+      return 'anthropic/claude-sonnet-4'; // Default
     }
 
     // Check if it's already an OpenRouter model ID (contains /)
