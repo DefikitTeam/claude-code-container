@@ -131,17 +131,20 @@ async function dispatchJsonRpc(
         );
         break;
       case 'session/prompt': {
+        console.error(`[ACP-DISPATCH] session/prompt case entered`);
         const notifier = (method: string, payload: unknown) =>
           logWithContext('ACP', 'Notification', {
             method,
             payload,
             requestId: ctx.requestId,
           });
+        console.error(`[ACP-DISPATCH] Calling sessionPromptHandler...`);
         result = await sessionPromptHandler(
           params as SessionPromptRequest['params'],
           ctx,
           notifier,
         );
+        console.error(`[ACP-DISPATCH] sessionPromptHandler returned`);
         break;
       }
       case 'session/load':
@@ -169,6 +172,15 @@ async function dispatchJsonRpc(
       error: error instanceof Error ? error.message : String(error),
     });
 
+    // CRITICAL DEBUG LOGGING
+    console.error(
+      `[ACP-CRITICAL-ERROR] Method ${request.method} failed:`,
+      error,
+    );
+    if (error instanceof Error && error.stack) {
+      console.error('[ACP-CRITICAL-ERROR] Stack:', error.stack);
+    }
+
     return {
       jsonrpc: '2.0',
       error: {
@@ -183,6 +195,10 @@ async function dispatchJsonRpc(
 
 export function registerAcpRoutes(router: Router): void {
   router.register('POST', '/acp', async (ctx) => {
+    console.error(`[ACP-ROUTE] ========================================`);
+    console.error(`[ACP-ROUTE] /acp endpoint hit!`);
+    console.error(`[ACP-ROUTE] Request ID: ${ctx.requestId}`);
+
     logWithContext('ACP', 'ACP JSON-RPC request received', {
       requestId: ctx.requestId,
     });
@@ -190,8 +206,15 @@ export function registerAcpRoutes(router: Router): void {
     let request: JsonRpcRequest;
     try {
       const raw = await readRequestBody(ctx.req);
+      console.error(`[ACP-ROUTE] Raw body length: ${raw?.length || 0}`);
       request = parseJsonBody<JsonRpcRequest>(raw);
+      console.error(
+        `[ACP-ROUTE] Parsed method: ${request.method}, id: ${request.id}`,
+      );
     } catch (error) {
+      console.error(
+        `[ACP-ROUTE] JSON parse error: ${error instanceof Error ? error.message : String(error)}`,
+      );
       logWithContext('ACP', 'Invalid JSON in request body', {
         requestId: ctx.requestId,
         error: error instanceof Error ? error.message : String(error),
@@ -210,7 +233,9 @@ export function registerAcpRoutes(router: Router): void {
       requestId: ctx.requestId,
     });
 
+    console.error(`[ACP-ROUTE] Dispatching method: ${request.method}`);
     const response = await dispatchJsonRpc(request);
+    console.error(`[ACP-ROUTE] Dispatch complete, sending response`);
     jsonResponse(ctx.res, 200, response);
   });
 

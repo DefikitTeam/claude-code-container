@@ -117,6 +117,7 @@ export interface SessionNewRequest extends JSONRPCRequest {
   method: 'session/new';
   params: {
     workspaceUri?: string;
+    sessionId?: string;
     mode?: 'conversation' | 'development';
     sessionOptions?: {
       persistHistory?: boolean;

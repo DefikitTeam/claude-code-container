@@ -67,7 +67,7 @@ export interface OpenAIOpenRouterConfig {
  */
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5-mini',
+  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'mistralai/devstral-2512:free',
   httpReferer:
     process.env.OPENROUTER_HTTP_REFERER ||
     'https://github.com/DefikitTeam/claude-code-container',
@@ -355,7 +355,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'openai/gpt-5-mini'; // Default
+      return 'mistralai/devstral-2512:free'; // Default
     }
 
     // Check if it's already an OpenRouter model ID (contains /)

@@ -53,9 +53,7 @@ export class DaytonaContainerService implements IContainerService {
     // in the future, the payload construction below should be updated to include them.
     this.validateSpawnParams(params);
 
-    const existingWorkspace = await this.findExistingWorkspace(
-      params.configId,
-    );
+    const existingWorkspace = await this.findExistingWorkspace(params.configId);
 
     if (existingWorkspace && this.isWorkspaceHealthy(existingWorkspace)) {
       return { containerId: this.toContainerId(existingWorkspace.id) };
@@ -89,6 +87,7 @@ export class DaytonaContainerService implements IContainerService {
   async execute(
     containerId: string,
     command: string,
+    endpoint?: string,
   ): Promise<{
     exitCode: number;
     stdout: string;
@@ -98,21 +97,83 @@ export class DaytonaContainerService implements IContainerService {
       throw new ValidationError('containerId and command are required');
     }
 
+    // If endpoint is provided, forward HTTP request to container's HTTP server
+    // instead of running a shell command
+    if (endpoint) {
+      return this.executeHttpRequest(containerId, command, endpoint);
+    }
+
     const workspaceId = this.getWorkspaceId(containerId);
-    
+
     // Use Toolbox API with bash -c wrapper for proper shell interpretation
     // This ensures shell operators (&&, ||, |, ;) are parsed correctly
     const wrappedCommand = `bash -c ${JSON.stringify(command)}`;
-    
-    console.log(`[DAYTONA] Executing via Toolbox API: ${wrappedCommand.substring(0, 100)}...`);
+
+    console.log(
+      `[DAYTONA] Executing via Toolbox API: ${wrappedCommand.substring(0, 100)}...`,
+    );
 
     const result = await this.executeViaToolbox(workspaceId, wrappedCommand);
 
     return {
       exitCode: result.exitCode,
       stdout: result.result || '',
-      stderr: result.exitCode !== 0 ? (result.result || 'Execution failed') : '',
+      stderr: result.exitCode !== 0 ? result.result || 'Execution failed' : '',
     };
+  }
+
+  /**
+   * Forward HTTP request to container's HTTP server endpoint
+   * Used when an endpoint path is specified (e.g., '/process-prompt')
+   */
+  private async executeHttpRequest(
+    containerId: string,
+    jsonBody: string,
+    endpoint: string,
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    const workspace = await this.getWorkspace(containerId, EXECUTE_TIMEOUT_MS);
+    const processUrl = this.getProcessUrl(workspace);
+
+    if (!processUrl) {
+      throw new ValidationError(
+        `Workspace ${workspace.id} does not have a public URL for HTTP requests`,
+      );
+    }
+
+    const url = `${processUrl}${endpoint}`;
+    console.log(`[DAYTONA] Forwarding HTTP request to: ${url}`);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROCESS_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: jsonBody,
+        signal: controller.signal,
+      });
+
+      const text = await response.text();
+      console.log(
+        `[DAYTONA] HTTP response: ${response.status}, body length: ${text.length}`,
+      );
+
+      return {
+        exitCode: response.ok ? 0 : 1,
+        stdout: text,
+        stderr: response.ok ? '' : text,
+      };
+    } catch (error) {
+      console.error(`[DAYTONA] HTTP request failed:`, error);
+      return {
+        exitCode: 1,
+        stdout: '',
+        stderr: error instanceof Error ? error.message : 'HTTP request failed',
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   /**
@@ -131,16 +192,19 @@ export class DaytonaContainerService implements IContainerService {
     }
 
     const url = `${apiUrl}toolbox/${sandboxId}/toolbox/process/execute`;
-    
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), (timeoutSeconds + 10) * 1000);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      (timeoutSeconds + 10) * 1000,
+    );
 
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${this.apiKey}`,
       };
-      
+
       // Add Organization ID header for JWT authentication
       if (this.organizationId) {
         headers['X-Daytona-Organization-ID'] = this.organizationId;
@@ -158,16 +222,23 @@ export class DaytonaContainerService implements IContainerService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[DAYTONA] Toolbox execute failed: ${response.status} - ${errorText}`);
+        console.error(
+          `[DAYTONA] Toolbox execute failed: ${response.status} - ${errorText}`,
+        );
         return {
           exitCode: 1,
           result: `Toolbox API error: ${response.status} ${response.statusText}`,
         };
       }
 
-      const result = await response.json() as { exitCode: number; result: string };
-      console.log(`[DAYTONA] Toolbox execute result: exitCode=${result.exitCode}`);
-      
+      const result = (await response.json()) as {
+        exitCode: number;
+        result: string;
+      };
+      console.log(
+        `[DAYTONA] Toolbox execute result: exitCode=${result.exitCode}`,
+      );
+
       return result;
     } catch (error) {
       console.error(`[DAYTONA] Toolbox execute error:`, error);
@@ -221,7 +292,10 @@ export class DaytonaContainerService implements IContainerService {
     this.validateContainerId(containerId);
 
     try {
-      const workspace = await this.getWorkspace(containerId, EXECUTE_TIMEOUT_MS);
+      const workspace = await this.getWorkspace(
+        containerId,
+        EXECUTE_TIMEOUT_MS,
+      );
       return this.mapStatus(workspace.status);
     } catch (error) {
       return 'error';
@@ -275,9 +349,11 @@ export class DaytonaContainerService implements IContainerService {
 
     const workspaces = response ?? [];
     // Filter by configId to prevent cross-config reuse in multi-tenant scenarios
-    return workspaces.find(
-      (ws) => ws.configId === configId && this.isWorkspaceHealthy(ws)
-    ) ?? null;
+    return (
+      workspaces.find(
+        (ws) => ws.configId === configId && this.isWorkspaceHealthy(ws),
+      ) ?? null
+    );
   }
 
   private async waitForWorkspaceReady(
@@ -316,7 +392,11 @@ export class DaytonaContainerService implements IContainerService {
   }
 
   private isWorkspaceHealthy(workspace: DaytonaWorkspaceDto): boolean {
-    return workspace.status === 'running' || workspace.status === 'ready' || workspace.status === 'started';
+    return (
+      workspace.status === 'running' ||
+      workspace.status === 'ready' ||
+      workspace.status === 'started'
+    );
   }
 
   private async getWorkspace(
