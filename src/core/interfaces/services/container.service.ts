@@ -22,10 +22,14 @@ export interface IContainerService {
 
   /**
    * Execute command in container
+   * @param containerId - Container identifier
+   * @param command - Command string or JSON payload to execute
+   * @param endpoint - Optional HTTP endpoint to call (default: '/process')
    */
   execute(
     containerId: string,
     command: string,
+    endpoint?: string,
   ): Promise<{
     exitCode: number;
     stdout: string;

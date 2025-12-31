@@ -54,19 +54,39 @@ export class GitService implements IGitService {
     args: string[],
     opts?: { timeoutMs?: number },
   ): Promise<{ stdout: string; stderr: string; code: number | null }> {
+    console.log(
+      `[GitService] runGit called: cwd="${cwd}", args=${JSON.stringify(args)}`,
+    );
     try {
       const res = await execFileAsync('git', args, {
         cwd,
         timeout: opts?.timeoutMs,
       });
+      console.log(
+        `[GitService] git success: stdout=${res.stdout?.toString().substring(0, 100)}`,
+      );
       return {
         stdout: String(res.stdout || ''),
         stderr: String(res.stderr || ''),
         code: 0,
       };
     } catch (e: any) {
+      console.error(`[GitService] git error:`, {
+        code: e.code,
+        message: e.message,
+        cwd,
+        args,
+        syscall: e.syscall,
+        path: e.path,
+      });
       // If git binary missing or other execution error
       if (e.code === 'ENOENT') {
+        // Check if it's git binary or cwd that's missing
+        const errorDetail =
+          e.path === 'git'
+            ? 'git binary not found in PATH'
+            : `directory or file not found: ${e.path || cwd}`;
+        console.error(`[GitService] ENOENT details: ${errorDetail}`);
         throw new Error('git-not-found');
       }
       // execFile throws on non-zero exit; capture stdout/stderr if present
@@ -133,10 +153,19 @@ export class GitService implements IGitService {
       await this.runGit(repoPath, ['checkout', '-b', opts.defaultBranch]);
     }
 
+    // CRITICAL: Add origin remote if cloneUrl provided (for push to work later)
+    if (opts?.cloneUrl) {
+      console.log(`[GitService] Adding origin remote: ${opts.cloneUrl}`);
+      await this.runGit(repoPath, ['remote', 'add', 'origin', opts.cloneUrl]);
+    }
+
     try {
       await this.ensureGitUserConfigured(repoPath);
     } catch (e) {
-      console.warn('[GitService] Failed to configure git user during ensureRepo:', e);
+      console.warn(
+        '[GitService] Failed to configure git user during ensureRepo:',
+        e,
+      );
     }
   }
 
@@ -178,7 +207,9 @@ export class GitService implements IGitService {
 
   private getRepoSlug(url: string): string | undefined {
     const cleaned = url.replace(/https:\/\/[^@]+@/, 'https://');
-    const match = cleaned.match(/github\.com[:\/](?<slug>[^\/]+\/[^\/]+)(?:\.git)?$/i);
+    const match = cleaned.match(
+      /github\.com[:\/](?<slug>[^\/]+\/[^\/]+)(?:\.git)?$/i,
+    );
     return match?.groups?.slug.toLowerCase();
   }
 

@@ -38,10 +38,60 @@ export class ContainerDO extends Container<any> {
    * This is the main entry point for all container requests
    */
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const requestBody =
+      request.method === 'POST' ? await request.clone().text() : null;
+
+    // Check if this is a streaming request - DON'T buffer these!
+    const isStreaming =
+      url.searchParams.get('stream') === 'true' ||
+      request.headers.get('X-ACP-Streaming') === 'true';
+
+    console.log(`[ContainerDO] ========================================`);
+    console.log(
+      `[ContainerDO] Incoming request: ${request.method} ${url.pathname} (streaming=${isStreaming})`,
+    );
+    console.log(
+      `[ContainerDO] Request body length: ${requestBody?.length || 0}`,
+    );
+    if (requestBody && requestBody.length < 500) {
+      console.log(`[ContainerDO] Request body: ${requestBody}`);
+    }
+
     try {
-      return await super.fetch(request);
+      const response = await super.fetch(request);
+
+      // For streaming requests, return response directly WITHOUT buffering
+      if (isStreaming) {
+        console.log(
+          `[ContainerDO] Streaming response: ${response.status} ${response.statusText} for ${url.pathname}`,
+        );
+        return response; // Return raw response - body will stream to caller
+      }
+
+      // Log response status and BODY for debugging (non-streaming only)
+      const clonedResponse = response.clone();
+      const body = await clonedResponse.text();
+
+      console.log(
+        `[ContainerDO] Response: ${response.status} ${response.statusText} for ${url.pathname}`,
+      );
+      console.log(`[ContainerDO] Response body length: ${body.length}`);
+      console.log(`[ContainerDO] Response body: ${body.substring(0, 1000)}`);
+
+      // Return a new response with the same body since we consumed it
+      return new Response(body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
     } catch (error) {
-      console.error('Container fetch error:', error);
+      console.error('[ContainerDO] Container fetch error:', error);
+      console.error('[ContainerDO] Request details:', {
+        method: request.method,
+        path: url.pathname,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       return new Response(
         JSON.stringify({
           success: false,

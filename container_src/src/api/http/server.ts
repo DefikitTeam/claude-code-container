@@ -39,8 +39,19 @@ export function createHttpServer(): http.Server {
   });
 
   return http.createServer(async (req, res) => {
+    console.error(`[CONTAINER-HTTP] ========================================`);
+    console.error(`[CONTAINER-HTTP] Received: ${req.method} ${req.url}`);
+    console.error(`[CONTAINER-HTTP] Time: ${new Date().toISOString()}`);
     const context = buildContext(req, res);
-    await handler(context);
+    try {
+      await handler(context);
+      console.error(`[CONTAINER-HTTP] Completed: ${req.method} ${req.url}`);
+    } catch (err) {
+      console.error(
+        `[CONTAINER-HTTP] Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw err;
+    }
   });
 }
 
@@ -57,7 +68,12 @@ export async function runHttpServer(argv: any = {}): Promise<void> {
         `HTTP server listening on http://0.0.0.0:${port}`,
       );
       logWithContext('SERVER', 'Routes registered', {
-        routes: ['GET /health', 'POST /process', 'POST /process-prompt', 'POST /acp'],
+        routes: [
+          'GET /health',
+          'POST /process',
+          'POST /process-prompt',
+          'POST /acp',
+        ],
       });
       resolve();
     });

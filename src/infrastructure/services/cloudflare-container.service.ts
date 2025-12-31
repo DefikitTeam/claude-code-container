@@ -69,12 +69,13 @@ export class CloudflareContainerService implements IContainerService {
   /**
    * Execute a command/prompt in a container
    *
-   * This uses the /process endpoint for generic processing
+   * This uses the specified endpoint for processing (default: /process)
    * or /acp for ACP protocol interactions
    */
   async execute(
     containerId: string,
     command: string,
+    endpoint: string = '/process',
   ): Promise<{
     exitCode: number;
     stdout: string;
@@ -84,17 +85,18 @@ export class CloudflareContainerService implements IContainerService {
       throw new ValidationError('containerId and command are required');
     }
 
-    const body = {
-      type: 'execute',
-      command,
-    };
+    // Parse command as JSON if it looks like JSON, otherwise wrap as command
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(command);
+    } catch {
+      body = {
+        type: 'execute',
+        command,
+      };
+    }
 
-    const response = await this.doRequest(
-      'POST',
-      '/process',
-      body,
-      containerId,
-    );
+    const response = await this.doRequest('POST', endpoint, body, containerId);
     if (!response.ok) {
       throw new Error(`Failed to execute command: ${response.statusText}`);
     }
@@ -103,13 +105,31 @@ export class CloudflareContainerService implements IContainerService {
       success: boolean;
       logs?: string[];
       message?: string;
+      [key: string]: unknown;
     };
 
+    // For endpoints that return full JSON response (like /process-prompt),
+    // include the entire response as stdout
+    const stdout =
+      endpoint === '/process'
+        ? result.logs?.join('\n') || result.message || ''
+        : JSON.stringify(result);
+
     // Map container response to expected format
+    // For ACP (JSON-RPC), success is implied by valid response structure, not strict 'success' boolean
+    // JSON-RPC success response: { jsonrpc: '2.0', result: ... }
+    // JSON-RPC error response: { jsonrpc: '2.0', error: ... }
+    const isJsonRpc = (result as any).jsonrpc === '2.0';
+    const isAcpEndpoint = endpoint.includes('/acp');
+
+    // For ACP/JSON-RPC, we consider it "successful command execution" if we got a valid response (exitCode 0)
+    // The caller is responsible for checking rpcResponse.error
+    const isSuccess = isJsonRpc || isAcpEndpoint ? true : !!result.success;
+
     return {
-      exitCode: result.success ? 0 : 1,
-      stdout: result.logs?.join('\n') || result.message || '',
-      stderr: result.success ? '' : result.message || 'Command failed',
+      exitCode: isSuccess ? 0 : 1,
+      stdout,
+      stderr: isSuccess ? '' : result.message || 'Command failed',
     };
   }
 

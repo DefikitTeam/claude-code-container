@@ -13,6 +13,7 @@ import { createContainerRoutes } from './api/routes/container.routes';
 import { createDeploymentRoutes } from './api/routes/deployment.routes';
 import { createInstallationRoutes } from './api/routes/installation.routes';
 import { createACPRoutes } from './api/routes/acp.routes';
+import { createSessionRoutes } from './api/routes/session.routes';
 
 // Controllers
 import { UserController } from './api/controllers/user.controller';
@@ -21,6 +22,7 @@ import { ContainerController } from './api/controllers/container.controller';
 import { DeploymentController } from './api/controllers/deployment.controller';
 import { InstallationController } from './api/controllers/installation.controller';
 import { ACPController } from './api/controllers/acp.controller';
+import { SessionController } from './api/controllers/session.controller';
 
 // Use Cases - User
 import { RegisterUserUseCase } from './core/use-cases/user/register-user.use-case';
@@ -46,6 +48,11 @@ import { DeployWorkerUseCase } from './core/use-cases/deployment/deploy-worker.u
 import { GetStatusUseCase } from './core/use-cases/deployment/get-status.use-case';
 import { RollbackUseCase } from './core/use-cases/deployment/rollback.use-case';
 import { ValidateConfigUseCase } from './core/use-cases/deployment/validate-config.use-case';
+
+// Use Cases - Session (Persistent Branch Code Mode)
+import { EnableCodingModeUseCase } from './core/use-cases/session/enable-coding-mode.use-case';
+import { ProcessSessionPromptUseCase } from './core/use-cases/session/process-session-prompt.use-case';
+import { CreatePRFromSessionUseCase } from './core/use-cases/session/create-pr-from-session.use-case';
 
 // Infrastructure - Real Phase 3 Implementations
 import { GitHubServiceImpl } from './infrastructure/services/github.service.impl';
@@ -103,6 +110,7 @@ interface Controllers {
   deploymentController: DeploymentController;
   installationController: InstallationController;
   acpController: ACPController;
+  sessionController: SessionController;
 }
 
 let cachedControllers: Controllers | null = null;
@@ -220,6 +228,17 @@ async function setupDI(env: Env): Promise<Controllers> {
   );
   const validateConfigUseCase = new ValidateConfigUseCase(deploymentService);
 
+  // Session use cases for persistent branch code mode
+  const enableCodingModeUseCase = new EnableCodingModeUseCase(env);
+  const processSessionPromptUseCase = new ProcessSessionPromptUseCase(
+    containerService,
+    env,
+  );
+  const createPRFromSessionUseCase = new CreatePRFromSessionUseCase(
+    githubService,
+    env,
+  );
+
   cachedControllers = {
     userController: new UserController(
       registerUserUseCase,
@@ -247,6 +266,11 @@ async function setupDI(env: Env): Promise<Controllers> {
     ),
     installationController: new InstallationController(),
     acpController: new ACPController(acpBridgeService),
+    sessionController: new SessionController(
+      enableCodingModeUseCase,
+      processSessionPromptUseCase,
+      createPRFromSessionUseCase,
+    ),
   };
 
   return cachedControllers;
@@ -299,6 +323,7 @@ async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
     '/api/installations',
     createInstallationRoutes(controllers.installationController),
   );
+  app.route('/api/sessions', createSessionRoutes(controllers.sessionController));
   app.route('/acp', createACPRoutes(controllers.acpController));
 
   app.notFound((c) =>

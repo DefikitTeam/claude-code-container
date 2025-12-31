@@ -6,7 +6,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ValidationError } from '../../shared/errors/validation.error';
 
-interface AcpSession {
+export interface AcpSession {
   sessionId: string;
   userId: string;
   installationId: string;
@@ -16,6 +16,22 @@ interface AcpSession {
   updatedAt: number;
   expiresAt: number;
   metadata?: Record<string, any>;
+
+  // Coding Mode Configuration
+  codingModeEnabled?: boolean;
+  selectedRepository?: string;  // "owner/repo"
+  selectedBranch?: string;      // target branch (e.g., "main")
+
+  // Persistent Branch Tracking
+  workingBranch?: string;       // "feature/chat-abc123-1735488000000"
+  branchStatus?: 'active' | 'pr_created' | 'merged' | 'deleted';
+  branchCreatedAt?: number;
+  lastCommitSha?: string;
+  totalCommits?: number;
+
+  // Pull Request Tracking
+  pullRequestNumber?: number;
+  pullRequestUrl?: string;
 }
 
 export class AcpSessionDO extends DurableObject {
@@ -183,6 +199,103 @@ export class AcpSessionDO extends DurableObject {
     }
   }
 
+  /**
+   * Update coding mode configuration
+   */
+  async updateCodingMode(
+    sessionId: string,
+    config: {
+      codingModeEnabled: boolean;
+      selectedRepository?: string;
+      selectedBranch?: string;
+      workingBranch?: string;
+    },
+  ): Promise<void> {
+    try {
+      const session = await this.getSession(sessionId);
+      if (!session) {
+        throw new ValidationError('Session not found');
+      }
+
+      session.codingModeEnabled = config.codingModeEnabled;
+      session.updatedAt = Date.now();
+
+      if (config.selectedRepository) {
+        session.selectedRepository = config.selectedRepository;
+      }
+      if (config.selectedBranch) {
+        session.selectedBranch = config.selectedBranch;
+      }
+      if (config.workingBranch) {
+        session.workingBranch = config.workingBranch;
+        session.branchStatus = 'active';
+        session.branchCreatedAt = Date.now();
+        session.totalCommits = 0;
+      }
+
+      const key = `${this.SESSIONS_PREFIX}${sessionId}`;
+      await this.ctx.storage.put(key, JSON.stringify(session));
+    } catch (error) {
+      throw new Error(
+        `Failed to update coding mode: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Update commit tracking after successful commit
+   */
+  async updateCommitTracking(
+    sessionId: string,
+    commitSha: string,
+  ): Promise<void> {
+    try {
+      const session = await this.getSession(sessionId);
+      if (!session) {
+        throw new ValidationError('Session not found');
+      }
+
+      session.lastCommitSha = commitSha;
+      session.totalCommits = (session.totalCommits || 0) + 1;
+      session.updatedAt = Date.now();
+
+      const key = `${this.SESSIONS_PREFIX}${sessionId}`;
+      await this.ctx.storage.put(key, JSON.stringify(session));
+    } catch (error) {
+      throw new Error(
+        `Failed to update commit tracking: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Update PR tracking after PR creation
+   */
+  async updatePRTracking(
+    sessionId: string,
+    pullRequestNumber: number,
+    pullRequestUrl: string,
+  ): Promise<void> {
+    try {
+      const session = await this.getSession(sessionId);
+      if (!session) {
+        throw new ValidationError('Session not found');
+      }
+
+      session.pullRequestNumber = pullRequestNumber;
+      session.pullRequestUrl = pullRequestUrl;
+      session.branchStatus = 'pr_created';
+      session.updatedAt = Date.now();
+
+      const key = `${this.SESSIONS_PREFIX}${sessionId}`;
+      await this.ctx.storage.put(key, JSON.stringify(session));
+    } catch (error) {
+      throw new Error(
+        `Failed to update PR tracking: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
   private async indexSessionForUser(
     userId: string,
     installationId: string,
@@ -297,6 +410,101 @@ export class AcpSessionDO extends DurableObject {
           }),
           {
             status: 500,
+          },
+        );
+      }
+    }
+
+    if (request.method === 'PATCH' && url.pathname === '/session/coding-mode') {
+      try {
+        const { sessionId, ...config } = await request.json<{
+          sessionId: string;
+          codingModeEnabled: boolean;
+          selectedRepository?: string;
+          selectedBranch?: string;
+          workingBranch?: string;
+        }>();
+        await this.updateCodingMode(sessionId, config);
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
+          },
+        );
+      }
+    }
+
+    if (request.method === 'PATCH' && url.pathname === '/session/commit-tracking') {
+      try {
+        const { sessionId, commitSha } = await request.json<{
+          sessionId: string;
+          commitSha: string;
+        }>();
+        await this.updateCommitTracking(sessionId, commitSha);
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
+          },
+        );
+      }
+    }
+
+    if (request.method === 'PATCH' && url.pathname === '/session/pr-tracking') {
+      try {
+        const { sessionId, pullRequestNumber, pullRequestUrl } = await request.json<{
+          sessionId: string;
+          pullRequestNumber: number;
+          pullRequestUrl: string;
+        }>();
+        await this.updatePRTracking(sessionId, pullRequestNumber, pullRequestUrl);
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
+          },
+        );
+      }
+    }
+
+    // Update session containerId
+    if (request.method === 'PATCH' && url.pathname === '/session') {
+      try {
+        const { sessionId, containerId } = await request.json<{
+          sessionId: string;
+          containerId: string;
+        }>();
+        const session = await this.getSession(sessionId);
+        if (!session) {
+          return new Response(
+            JSON.stringify({ error: 'Session not found' }),
+            { status: 404 },
+          );
+        }
+        session.containerId = containerId;
+        session.updatedAt = Date.now();
+        const key = `${this.SESSIONS_PREFIX}${sessionId}`;
+        await this.ctx.storage.put(key, JSON.stringify(session));
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
           },
         );
       }

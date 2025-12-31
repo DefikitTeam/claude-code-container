@@ -45,6 +45,56 @@ export class ACPController {
         params,
         c.env,
       );
+
+      // Sync session to ACPSessionDO if creation was successful and we have a sessionId
+      if (result?.result?.sessionId && params?.userId) {
+        const sessionId = result.result.sessionId;
+        const userId = params.userId;
+        // Installation ID might be in params or context
+        const installationId =
+          params.installationId ||
+          params.context?.installationId ||
+          params.agentContext?.installationId ||
+          'default';
+
+        try {
+          const sessionDO = c.env.ACP_SESSION.idFromName(sessionId);
+          const sessionStub = c.env.ACP_SESSION.get(sessionDO);
+
+          await sessionStub.fetch('http://do/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              userId,
+              installationId,
+              containerId: 'acp-session', // Default container mapping
+              status: 'active',
+              // Auto-enable coding mode if requested via context (optional, but helper for UX)
+              codingModeEnabled: true, // Default to true for now since user is likely in Code Mode
+              // Generate default working branch if not provided (fixes 400 Bad Request on prompt)
+              workingBranch:
+                params.agentContext?.repository?.workingBranch ||
+                `feature/chat-${sessionId.replace('session-', '').substring(0, 8)}-${Date.now()}`,
+              selectedRepository: params.agentContext?.repository?.url?.replace(
+                'https://github.com/',
+                '',
+              ),
+              selectedBranch: params.agentContext?.repository?.branch || 'main', // Default to main if unknown
+            }),
+          });
+          console.log(
+            `[ACP-CONTROLLER] Synced session ${sessionId} to ACPSessionDO`,
+          );
+        } catch (syncError) {
+          console.error(
+            `[ACP-CONTROLLER] Failed to sync session to DO:`,
+            syncError,
+          );
+          // Don't fail the request, just log error
+        }
+      }
+
       return c.json(result);
     } catch (err: any) {
       return errorResponse(c, err);
@@ -72,26 +122,30 @@ export class ACPController {
       const isAsync = params.async === true || c.req.query('async') === 'true';
 
       // Check if streaming mode is requested (to avoid Cloudflare 524 timeout)
-      const isStream = params.stream === true || c.req.query('stream') === 'true';
+      const isStream =
+        params.stream === true || c.req.query('stream') === 'true';
 
       if (isStream) {
-        console.log('[ACP-CONTROLLER] Using STREAM mode (End-to-End Streaming)');
+        console.log(
+          '[ACP-CONTROLLER] Using STREAM mode (End-to-End Streaming)',
+        );
         // Stream mode - return Response directly without buffering
         const streamResponse = await this.acpBridgeService.routeACPMethodStream(
           'session/prompt',
           params,
           c.env,
         );
-        
+
         // Return the raw Response with appropriate streaming headers
         // Browser/Client will receive chunks as they arrive
         return new Response(streamResponse.body, {
           status: streamResponse.status,
           headers: {
-            'Content-Type': streamResponse.headers.get('Content-Type') || 'application/json',
+            'Content-Type':
+              streamResponse.headers.get('Content-Type') || 'application/json',
             'Transfer-Encoding': 'chunked',
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
+            Connection: 'keep-alive',
             'X-ACP-Streaming': 'true',
           },
         });
