@@ -12,6 +12,7 @@ export interface RunOptions {
   apiKey?: string;
   abortSignal?: AbortSignal;
   model?: string;
+  messages?: Array<any[]>; // Full message history
 }
 
 export interface ClaudeResult {

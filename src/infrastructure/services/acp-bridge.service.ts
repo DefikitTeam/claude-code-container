@@ -229,6 +229,31 @@ export class ACPBridgeService implements IACPBridgeService {
       // which would wake Cloudflare containers even when CONTAINER_PROVIDER=daytona.
       const containerName = 'acp-session';
 
+      // CRITICAL: Fetch message history from ACPSessionDO for session/prompt calls
+      let messageHistory: any[] = [];
+      if (method === 'session/prompt' && params?.sessionId) {
+        try {
+          console.log(`[ACP-BRIDGE] Fetching message history for session: ${params.sessionId}`);
+          const sessionDO = env.ACP_SESSION.idFromName(params.sessionId);
+          const sessionStub = env.ACP_SESSION.get(sessionDO);
+
+          const response = await sessionStub.fetch(
+            `http://do/session/messages?sessionId=${params.sessionId}&limit=20`
+          );
+
+          if (response.ok) {
+            const data = await response.json() as { messages: any[] };
+            messageHistory = data.messages || [];
+            console.log(`[ACP-BRIDGE] Fetched ${messageHistory.length} messages from history`);
+          } else {
+            console.warn(`[ACP-BRIDGE] Failed to fetch message history: ${response.status}`);
+          }
+        } catch (historyError) {
+          console.warn(`[ACP-BRIDGE] Error fetching message history:`, historyError);
+          // Continue without history - not fatal
+        }
+      }
+
       // Create JSON-RPC request for container ACP server
       // Use worker's OpenRouter API key (not user-provided)
       const jsonRpcRequest = {
@@ -257,6 +282,8 @@ export class ACPBridgeService implements IACPBridgeService {
                 },
               }
               : {}),
+            // ✅ CRITICAL FIX: Include message history from persistent storage
+            ...(messageHistory.length > 0 ? { messageHistory } : {}),
           },
         },
         id: Date.now(),
@@ -365,10 +392,20 @@ export class ACPBridgeService implements IACPBridgeService {
 
       // Handle session/prompt side effects
       if (method === 'session/prompt' && containerResult?.result) {
+        // Extract user prompt from content blocks
+        let userPrompt = '';
+        if (params?.content && Array.isArray(params.content)) {
+          userPrompt = params.content
+            .filter((block: any) => block.type === 'text')
+            .map((block: any) => block.text || '')
+            .join('\n');
+        }
+
         await this.handleSessionPromptSideEffects({
           env,
           sessionId: params?.sessionId,
           result: containerResult.result as ACPSessionPromptResult,
+          userPrompt,
         });
       }
 
@@ -729,15 +766,9 @@ export class ACPBridgeService implements IACPBridgeService {
     env: any;
     sessionId?: string;
     result: ACPSessionPromptResult;
+    userPrompt?: string;  // NEW: user's prompt text
   }): Promise<void> {
-    const { env, sessionId, result } = args;
-
-    const sanitizedAutomation = this.sanitizeGitHubAutomation(
-      result.githubAutomation,
-    );
-    if (!sanitizedAutomation) {
-      return;
-    }
+    const { env, sessionId, result, userPrompt } = args;
 
     const resolvedSessionId =
       sessionId || result.meta?.workspace?.sessionId || null;
@@ -746,6 +777,58 @@ export class ACPBridgeService implements IACPBridgeService {
       console.warn(
         '[ACP-BRIDGE] Unable to log automation result - missing sessionId',
       );
+      return;
+    }
+
+    // ✅ CRITICAL: Save messages to ACPSessionDO for persistence across container restarts
+    if (userPrompt && result.summary) {
+      try {
+        const timestamp = Date.now();
+        const messages: any[] = [
+          {
+            role: 'user',
+            content: userPrompt,
+            timestamp,
+          },
+          {
+            role: 'assistant',
+            content: result.summary,
+            timestamp: timestamp + 1,
+            metadata: {
+              hadToolUsage: !!(result.githubAutomation || result.githubOperations),
+              stopReason: result.stopReason,
+            },
+          },
+        ];
+
+        const sessionDO = env.ACP_SESSION.idFromName(resolvedSessionId);
+        const sessionStub = env.ACP_SESSION.get(sessionDO);
+
+        const saveResponse = await sessionStub.fetch('http://do/session/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: resolvedSessionId,
+            messages,
+          }),
+        });
+
+        if (saveResponse.ok) {
+          console.log(`[ACP-BRIDGE] ✅ Saved ${messages.length} messages to session ${resolvedSessionId}`);
+        } else {
+          console.warn(`[ACP-BRIDGE] ⚠️ Failed to save messages: ${saveResponse.status}`);
+        }
+      } catch (saveError) {
+        console.error(`[ACP-BRIDGE] Error saving messages:`, saveError);
+        // Non-fatal - continue with other side effects
+      }
+    }
+
+    // Save audit record
+    const sanitizedAutomation = this.sanitizeGitHubAutomation(
+      result.githubAutomation,
+    );
+    if (!sanitizedAutomation) {
       return;
     }
 
