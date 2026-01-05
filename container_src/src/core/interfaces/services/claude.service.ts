@@ -20,6 +20,8 @@ export interface ClaudeResult {
     input: number;
     output: number;
   };
+  stopReason?: string;
+  toolUse?: Array<{ name: string }>;
 }
 
 export interface IClaudeService {

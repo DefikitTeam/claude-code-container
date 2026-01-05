@@ -59,7 +59,7 @@ export interface AutomationIntentSignals {
 
 export interface AutomationDecision {
   run: boolean;
-  mode: 'github' | 'none';
+  mode: 'github' | 'commit-only' | 'none';
   reason?: string;
   explicit?: boolean;
 }

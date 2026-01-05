@@ -285,6 +285,23 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
         // If we got content and no tool calls, we're done
         if (currentMessage && currentToolCalls.length === 0) {
+          // Heuristic: If model is "planning" but not "doing" (common in smaller models), bounce back
+          // check for phrases like "Let me check", "I will", "I need to", "I'll", "checking"
+          const planningPhrases = /Let me check|I will|I'll|I need to|checking|verify|examine/i;
+          if (loopCount < 3 && planningPhrases.test(currentMessage) && currentMessage.length < 300) {
+             logger.warn('⚠️ Model discussed action but used no tools. Forcing retry with instruction.');
+             
+             conversationMessages.push({ 
+               role: 'assistant', 
+               content: currentMessage 
+             });
+             conversationMessages.push({ 
+               role: 'user', 
+               content: 'Do not describe the plan. Use the tools IMMEDIATELY to perform the action.' 
+             });
+             continue;
+          }
+
           logger.debug('completion finished - no tool calls');
           break;
         }
