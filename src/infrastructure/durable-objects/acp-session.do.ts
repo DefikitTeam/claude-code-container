@@ -6,6 +6,17 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ValidationError } from '../../shared/errors/validation.error';
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  metadata?: {
+    toolsUsed?: string[];
+    hadToolUsage?: boolean;
+    [key: string]: any;
+  };
+}
+
 export interface AcpSession {
   sessionId: string;
   userId: string;
@@ -32,6 +43,9 @@ export interface AcpSession {
   // Pull Request Tracking
   pullRequestNumber?: number;
   pullRequestUrl?: string;
+
+  // Chat History (NEW - persists across container restarts)
+  messages?: ChatMessage[];
 }
 
 export class AcpSessionDO extends DurableObject {
@@ -296,6 +310,62 @@ export class AcpSessionDO extends DurableObject {
     }
   }
 
+  /**
+   * Add messages to session history
+   */
+  async addMessages(
+    sessionId: string,
+    messages: ChatMessage[],
+  ): Promise<void> {
+    try {
+      const session = await this.getSession(sessionId);
+      if (!session) {
+        throw new ValidationError('Session not found');
+      }
+
+      if (!session.messages) {
+        session.messages = [];
+      }
+
+      session.messages.push(...messages);
+      session.updatedAt = Date.now();
+
+      // Keep only last 50 messages to avoid unbounded growth
+      if (session.messages.length > 50) {
+        session.messages = session.messages.slice(-50);
+      }
+
+      const key = `${this.SESSIONS_PREFIX}${sessionId}`;
+      await this.ctx.storage.put(key, JSON.stringify(session));
+    } catch (error) {
+      throw new Error(
+        `Failed to add messages: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Get session messages
+   */
+  async getMessages(
+    sessionId: string,
+    limit: number = 20,
+  ): Promise<ChatMessage[]> {
+    try {
+      const session = await this.getSession(sessionId);
+      if (!session || !session.messages) {
+        return [];
+      }
+
+      // Return last N messages
+      return session.messages.slice(-limit);
+    } catch (error) {
+      throw new Error(
+        `Failed to get messages: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
   private async indexSessionForUser(
     userId: string,
     installationId: string,
@@ -497,6 +567,59 @@ export class AcpSessionDO extends DurableObject {
         session.updatedAt = Date.now();
         const key = `${this.SESSIONS_PREFIX}${sessionId}`;
         await this.ctx.storage.put(key, JSON.stringify(session));
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 400,
+          },
+        );
+      }
+    }
+
+    // Get session messages
+    if (request.method === 'GET' && url.pathname === '/session/messages') {
+      try {
+        const sessionId = url.searchParams.get('sessionId');
+        const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+        if (!sessionId) {
+          return new Response(JSON.stringify({ error: 'sessionId required' }), {
+            status: 400,
+          });
+        }
+        const messages = await this.getMessages(sessionId, limit);
+        return new Response(JSON.stringify({ messages }), { status: 200 });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }),
+          {
+            status: 500,
+          },
+        );
+      }
+    }
+
+    // Add messages to session
+    if (request.method === 'POST' && url.pathname === '/session/messages') {
+      try {
+        const { sessionId, messages } = await request.json<{
+          sessionId: string;
+          messages: ChatMessage[];
+        }>();
+        if (!sessionId || !messages) {
+          return new Response(
+            JSON.stringify({ error: 'sessionId and messages required' }),
+            {
+              status: 400,
+            },
+          );
+        }
+        await this.addMessages(sessionId, messages);
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (error) {
         return new Response(

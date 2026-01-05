@@ -350,6 +350,7 @@ export class PromptProcessor {
         workspacePath: wsDesc.path,
         apiKey,
         abortSignal,
+        messages: session?.messageHistory,
       };
       if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
         runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;
@@ -406,23 +407,58 @@ export class PromptProcessor {
     }
 
     // 6. Persist session updates (append message history if not already appended by caller)
+    // CRITICAL: Store COMPLETE conversation including assistant responses and tool usage
     const lastActiveTimestamp = Date.now();
-    if (sessionEntity) {
-      sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
-      if (!opts.historyAlreadyAppended) {
-        const historyContent = promptEntity
-          ? Array.from<ContentBlock>(promptEntity.content)
-          : content;
-        sessionEntity = sessionEntity.appendMessageHistory(
-          historyContent,
-          lastActiveTimestamp,
-        );
+    if (!opts.historyAlreadyAppended) {
+      // NEW FORMAT: Store conversation in OpenAI message format to preserve tool usage
+      // This allows proper conversation replay after container restart
+      if (!session.messageHistory) {
+        session.messageHistory = [];
       }
-      session = sessionEntity.toJSON();
-    } else {
+
+      // User message
+      session.messageHistory.push({
+        role: 'user',
+        content: prompt,
+      } as any);
+
+      // Assistant message with tool usage (if any)
+      // Extract tool usage from runResult
+      const assistantMessage: any = {
+        role: 'assistant',
+        content: fullText || runResult?.fullText || '(no response)',
+      };
+
+      // If there were tool calls, include them in the message
+      if (runResult?.toolUse && runResult.toolUse.length > 0) {
+        // Note: We're storing simplified tool info here since we don't have full tool_calls with IDs
+        // This is metadata for reference, not for exact replay
+        assistantMessage.metadata = {
+          toolsUsed: runResult.toolUse.map((t: any) => t.name),
+          hadToolUsage: true,
+        };
+      }
+
+      session.messageHistory.push(assistantMessage);
+
+      // Update lastActiveAt
       session.lastActiveAt = lastActiveTimestamp;
-      if (!opts.historyAlreadyAppended) {
-        session.messageHistory.push(content);
+
+      // For entities, update through entity methods
+      if (sessionEntity) {
+        // The entity's appendMessageHistory might not support our new format
+        // So we bypass it and directly update session
+        (session as any).messageHistory = session.messageHistory;
+        sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
+        session = sessionEntity.toJSON();
+      }
+    } else {
+      // History already appended, just update timestamp
+      if (sessionEntity) {
+        sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
+        session = sessionEntity.toJSON();
+      } else {
+        session.lastActiveAt = lastActiveTimestamp;
       }
     }
 
