@@ -120,7 +120,7 @@ export class GitHubAutomationService implements IGitHubAutomationService {
 
     return {
       run: true,
-      mode: 'github',
+      mode: normalizedMode === 'commit-only' ? 'commit-only' : 'github',
       explicit: signals.explicit,
     };
   }
@@ -164,9 +164,11 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       this.log(logs, 'automation.start', {
         sessionId: context.sessionId,
         repository: `${context.repository.owner}/${context.repository.name}`,
+        mode: decision.mode,
       });
 
-      if (!issue) {
+      // ONLY create issue if NOT in commit-only mode AND we don't have one
+      if (decision.mode !== 'commit-only' && !issue) {
         issue = await this.createIssue(octokit, context, logs);
       }
 
@@ -199,15 +201,24 @@ export class GitHubAutomationService implements IGitHubAutomationService {
 
       if (!context.dryRun) {
         await this.pushBranch(context, prepared, logs);
-        pullRequest = await this.openPullRequest(
-          octokit!,
-          context,
-          prepared,
-          commit!,
-          issue!,
-          logs,
-        );
-        await this.commentOnIssue(octokit!, context, issue!, pullRequest, logs);
+        
+        // Skip PR and Issue comment if in commit-only mode
+        if (decision.mode !== 'commit-only') {
+          pullRequest = await this.openPullRequest(
+            octokit!,
+            context,
+            prepared,
+            commit!,
+            issue!,
+            logs,
+          );
+          await this.commentOnIssue(octokit!, context, issue!, pullRequest, logs);
+        } else {
+          this.log(logs, 'automation.commitOnly', {
+            message: 'Skipping PR creation (commit-only mode)',
+            branch: prepared.branchName
+          });
+        }
       } else {
         this.log(logs, 'automation.dryRun', {
           branch: prepared.branchName,
@@ -290,11 +301,24 @@ export class GitHubAutomationService implements IGitHubAutomationService {
         this.nowFn(),
       );
 
+    // CRITICAL: Fetch the target branch if it exists remotely to ensure we can track it
+    try {
+      await this.git.runGit(workspacePath, ['fetch', 'origin', branchName]);
+    } catch (e) {
+      // Ignore fetch error (branch might not exist yet)
+    }
+
     try {
       await this.git.createBranch(workspacePath, branchName, baseBranch);
     } catch (error) {
       this.log(logs, 'git.branchExisting', { branch: branchName });
       await this.git.checkoutBranch(workspacePath, branchName);
+      // Ensure we are up to date with remote
+      try {
+        await this.git.runGit(workspacePath, ['pull', '--rebase', 'origin', branchName]);
+      } catch (pullError) {
+         this.log(logs, 'git.pullFailed', { error: String(pullError) });
+      }
     }
 
     const hasChanges = await this.git.hasUncommittedChanges(workspacePath);

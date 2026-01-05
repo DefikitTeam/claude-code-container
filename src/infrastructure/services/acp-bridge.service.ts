@@ -469,7 +469,67 @@ export class ACPBridgeService implements IACPBridgeService {
       });
     }
 
-    // Build JSON-RPC request with injected credentials
+    // Generate GitHub installation token and fetch repository info (same as routeACPMethod)
+    let githubToken: string | undefined;
+    let githubTokenError: string | undefined;
+    let repository: string | undefined;
+
+    // Fallback: Check params for installationId if not in userConfig
+    const installationId = userConfig.installationId || params.installationId || params.context?.installationId || params.agentContext?.installationId;
+
+    if (this.tokenService && installationId) {
+      try {
+        console.log(
+          `[ACP-BRIDGE-STREAM] Generating GitHub token for installation: ${installationId}`,
+        );
+        const tokenResult = await this.tokenService.getInstallationToken(
+          installationId,
+        );
+        githubToken = tokenResult.token;
+        console.log(`[ACP-BRIDGE-STREAM] GitHub token generated successfully`);
+
+        // Fetch repositories from installation to auto-populate repository metadata
+        if (this.githubService) {
+          try {
+            console.log(
+              `[ACP-BRIDGE-STREAM] Fetching repositories for installation: ${installationId}`,
+            );
+            const repositories = await this.githubService.fetchRepositories(
+              installationId,
+            );
+
+            if (repositories.length > 0) {
+              // Use the first repository (installations typically have one repo)
+              repository = repositories[0].fullName;
+              console.log(
+                `[ACP-BRIDGE-STREAM] Auto-detected repository: ${repository} (from ${repositories.length} available)`,
+              );
+            } else {
+              console.warn(
+                `[ACP-BRIDGE-STREAM] No repositories found for installation ${installationId}`,
+              );
+            }
+          } catch (repoError) {
+            console.warn(
+              `[ACP-BRIDGE-STREAM] Failed to fetch repositories:`,
+              repoError,
+            );
+            // Continue without repository info - user can still pass it manually
+          }
+        }
+
+      } catch (error: any) {
+        console.warn(`[ACP-BRIDGE-STREAM] Failed to generate GitHub token:`, error);
+        githubTokenError = error instanceof Error ? error.message : String(error);
+        // Continue without GitHub token - container will skip GitHub operations but will know why
+      }
+    } else {
+      console.log(
+        `[ACP-BRIDGE-STREAM] No token service or installation ID - GitHub operations will be skipped`,
+      );
+    }
+
+    // Build JSON-RPC request with injected credentials (same structure as routeACPMethod)
     const containerName = 'acp-session';
     const jsonRpcRequest = {
       jsonrpc: '2.0',
@@ -477,12 +537,37 @@ export class ACPBridgeService implements IACPBridgeService {
       params: {
         ...params,
         anthropicApiKey: openrouterApiKey,
-        installationId: userConfig.installationId,
+        // Also pass GitHub token at top level for container compatibility
+        ...(githubToken ? { githubToken } : {}),
+        // Pass token error if generation failed
+        ...(githubTokenError ? { githubTokenError } : {}),
+        // Auto-inject GitHub context (token + repository) from installation
+        context: {
+          ...(params.context || {}),
+          // Auto-inject repository if not provided by user
+          ...(repository && !params.context?.repository
+            ? { repository }
+            : {}),
+          // Inject GitHub token in context.github.token (for handlers that expect it here)
+          ...(githubToken
+            ? {
+              github: {
+                ...(params.context?.github || {}),
+                token: githubToken,
+              },
+            }
+            : {}),
+        },
       },
       id: Date.now(),
     };
 
-    console.log(`[ACP-BRIDGE-STREAM] Routing ${method} to container (streaming mode)`);
+    console.log(`[ACP-BRIDGE-STREAM] Routing ${method} to container (streaming mode)`, {
+      hasGithubToken: !!githubToken,
+      hasRepository: !!repository || !!params.context?.repository,
+      installationId: installationId || 'none',
+    });
+
 
     try {
       if (env.CONTAINER_PROVIDER === 'daytona') {
