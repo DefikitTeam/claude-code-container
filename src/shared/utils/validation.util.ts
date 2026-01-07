@@ -149,13 +149,18 @@ export function validateGitHubBranchName(branch: string): void {
 
 /**
  * Validate installation ID format
+ * Accepts: numeric string (e.g., "123456") or "default" (when githubToken is passed in body)
  */
 export function validateInstallationId(installationId: string): void {
+  // Allow "default" as a special value (when token is passed in request body)
+  if (installationId === 'default') {
+    return;
+  }
   validatePattern(
     installationId,
     /^\d+$/,
     'installationId',
-    'Installation ID must be numeric',
+    'Installation ID must be numeric or "default"',
   );
 }
 

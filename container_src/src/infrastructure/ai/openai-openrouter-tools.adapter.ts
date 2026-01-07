@@ -54,7 +54,7 @@ export interface OpenAIOpenRouterToolsConfig {
 
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5',
+  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'mistralai/devstral-2512:free',
   httpReferer:
     process.env.OPENROUTER_HTTP_REFERER ||
     'https://github.com/DefikitTeam/claude-code-container',
@@ -131,12 +131,15 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         runOptions.model ?? context.model ?? this.config.defaultModel;
       const model = this.selectModel(requestedModel);
 
-      logger.info('starting completion with tools', {
+      logger.info('🚀 OpenAI Tools Adapter SELECTED and STARTING', {
         requestedModel,
         model,
         promptLength: prompt.length,
         hasWorkspace: !!context.workspacePath,
+        workspacePath: context.workspacePath,
         streaming: true,
+        hasHistory: !!(runOptions.messages && Array.isArray(runOptions.messages)),
+        historyLength: runOptions.messages ? runOptions.messages.length : 0,
       });
 
       // Notify start
@@ -180,8 +183,69 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       let fullText = '';
       let conversationMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt },
       ];
+
+      // CRITICAL FIX: Replay history with FULL tool usage information
+      // The history can be in two formats:
+      // 1. Legacy: ContentBlock[][] (text-only, no tool info) - needs backward compatibility
+      // 2. New: OpenAI message format with tool_calls and tool results
+      if (runOptions.messages && Array.isArray(runOptions.messages)) {
+        logger.debug('replaying history', {
+          historyLength: runOptions.messages.length,
+          firstItemType: typeof runOptions.messages[0],
+          firstItemKeys: runOptions.messages[0] && typeof runOptions.messages[0] === 'object'
+            ? Object.keys(runOptions.messages[0]).join(',')
+            : 'N/A'
+        });
+
+        runOptions.messages.forEach((item: any, index: number) => {
+          // NEW FORMAT: If item has 'role' property, it's already in OpenAI format
+          // This is the new format that includes tool_calls and tool results
+          if (item && typeof item === 'object' && 'role' in item) {
+            // OpenAI message format - use directly
+            conversationMessages.push(item as OpenAI.Chat.ChatCompletionMessageParam);
+            logger.debug(`history[${index}]: role=${item.role}, hasToolCalls=${!!item.tool_calls}`);
+          }
+          // LEGACY FORMAT: ContentBlock[] - convert to text-only message
+          else if (Array.isArray(item)) {
+            const role = index % 2 === 0 ? 'user' : 'assistant';
+            const text = item
+              .filter((b: any) => b && b.type === 'text')
+              .map((b: any) => b.text || b.content || '')
+              .join('\n');
+
+            if (text) {
+              conversationMessages.push({ role, content: text });
+              logger.debug(`history[${index}]: role=${role} (legacy format), textLength=${text.length}`);
+            }
+          }
+          // UNKNOWN FORMAT: Log warning and skip
+          else {
+            logger.warn(`history[${index}]: unknown format, skipping`, { type: typeof item });
+          }
+        });
+      }
+
+      // Add current user prompt
+      conversationMessages.push({ role: 'user', content: prompt });
+
+      // DIAGNOSTIC: Log conversation structure to help debug history issues
+      logger.info('📋 Conversation structure before execution:', {
+        totalMessages: conversationMessages.length,
+        breakdown: conversationMessages.reduce((acc: Record<string, number>, msg: any) => {
+          const key = msg.role + ((msg as any).tool_calls ? '+tools' : '');
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {}),
+        hasToolCalls: conversationMessages.some((m: any) => (m as any).tool_calls),
+        lastAssistantHadTools: (() => {
+          const lastAssistant = conversationMessages
+            .slice()
+            .reverse()
+            .find((m: any) => m.role === 'assistant');
+          return lastAssistant ? !!(lastAssistant as any).tool_calls : false;
+        })(),
+      });
 
       const maxToolLoops = 10; // Prevent infinite loops
       let loopCount = 0;
@@ -211,6 +275,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           messages: conversationMessages,
           tools: tools as any,
           stream: true,
+          max_tokens: 15600, // Reasonable limit to prevent credit exhaustion
         });
         logger.info(
           `✅ API call started successfully (iteration ${loopCount})`,
@@ -284,6 +349,23 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
         // If we got content and no tool calls, we're done
         if (currentMessage && currentToolCalls.length === 0) {
+          // Heuristic: If model is "planning" but not "doing" (common in smaller models), bounce back
+          // check for phrases like "Let me check", "I will", "I need to", "I'll", "checking"
+          const planningPhrases = /Let me check|I will|I'll|I need to|checking|verify|examine/i;
+          if (loopCount < 3 && planningPhrases.test(currentMessage) && currentMessage.length < 300) {
+             logger.warn('⚠️ Model discussed action but used no tools. Forcing retry with instruction.');
+             
+             conversationMessages.push({ 
+               role: 'assistant', 
+               content: currentMessage 
+             });
+             conversationMessages.push({ 
+               role: 'user', 
+               content: 'Do not describe the plan. Use the tools IMMEDIATELY to perform the action.' 
+             });
+             continue;
+          }
+
           logger.debug('completion finished - no tool calls');
           break;
         }
@@ -392,12 +474,19 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
       callbacks.onComplete?.({ fullText, durationMs });
 
+      const toolUses = conversationMessages
+        .filter(m => m.role === 'assistant' && (m as any).tool_calls)
+        .flatMap(m => (m as any).tool_calls || [])
+        .map((tc: any) => ({ name: tc.function.name }));
+
       return {
         fullText,
         tokens: {
           input: inputTokens,
           output: outputTokens,
         },
+        stopReason: 'stop',
+        toolUse: toolUses,
       };
     } catch (error: any) {
       const durationMs = Date.now() - startTime;
@@ -719,7 +808,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'anthropic/claude-sonnet-4';
+      return 'mistralai/devstral-2512:free';
     }
 
     if (requestedModel.includes('/')) {

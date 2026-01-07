@@ -48,7 +48,7 @@ export async function sessionNewHandler(
     throw Object.assign(new Error(`Invalid mode: ${mode}`), { code: -32602 });
   }
 
-  const sessionId = generateSessionId();
+  const sessionId = params.sessionId || generateSessionId();
   const { sessionStore } = getRuntimeServices();
   const now = Date.now();
   const session: ACPSession = {

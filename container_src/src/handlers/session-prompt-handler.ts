@@ -52,7 +52,8 @@ export async function sessionPromptHandler(
     'metadata' in requestContext
       ? (requestContext as RequestContext).metadata?.anthropicApiKey
       : undefined) ||
-    process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.OPENROUTER_API_KEY;
   validateContentBlocks(content);
 
   console.error(
@@ -64,6 +65,18 @@ export async function sessionPromptHandler(
       .map((s) => s.sessionId)
       .join(', ')}`,
   );
+
+  // CRITICAL DEBUG: Log what we received
+  console.error(`[SESSION-PROMPT-DEBUG] Request received:`, {
+    sessionId,
+    contentLength: content.length,
+    hasContextFiles: !!contextFiles,
+    hasAgentContext: !!agentContextParam,
+    hasSupplementalContext: !!supplementalContext,
+    agentContextKeys: agentContextParam ? Object.keys(agentContextParam) : [],
+    supplementalContextKeys: supplementalContext ? Object.keys(supplementalContext) : [],
+  });
+
   let session = acpState.getSession(sessionId);
   // if (!session) {
   //   throw Object.assign(new Error(`Session not found: ${sessionId}`), { code: -32001 });
@@ -89,6 +102,19 @@ export async function sessionPromptHandler(
       session.agentContext,
       mergedAgentContext,
     );
+    
+    // Hydrate history if provided in context (replaces "amnesia" with "memory")
+    const incomingHistory = mergedAgentContext.messageHistory as ContentBlock[][] | undefined;
+    
+    console.error(`[SESSION-PROMPT-TRACE] mergedAgentContext keys: ${Object.keys(mergedAgentContext)}`);
+    console.error(`[SESSION-PROMPT-TRACE] incomingHistory present: ${!!incomingHistory}, isArray: ${Array.isArray(incomingHistory)}, length: ${incomingHistory?.length}`);
+    console.error(`[SESSION-PROMPT-TRACE] current session history length: ${session.messageHistory.length}`);
+
+    if (incomingHistory && Array.isArray(incomingHistory) && session.messageHistory.length === 0) {
+       // Force update history
+       (session as any).messageHistory = incomingHistory;
+       console.error(`[SESSION-PROMPT] Hydrated session ${sessionId} with ${incomingHistory.length} history items from request.`);
+    }
   }
 
   const result = await promptProcessor.processPrompt({

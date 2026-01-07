@@ -62,7 +62,7 @@ export interface AutomationIntentSignals {
 
 export interface AutomationDecision {
   run: boolean;
-  mode: 'github' | 'none';
+  mode: 'github' | 'none' | 'commit-only';
   reason?: string;
   explicit?: boolean;
 }
@@ -208,6 +208,14 @@ export class GitHubAutomationService {
       };
     }
 
+    if (normalizedMode === 'commit-only') {
+      return {
+        run: true,
+        mode: 'commit-only',
+        explicit: signals.explicit,
+      };
+    }
+
     return {
       run: true,
       mode: 'github',
@@ -289,15 +297,28 @@ export class GitHubAutomationService {
 
       if (!context.dryRun) {
         await this.pushBranch(context, prepared, logs);
-        pullRequest = await this.openPullRequest(
-          octokit!,
-          context,
-          prepared,
-          commit!,
-          issue!,
-          logs,
-        );
-        await this.commentOnIssue(octokit!, context, issue!, pullRequest, logs);
+
+        if (decision.mode !== 'commit-only') {
+          pullRequest = await this.openPullRequest(
+            octokit!,
+            context,
+            prepared,
+            commit!,
+            issue!,
+            logs,
+          );
+          await this.commentOnIssue(
+            octokit!,
+            context,
+            issue!,
+            pullRequest,
+            logs,
+          );
+        } else {
+          this.log(logs, 'github.pullRequestSkipped', {
+            reason: 'commit-only-mode',
+          });
+        }
       } else {
         this.log(logs, 'automation.dryRun', {
           branch: prepared.branchName,

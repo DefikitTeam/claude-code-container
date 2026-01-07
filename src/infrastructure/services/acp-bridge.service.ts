@@ -229,6 +229,31 @@ export class ACPBridgeService implements IACPBridgeService {
       // which would wake Cloudflare containers even when CONTAINER_PROVIDER=daytona.
       const containerName = 'acp-session';
 
+      // CRITICAL: Fetch message history from ACPSessionDO for session/prompt calls
+      let messageHistory: any[] = [];
+      if (method === 'session/prompt' && params?.sessionId) {
+        try {
+          console.log(`[ACP-BRIDGE] Fetching message history for session: ${params.sessionId}`);
+          const sessionDO = env.ACP_SESSION.idFromName(params.sessionId);
+          const sessionStub = env.ACP_SESSION.get(sessionDO);
+
+          const response = await sessionStub.fetch(
+            `http://do/session/messages?sessionId=${params.sessionId}&limit=20`
+          );
+
+          if (response.ok) {
+            const data = await response.json() as { messages: any[] };
+            messageHistory = data.messages || [];
+            console.log(`[ACP-BRIDGE] Fetched ${messageHistory.length} messages from history`);
+          } else {
+            console.warn(`[ACP-BRIDGE] Failed to fetch message history: ${response.status}`);
+          }
+        } catch (historyError) {
+          console.warn(`[ACP-BRIDGE] Error fetching message history:`, historyError);
+          // Continue without history - not fatal
+        }
+      }
+
       // Create JSON-RPC request for container ACP server
       // Use worker's OpenRouter API key (not user-provided)
       const jsonRpcRequest = {
@@ -257,6 +282,8 @@ export class ACPBridgeService implements IACPBridgeService {
                 },
               }
               : {}),
+            // ✅ CRITICAL FIX: Include message history from persistent storage
+            ...(messageHistory.length > 0 ? { messageHistory } : {}),
           },
         },
         id: Date.now(),
@@ -365,10 +392,20 @@ export class ACPBridgeService implements IACPBridgeService {
 
       // Handle session/prompt side effects
       if (method === 'session/prompt' && containerResult?.result) {
+        // Extract user prompt from content blocks
+        let userPrompt = '';
+        if (params?.content && Array.isArray(params.content)) {
+          userPrompt = params.content
+            .filter((block: any) => block.type === 'text')
+            .map((block: any) => block.text || '')
+            .join('\n');
+        }
+
         await this.handleSessionPromptSideEffects({
           env,
           sessionId: params?.sessionId,
           result: containerResult.result as ACPSessionPromptResult,
+          userPrompt,
         });
       }
 
@@ -469,7 +506,67 @@ export class ACPBridgeService implements IACPBridgeService {
       });
     }
 
-    // Build JSON-RPC request with injected credentials
+    // Generate GitHub installation token and fetch repository info (same as routeACPMethod)
+    let githubToken: string | undefined;
+    let githubTokenError: string | undefined;
+    let repository: string | undefined;
+
+    // Fallback: Check params for installationId if not in userConfig
+    const installationId = userConfig.installationId || params.installationId || params.context?.installationId || params.agentContext?.installationId;
+
+    if (this.tokenService && installationId) {
+      try {
+        console.log(
+          `[ACP-BRIDGE-STREAM] Generating GitHub token for installation: ${installationId}`,
+        );
+        const tokenResult = await this.tokenService.getInstallationToken(
+          installationId,
+        );
+        githubToken = tokenResult.token;
+        console.log(`[ACP-BRIDGE-STREAM] GitHub token generated successfully`);
+
+        // Fetch repositories from installation to auto-populate repository metadata
+        if (this.githubService) {
+          try {
+            console.log(
+              `[ACP-BRIDGE-STREAM] Fetching repositories for installation: ${installationId}`,
+            );
+            const repositories = await this.githubService.fetchRepositories(
+              installationId,
+            );
+
+            if (repositories.length > 0) {
+              // Use the first repository (installations typically have one repo)
+              repository = repositories[0].fullName;
+              console.log(
+                `[ACP-BRIDGE-STREAM] Auto-detected repository: ${repository} (from ${repositories.length} available)`,
+              );
+            } else {
+              console.warn(
+                `[ACP-BRIDGE-STREAM] No repositories found for installation ${installationId}`,
+              );
+            }
+          } catch (repoError) {
+            console.warn(
+              `[ACP-BRIDGE-STREAM] Failed to fetch repositories:`,
+              repoError,
+            );
+            // Continue without repository info - user can still pass it manually
+          }
+        }
+
+      } catch (error: any) {
+        console.warn(`[ACP-BRIDGE-STREAM] Failed to generate GitHub token:`, error);
+        githubTokenError = error instanceof Error ? error.message : String(error);
+        // Continue without GitHub token - container will skip GitHub operations but will know why
+      }
+    } else {
+      console.log(
+        `[ACP-BRIDGE-STREAM] No token service or installation ID - GitHub operations will be skipped`,
+      );
+    }
+
+    // Build JSON-RPC request with injected credentials (same structure as routeACPMethod)
     const containerName = 'acp-session';
     const jsonRpcRequest = {
       jsonrpc: '2.0',
@@ -477,12 +574,37 @@ export class ACPBridgeService implements IACPBridgeService {
       params: {
         ...params,
         anthropicApiKey: openrouterApiKey,
-        installationId: userConfig.installationId,
+        // Also pass GitHub token at top level for container compatibility
+        ...(githubToken ? { githubToken } : {}),
+        // Pass token error if generation failed
+        ...(githubTokenError ? { githubTokenError } : {}),
+        // Auto-inject GitHub context (token + repository) from installation
+        context: {
+          ...(params.context || {}),
+          // Auto-inject repository if not provided by user
+          ...(repository && !params.context?.repository
+            ? { repository }
+            : {}),
+          // Inject GitHub token in context.github.token (for handlers that expect it here)
+          ...(githubToken
+            ? {
+              github: {
+                ...(params.context?.github || {}),
+                token: githubToken,
+              },
+            }
+            : {}),
+        },
       },
       id: Date.now(),
     };
 
-    console.log(`[ACP-BRIDGE-STREAM] Routing ${method} to container (streaming mode)`);
+    console.log(`[ACP-BRIDGE-STREAM] Routing ${method} to container (streaming mode)`, {
+      hasGithubToken: !!githubToken,
+      hasRepository: !!repository || !!params.context?.repository,
+      installationId: installationId || 'none',
+    });
+
 
     try {
       if (env.CONTAINER_PROVIDER === 'daytona') {
@@ -644,15 +766,9 @@ export class ACPBridgeService implements IACPBridgeService {
     env: any;
     sessionId?: string;
     result: ACPSessionPromptResult;
+    userPrompt?: string;  // NEW: user's prompt text
   }): Promise<void> {
-    const { env, sessionId, result } = args;
-
-    const sanitizedAutomation = this.sanitizeGitHubAutomation(
-      result.githubAutomation,
-    );
-    if (!sanitizedAutomation) {
-      return;
-    }
+    const { env, sessionId, result, userPrompt } = args;
 
     const resolvedSessionId =
       sessionId || result.meta?.workspace?.sessionId || null;
@@ -661,6 +777,58 @@ export class ACPBridgeService implements IACPBridgeService {
       console.warn(
         '[ACP-BRIDGE] Unable to log automation result - missing sessionId',
       );
+      return;
+    }
+
+    // ✅ CRITICAL: Save messages to ACPSessionDO for persistence across container restarts
+    if (userPrompt && result.summary) {
+      try {
+        const timestamp = Date.now();
+        const messages: any[] = [
+          {
+            role: 'user',
+            content: userPrompt,
+            timestamp,
+          },
+          {
+            role: 'assistant',
+            content: result.summary,
+            timestamp: timestamp + 1,
+            metadata: {
+              hadToolUsage: !!(result.githubAutomation || result.githubOperations),
+              stopReason: result.stopReason,
+            },
+          },
+        ];
+
+        const sessionDO = env.ACP_SESSION.idFromName(resolvedSessionId);
+        const sessionStub = env.ACP_SESSION.get(sessionDO);
+
+        const saveResponse = await sessionStub.fetch('http://do/session/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: resolvedSessionId,
+            messages,
+          }),
+        });
+
+        if (saveResponse.ok) {
+          console.log(`[ACP-BRIDGE] ✅ Saved ${messages.length} messages to session ${resolvedSessionId}`);
+        } else {
+          console.warn(`[ACP-BRIDGE] ⚠️ Failed to save messages: ${saveResponse.status}`);
+        }
+      } catch (saveError) {
+        console.error(`[ACP-BRIDGE] Error saving messages:`, saveError);
+        // Non-fatal - continue with other side effects
+      }
+    }
+
+    // Save audit record
+    const sanitizedAutomation = this.sanitizeGitHubAutomation(
+      result.githubAutomation,
+    );
+    if (!sanitizedAutomation) {
       return;
     }
 

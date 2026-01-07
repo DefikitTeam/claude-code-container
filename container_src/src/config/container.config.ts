@@ -2,6 +2,7 @@ import { SessionStore } from '../services/session/session-store.js';
 import { WorkspaceService } from '../services/workspace/workspace-service.js';
 import { GitService } from '../services/git/git-service.js';
 import { PromptProcessor } from '../services/prompt/prompt-processor.js';
+import { ProcessPromptService } from '../services/process-prompt.service.js';
 import { claudeClientSingleton } from '../services/claude/claude-client.js';
 import { GitHubAutomationService } from '../infrastructure/github/github-automation.service.js';
 import type { ISessionStore } from '../services/session/session-store.js';
@@ -15,6 +16,7 @@ export interface Container {
   gitService: GitService;
   githubAutomationService: IGitHubAutomationService;
   promptProcessor: PromptProcessor;
+  processPromptService: ProcessPromptService;
   claudeClient: IClaudeService;
 }
 
@@ -37,12 +39,20 @@ export function createContainer(): Container {
     githubAutomationService,
   });
 
+  const processPromptService = new ProcessPromptService({
+    gitService,
+    claudeService: claudeClient,
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-5',
+  });
+
   return {
     sessionStore,
     workspaceService,
     gitService,
     githubAutomationService,
     promptProcessor,
+    processPromptService,
     claudeClient,
   };
 }

@@ -196,6 +196,11 @@ export class PromptProcessor {
       | undefined;
 
     try {
+      if (logFullContent) {
+        console.error(`[PROMPT-DEBUG][${sessionId}] rawParams.context.repository:`, 
+          JSON.stringify(this.getNested(opts.rawParams, ['context', 'repository'])));
+      }
+
       resolvedRepo = this.resolveRepositoryDescriptor(
         activeAgentContext,
         opts,
@@ -206,6 +211,7 @@ export class PromptProcessor {
         name: resolvedRepo?.name,
         cloneUrl: resolvedRepo?.cloneUrl ? 'present' : 'missing',
         defaultBranch: resolvedRepo?.defaultBranch,
+        branchNameOverride: resolvedRepo?.branchNameOverride,
       }));
       const token = await this.resolveGitHubToken(activeAgentContext, opts);
       console.error(`[PROMPT][${sessionId}] token:`, token ? 'present' : 'missing', 'gitService:', !!this.deps.gitService);
@@ -232,15 +238,16 @@ export class PromptProcessor {
           });
           console.error(`[PROMPT][${sessionId}] ensureRepo completed successfully`);
           // Try to fetch the base branch so workspace is up-to-date
-          if (resolvedRepo.defaultBranch) {
+          const targetBranch = resolvedRepo.branchNameOverride || resolvedRepo.defaultBranch;
+          if (targetBranch) {
             await this.deps.gitService.runGit(wsDesc.path, [
               'fetch',
               'origin',
-              resolvedRepo.defaultBranch,
+              targetBranch,
             ]);
             await this.deps.gitService.checkoutBranch(
               wsDesc.path,
-              resolvedRepo.defaultBranch,
+              targetBranch,
             );
           }
           repoEnsured = true;
@@ -343,6 +350,7 @@ export class PromptProcessor {
         workspacePath: wsDesc.path,
         apiKey,
         abortSignal,
+        messages: session?.messageHistory,
       };
       if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
         runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;
@@ -399,23 +407,58 @@ export class PromptProcessor {
     }
 
     // 6. Persist session updates (append message history if not already appended by caller)
+    // CRITICAL: Store COMPLETE conversation including assistant responses and tool usage
     const lastActiveTimestamp = Date.now();
-    if (sessionEntity) {
-      sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
-      if (!opts.historyAlreadyAppended) {
-        const historyContent = promptEntity
-          ? Array.from<ContentBlock>(promptEntity.content)
-          : content;
-        sessionEntity = sessionEntity.appendMessageHistory(
-          historyContent,
-          lastActiveTimestamp,
-        );
+    if (!opts.historyAlreadyAppended) {
+      // NEW FORMAT: Store conversation in OpenAI message format to preserve tool usage
+      // This allows proper conversation replay after container restart
+      if (!session.messageHistory) {
+        session.messageHistory = [];
       }
-      session = sessionEntity.toJSON();
-    } else {
+
+      // User message
+      session.messageHistory.push({
+        role: 'user',
+        content: prompt,
+      } as any);
+
+      // Assistant message with tool usage (if any)
+      // Extract tool usage from runResult
+      const assistantMessage: any = {
+        role: 'assistant',
+        content: fullText || runResult?.fullText || '(no response)',
+      };
+
+      // If there were tool calls, include them in the message
+      if (runResult?.toolUse && runResult.toolUse.length > 0) {
+        // Note: We're storing simplified tool info here since we don't have full tool_calls with IDs
+        // This is metadata for reference, not for exact replay
+        assistantMessage.metadata = {
+          toolsUsed: runResult.toolUse.map((t: any) => t.name),
+          hadToolUsage: true,
+        };
+      }
+
+      session.messageHistory.push(assistantMessage);
+
+      // Update lastActiveAt
       session.lastActiveAt = lastActiveTimestamp;
-      if (!opts.historyAlreadyAppended) {
-        session.messageHistory.push(content);
+
+      // For entities, update through entity methods
+      if (sessionEntity) {
+        // The entity's appendMessageHistory might not support our new format
+        // So we bypass it and directly update session
+        (session as any).messageHistory = session.messageHistory;
+        sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
+        session = sessionEntity.toJSON();
+      }
+    } else {
+      // History already appended, just update timestamp
+      if (sessionEntity) {
+        sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
+        session = sessionEntity.toJSON();
+      } else {
+        session.lastActiveAt = lastActiveTimestamp;
       }
     }
 
@@ -465,6 +508,17 @@ export class PromptProcessor {
 
     if (!fullText && runResult?.fullText) {
       fullText = runResult.fullText;
+    }
+
+    // Debug tool usage
+    if (runResult) {
+      console.error(`[PROMPT-DEBUG][${sessionId}] Run Result:`, JSON.stringify({
+         stopReason: runResult.stopReason,
+         inputTokens: runResult.tokens?.input,
+         outputTokens: runResult.tokens?.output,
+         toolUseCount: runResult.toolUse?.length || 0,
+         toolUses: runResult.toolUse?.map((t: { name: string }) => t.name)
+      }));
     }
 
     const inputTokensUsed = runResult?.tokens?.input ?? inputEst;
@@ -667,8 +721,12 @@ export class PromptProcessor {
     operationId?: string;
   }): Promise<GitHubAutomationResult | undefined> {
     const service = this.deps.githubAutomationService;
-    if (!service) return undefined;
+    if (!service) {
+      console.error(`[PROMPT] Automation skipped: Service instance missing`);
+      return undefined;
+    }
     if (process.env.GITHUB_AUTOMATION_DISABLED === '1') {
+      console.error(`[PROMPT] Automation skipped: Disabled via env`);
       return this.buildAutomationSkipped('Automation disabled via env flag');
     }
 
@@ -683,11 +741,13 @@ export class PromptProcessor {
     } = args;
 
     if (session.sessionOptions?.enableGitOps === false) {
+      console.error(`[PROMPT][${session.sessionId}] Automation skipped: GitOps disabled`);
       return this.buildAutomationSkipped('GitOps disabled for session');
     }
 
     const token = await this.resolveGitHubToken(agentContext, options);
     if (!token) {
+      console.error(`[PROMPT][${session.sessionId}] Automation skipped: Missing GitHub token`);
       return this.buildAutomationSkipped('Missing GitHub token');
     }
 
@@ -910,6 +970,7 @@ export class PromptProcessor {
     ]);
 
     const branchNameOverride = this.findString([
+      repoCandidate.workingBranch,
       this.getNested(agentContext, ['automation', 'branchName']),
       this.getNested(options.rawParams, [
         'context',
@@ -1091,6 +1152,7 @@ export class PromptProcessor {
         name: string;
         defaultBranch?: string;
         cloneUrl?: string;
+        workingBranch?: string;
         source?: string;
       }
     | undefined {
@@ -1099,6 +1161,7 @@ export class PromptProcessor {
       name: string;
       defaultBranch?: string;
       cloneUrl?: string;
+      workingBranch?: string;
       source?: string;
     }> = [];
 
@@ -1146,7 +1209,7 @@ export class PromptProcessor {
   private parseRepository(
     value: unknown,
   ):
-    | { owner: string; name: string; defaultBranch?: string; cloneUrl?: string }
+    | { owner: string; name: string; defaultBranch?: string; cloneUrl?: string; workingBranch?: string }
     | undefined {
     if (!value) return undefined;
     if (typeof value === 'string') {
@@ -1166,9 +1229,26 @@ export class PromptProcessor {
       if (owner && name) {
         const defaultBranch = this.findString([obj.defaultBranch, obj.branch]);
         const cloneUrl = this.findString([obj.cloneUrl, obj.url]);
-        return { owner, name, defaultBranch, cloneUrl };
+        const workingBranch = this.findString([obj.workingBranch]);
+        return { owner, name, defaultBranch, cloneUrl, workingBranch };
+      }
+      // Fallback: If object has url/cloneUrl but no owner/name, parse from URL
+      const urlString = this.findString([obj.url, obj.cloneUrl]);
+      if (urlString) {
+        const fromUrl = this.parseRepositoryFromUrl(urlString);
+        if (fromUrl) {
+          // Merge parsed URL data with any branch info from the object
+          const defaultBranch = this.findString([obj.defaultBranch, obj.branch, obj.baseBranch]);
+          const workingBranch = this.findString([obj.workingBranch]);
+          return {
+            ...fromUrl,
+            defaultBranch,
+            workingBranch,
+          };
+        }
       }
     }
+
     return undefined;
   }
 

@@ -5,6 +5,7 @@ import { corsMiddleware } from './middleware/cors.js';
 import { errorHandlingMiddleware } from './middleware/error-handler.js';
 import { registerHealthRoute } from './routes/health-route.js';
 import { registerProcessRoute } from './routes/process-route.js';
+import { registerProcessPromptRoute } from './routes/process-prompt-route.js';
 import { registerAcpRoutes } from './routes/acp-route.js';
 import { logWithContext } from './utils/logger.js';
 import type {
@@ -24,6 +25,7 @@ export function createHttpServer(): http.Server {
   const router = new Router();
   registerHealthRoute(router);
   registerProcessRoute(router);
+  registerProcessPromptRoute(router);
   registerAcpRoutes(router);
 
   const middlewares: Middleware[] = [
@@ -37,8 +39,19 @@ export function createHttpServer(): http.Server {
   });
 
   return http.createServer(async (req, res) => {
+    console.error(`[CONTAINER-HTTP] ========================================`);
+    console.error(`[CONTAINER-HTTP] Received: ${req.method} ${req.url}`);
+    console.error(`[CONTAINER-HTTP] Time: ${new Date().toISOString()}`);
     const context = buildContext(req, res);
-    await handler(context);
+    try {
+      await handler(context);
+      console.error(`[CONTAINER-HTTP] Completed: ${req.method} ${req.url}`);
+    } catch (err) {
+      console.error(
+        `[CONTAINER-HTTP] Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw err;
+    }
   });
 }
 
@@ -55,7 +68,12 @@ export async function runHttpServer(argv: any = {}): Promise<void> {
         `HTTP server listening on http://0.0.0.0:${port}`,
       );
       logWithContext('SERVER', 'Routes registered', {
-        routes: ['GET /health', 'POST /process', 'POST /acp'],
+        routes: [
+          'GET /health',
+          'POST /process',
+          'POST /process-prompt',
+          'POST /acp',
+        ],
       });
       resolve();
     });
