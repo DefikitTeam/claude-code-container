@@ -43,7 +43,7 @@ export async function sessionNewHandler(
     `[SESSION-NEW] Checking initialization: ${acpState.isInitialized()}`,
   );
   acpState.ensureInitialized();
-  const { workspaceUri, mode = 'development', sessionOptions } = params;
+  const { workspaceUri, mode = 'development', sessionOptions, resumeState, initialContext, agentContext } = params;
   if (mode && !['development', 'conversation'].includes(mode)) {
     throw Object.assign(new Error(`Invalid mode: ${mode}`), { code: -32602 });
   }
@@ -51,6 +51,44 @@ export async function sessionNewHandler(
   const sessionId = params.sessionId || generateSessionId();
   const { sessionStore } = getRuntimeServices();
   const now = Date.now();
+  
+  // Initialize message history with restoration context
+  const initialMessages: any[] = [];
+
+  // Extract Context Summary (Top-level OR nested in agentContext)
+  const contextSummary = initialContext?.contextSummary || agentContext?.contextSummary;
+  if (contextSummary) {
+    initialMessages.push({
+      role: 'user',
+      content: `System Restoration: Previous Session Context Summary:\n${contextSummary}\n\nPlease continue assisting the user based on this context.`,
+    });
+  }
+
+  // Extract Open Files (resumeState OR sessionMetadata in agentContext)
+  let openFiles: string[] | undefined = resumeState?.openFiles;
+
+  if (!openFiles && agentContext?.sessionMetadata) {
+    try {
+        // sessionMetadata might be a JSON string or object
+        const metadata = typeof agentContext.sessionMetadata === 'string' 
+            ? JSON.parse(agentContext.sessionMetadata) 
+            : agentContext.sessionMetadata;
+        
+        if (metadata && Array.isArray(metadata.openFiles)) {
+            openFiles = metadata.openFiles;
+        }
+    } catch (e) {
+        console.error('[SESSION-NEW] Failed to parse sessionMetadata:', e);
+    }
+  }
+
+  if (openFiles && openFiles.length > 0) {
+    initialMessages.push({
+      role: 'user',
+      content: `System Restoration: The user has the following files open in their editor: ${openFiles.join(', ')}. Please prioritize these files if relevant to the next request.`,
+    });
+  }
+
   const session: ACPSession = {
     sessionId,
     workspaceUri,
@@ -58,7 +96,7 @@ export async function sessionNewHandler(
     state: 'active',
     createdAt: now,
     lastActiveAt: now,
-    messageHistory: [],
+    messageHistory: initialMessages,
     sessionOptions,
   };
   acpState.setSession(sessionId, session);

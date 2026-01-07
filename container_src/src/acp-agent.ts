@@ -95,6 +95,22 @@ export class LightweightClaudeAcpAgent implements Agent {
   }
 
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+    // Extend the request type to include our custom fields
+    interface ExtendedNewSessionRequest extends NewSessionRequest {
+      resumeState?: {
+        openFiles?: string[];
+        activeFile?: string;
+        terminal?: {
+          cwd?: string;
+        };
+      };
+      initialContext?: {
+        contextSummary?: string;
+      };
+    }
+
+    const extendedParams = params as ExtendedNewSessionRequest;
+
     // Check for auth requirement
     if (
       fs.existsSync(path.resolve(os.homedir(), '.claude.json.backup')) &&
@@ -106,8 +122,11 @@ export class LightweightClaudeAcpAgent implements Agent {
     const sessionId = uuidv7();
     const input = new Pushable<SDKUserMessage>();
 
+    // Handle resumeState.cwd if provided, otherwise perform default behavior
+    const initialCwd = extendedParams.resumeState?.terminal?.cwd || params.cwd;
+
     const options: Options = {
-      cwd: params.cwd,
+      cwd: initialCwd,
       permissionPromptToolName: 'permission',
       stderr: (err) => console.error(err),
       executable: process.execPath as any,
@@ -124,6 +143,49 @@ export class LightweightClaudeAcpAgent implements Agent {
       cancelled: false,
       permissionMode: 'default',
     };
+
+    // Inject Initial Context (Summary) if available
+    if (extendedParams.initialContext?.contextSummary) {
+      const summary = extendedParams.initialContext.contextSummary;
+      const summaryMessage: SDKUserMessage = {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `System Restoration: Previous Session Context Summary:\n${summary}\n\nPlease continue assisting the user based on this context.`,
+            },
+          ],
+        },
+        session_id: sessionId,
+        parent_tool_use_id: null,
+      };
+      input.push(summaryMessage);
+    }
+
+    // Handle Open Files from Resume State
+    if (
+      extendedParams.resumeState?.openFiles &&
+      extendedParams.resumeState.openFiles.length > 0
+    ) {
+      const files = extendedParams.resumeState.openFiles.join(', ');
+      const openFilesMessage: SDKUserMessage = {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `System Restoration: The user has the following files open in their editor: ${files}. Please prioritize these files if relevant to the next request.`,
+            },
+          ],
+        },
+        session_id: sessionId,
+        parent_tool_use_id: null,
+      };
+      input.push(openFilesMessage);
+    }
 
     return {
       sessionId,

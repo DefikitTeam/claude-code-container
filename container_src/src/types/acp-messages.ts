@@ -124,6 +124,15 @@ export interface SessionNewRequest extends JSONRPCRequest {
       enableGitOps?: boolean;
       contextFiles?: string[];
     };
+    resumeState?: {
+      openFiles?: string[];
+      activeFile?: string;
+      terminal?: { cwd?: string };
+    };
+    initialContext?: {
+      contextSummary?: string;
+    };
+    agentContext?: Record<string, any>;
   };
 }
 
