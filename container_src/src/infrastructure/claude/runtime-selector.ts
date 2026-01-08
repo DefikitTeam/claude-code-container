@@ -13,7 +13,9 @@ import { OpenHandsAdapter } from '../ai/openhands.adapter.js';
 import { OpenAIOpenRouterAdapter } from '../ai/openai-openrouter.adapter.js';
 import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adapter.js';
 
-const DEFAULT_MODEL = 'claude-sonnet-4'; // Maps to openai/gpt-5 on OpenRouter (high quality, large context)
+// Hard-force OpenRouter model selection.
+// Any requested Claude model strings (e.g. "claude-sonnet-4") are ignored downstream.
+const DEFAULT_MODEL = 'mistralai/devstral-2512:free';
 
 type InFlight = {
   sessionId: string;

@@ -44,7 +44,7 @@ export class ProcessPromptService {
     this.git = options.gitService;
     this.claude = options.claudeService;
     this.apiKey = options.apiKey;
-    this.model = options.model || 'claude-sonnet-4-5';
+    this.model = options.model || 'mistralai/devstral-2512:free';
   }
 
   async execute(request: ProcessPromptRequest): Promise<ProcessPromptResult> {

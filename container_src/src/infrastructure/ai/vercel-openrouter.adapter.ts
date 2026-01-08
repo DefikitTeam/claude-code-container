@@ -248,6 +248,12 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
    * Map your model names to OpenRouter model identifiers
    */
   private selectModel(requestedModel?: string): string {
+    void requestedModel;
+
+    // Hard-force a single OpenRouter model.
+    return 'mistralai/devstral-2512:free';
+
+    /*
     // Default model mappings
     const modelMap: Record<string, string> = {
       // Claude models
@@ -284,6 +290,7 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
 
     // Map to OpenRouter model ID
     return modelMap[requestedModel] || `anthropic/${requestedModel}`;
+    */
   }
 
   /**

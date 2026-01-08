@@ -31,6 +31,8 @@ import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
+const FORCED_OPENROUTER_MODEL = 'mistralai/devstral-2512:free' as const;
+
 // Lightweight logger scoped to this adapter
 const logger = {
   error: (...args: unknown[]) => console.error('[OpenAIToolsAdapter]', ...args),
@@ -54,7 +56,7 @@ export interface OpenAIOpenRouterToolsConfig {
 
 const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> = {
   baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-  defaultModel: process.env.OPENROUTER_DEFAULT_MODEL || 'mistralai/devstral-2512:free',
+  defaultModel: FORCED_OPENROUTER_MODEL,
   httpReferer:
     process.env.OPENROUTER_HTTP_REFERER ||
     'https://github.com/DefikitTeam/claude-code-container',
@@ -80,6 +82,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       apiKey: config?.apiKey || process.env.OPENROUTER_API_KEY,
       ...(config || {}),
     };
+
+    // Enforce the model even if caller tries to override it.
+    this.config.defaultModel = FORCED_OPENROUTER_MODEL;
 
     logger.debug('initialized', {
       baseURL: this.config.baseURL,
@@ -790,6 +795,12 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
    * Map model names to OpenRouter model identifiers
    */
   private selectModel(requestedModel?: string): string {
+    void requestedModel;
+
+    // Hard-force a single OpenRouter model.
+    return FORCED_OPENROUTER_MODEL;
+
+    /*
     const modelMap: Record<string, string> = {
       'claude-3-5-sonnet': 'anthropic/claude-3.5-sonnet',
       'claude-3.5-sonnet': 'anthropic/claude-3.5-sonnet',
@@ -816,6 +827,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     }
 
     return modelMap[requestedModel] || `anthropic/${requestedModel}`;
+    */
   }
 
   /**

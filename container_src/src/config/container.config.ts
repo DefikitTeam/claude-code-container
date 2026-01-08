@@ -43,7 +43,7 @@ export function createContainer(): Container {
     gitService,
     claudeService: claudeClient,
     apiKey: process.env.ANTHROPIC_API_KEY || '',
-    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-5',
+    model: 'mistralai/devstral-2512:free',
   });
 
   return {
