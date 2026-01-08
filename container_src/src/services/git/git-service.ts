@@ -12,6 +12,19 @@ import path from 'node:path';
 
 const execFileAsync = promisify(execFile);
 
+function redactSecretsForLog(value: string): string {
+  // Redact basic-auth style credentials in URLs:
+  //   https://user:pass@host/...   or   https://token@host/...
+  // Common with GitHub App installation tokens.
+  return value
+    .replace(/(https?:\/\/)([^@\/]+)@/gi, '$1***@')
+    .replace(/(https?:\/\/)([^:\/]+):([^@\/]+)@/gi, '$1$2:***@');
+}
+
+function redactArgsForLog(args: string[]): string[] {
+  return args.map((a) => (typeof a === 'string' ? redactSecretsForLog(a) : a));
+}
+
 export interface IGitService {
   runGit(
     cwd: string,
@@ -55,7 +68,7 @@ export class GitService implements IGitService {
     opts?: { timeoutMs?: number },
   ): Promise<{ stdout: string; stderr: string; code: number | null }> {
     console.log(
-      `[GitService] runGit called: cwd="${cwd}", args=${JSON.stringify(args)}`,
+      `[GitService] runGit called: cwd="${cwd}", args=${JSON.stringify(redactArgsForLog(args))}`,
     );
     try {
       const res = await execFileAsync('git', args, {
@@ -63,7 +76,9 @@ export class GitService implements IGitService {
         timeout: opts?.timeoutMs,
       });
       console.log(
-        `[GitService] git success: stdout=${res.stdout?.toString().substring(0, 100)}`,
+        `[GitService] git success: stdout=${redactSecretsForLog(
+          res.stdout?.toString().substring(0, 100) || '',
+        )}`,
       );
       return {
         stdout: String(res.stdout || ''),
@@ -251,7 +266,8 @@ export class GitService implements IGitService {
       const out = await this.getStatus(repoPath);
       return out.trim().length > 0;
     } catch (e) {
-      return false;
+      // Be conservative: if we can't determine status, don't silently report clean.
+      return true;
     }
   }
 

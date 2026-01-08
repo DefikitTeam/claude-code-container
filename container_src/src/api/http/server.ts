@@ -59,6 +59,12 @@ export async function runHttpServer(argv: any = {}): Promise<void> {
   const port = Number(argv.port) || DEFAULT_PORT;
   const server = createHttpServer();
 
+  logWithContext('SERVER', 'Build info', {
+    buildSha: process.env.BUILD_SHA || null,
+    buildTime: process.env.BUILD_TIME || null,
+    nodeVersion: process.version,
+  });
+
   logWithContext('SERVER', `Starting HTTP Server on port ${port}`);
 
   await new Promise<void>((resolve, reject) => {

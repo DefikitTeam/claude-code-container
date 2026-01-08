@@ -240,15 +240,44 @@ export class PromptProcessor {
           // Try to fetch the base branch so workspace is up-to-date
           const targetBranch = resolvedRepo.branchNameOverride || resolvedRepo.defaultBranch;
           if (targetBranch) {
+            // Fetch with explicit refspec so `origin/<branch>` exists even if clone used single-branch refspec.
             await this.deps.gitService.runGit(wsDesc.path, [
               'fetch',
+              '--depth',
+              '50',
               'origin',
-              targetBranch,
+              `+refs/heads/${targetBranch}:refs/remotes/origin/${targetBranch}`,
             ]);
-            await this.deps.gitService.checkoutBranch(
-              wsDesc.path,
-              targetBranch,
-            );
+
+            const remoteRef = await this.deps.gitService.runGit(wsDesc.path, [
+              'rev-parse',
+              '--verify',
+              `refs/remotes/origin/${targetBranch}`,
+            ]);
+
+            if (remoteRef.code === 0) {
+              await this.deps.gitService.runGit(wsDesc.path, [
+                'checkout',
+                '-B',
+                targetBranch,
+                `origin/${targetBranch}`,
+              ]);
+              // Rebase to integrate any remote updates before Claude edits.
+              await this.deps.gitService.runGit(wsDesc.path, [
+                'pull',
+                '--rebase',
+                'origin',
+                targetBranch,
+              ]);
+            } else {
+              // If branch doesn't exist remotely yet, ensure we are on the default branch.
+              if (resolvedRepo.defaultBranch) {
+                await this.deps.gitService.checkoutBranch(
+                  wsDesc.path,
+                  resolvedRepo.defaultBranch,
+                );
+              }
+            }
           }
           repoEnsured = true;
           console.error(`[PROMPT][${sessionId}] ensured repo present at workspace`);

@@ -86,6 +86,24 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       ((token: string) => new Octokit({ auth: token }));
   }
 
+  private async runGitChecked(
+    repoPath: string,
+    args: string[],
+    errorCode: string,
+  ): Promise<{ stdout: string; stderr: string; code: number | null }> {
+    const result = await this.git.runGit(repoPath, args);
+    if (result.code !== 0) {
+      throw new AutomationError(errorCode, 'Git command failed', {
+        details: {
+          args,
+          code: result.code,
+          stderr: result.stderr,
+        },
+      });
+    }
+    return result;
+  }
+
   detectIntent(signals: AutomationIntentSignals = {}): AutomationDecision {
     const contextMode =
       extractModeFromAgentContext(signals.agentContext) || signals.mode;
@@ -283,14 +301,21 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       });
     }
 
-    await this.git.runGit(workspacePath, ['fetch', 'origin', baseBranch]);
-    await this.git.checkoutBranch(workspacePath, baseBranch);
-    await this.git.runGit(workspacePath, [
-      'pull',
-      '--ff-only',
-      'origin',
-      baseBranch,
-    ]);
+    await this.runGitChecked(
+      workspacePath,
+      ['fetch', 'origin', baseBranch],
+      'git-fetch-base-failed',
+    );
+    await this.runGitChecked(
+      workspacePath,
+      ['checkout', baseBranch],
+      'git-checkout-base-failed',
+    );
+    await this.runGitChecked(
+      workspacePath,
+      ['pull', '--ff-only', 'origin', baseBranch],
+      'git-pull-base-failed',
+    );
 
     const branchName =
       context.branchNameOverride ||
@@ -301,24 +326,44 @@ export class GitHubAutomationService implements IGitHubAutomationService {
         this.nowFn(),
       );
 
-    // CRITICAL: Fetch the target branch if it exists remotely to ensure we can track it
-    try {
-      await this.git.runGit(workspacePath, ['fetch', 'origin', branchName]);
-    } catch (e) {
-      // Ignore fetch error (branch might not exist yet)
-    }
+    // Fetch the target branch if it exists remotely so we can align local state.
+    // Use explicit refspec so this works even when the repo was cloned with a single-branch fetch refspec.
+    // (In that case, `git fetch origin <branch>` may not create refs/remotes/origin/<branch>.)
+    await this.git.runGit(workspacePath, [
+      'fetch',
+      '--depth',
+      '50',
+      'origin',
+      `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`,
+    ]);
 
-    try {
-      await this.git.createBranch(workspacePath, branchName, baseBranch);
-    } catch (error) {
-      this.log(logs, 'git.branchExisting', { branch: branchName });
-      await this.git.checkoutBranch(workspacePath, branchName);
-      // Ensure we are up to date with remote
-      try {
-        await this.git.runGit(workspacePath, ['pull', '--rebase', 'origin', branchName]);
-      } catch (pullError) {
-         this.log(logs, 'git.pullFailed', { error: String(pullError) });
-      }
+    const remoteRefCheck = await this.git.runGit(workspacePath, [
+      'rev-parse',
+      '--verify',
+      `refs/remotes/origin/${branchName}`,
+    ]);
+    const remoteBranchExists = remoteRefCheck.code === 0;
+
+    if (remoteBranchExists) {
+      this.log(logs, 'git.branchRemoteExists', { branch: branchName });
+      await this.runGitChecked(
+        workspacePath,
+        ['checkout', '-B', branchName, `origin/${branchName}`],
+        'git-checkout-remote-branch-failed',
+      );
+      // Keep local in sync with remote (rebase keeps history linear for commit-only mode).
+      await this.runGitChecked(
+        workspacePath,
+        ['pull', '--rebase', 'origin', branchName],
+        'git-pull-rebase-branch-failed',
+      );
+    } else {
+      this.log(logs, 'git.branchRemoteMissing', { branch: branchName });
+      await this.runGitChecked(
+        workspacePath,
+        ['checkout', '-B', branchName, baseBranch],
+        'git-create-branch-failed',
+      );
     }
 
     const hasChanges = await this.git.hasUncommittedChanges(workspacePath);
@@ -344,18 +389,22 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       email: context.git?.email || this.gitIdentity.email,
     };
 
-    await this.git.runGit(prepared.path, [
-      'config',
-      'user.name',
-      identity.name,
-    ]);
-    await this.git.runGit(prepared.path, [
-      'config',
-      'user.email',
-      identity.email,
-    ]);
+    await this.runGitChecked(
+      prepared.path,
+      ['config', 'user.name', identity.name],
+      'git-config-user-name-failed',
+    );
+    await this.runGitChecked(
+      prepared.path,
+      ['config', 'user.email', identity.email],
+      'git-config-user-email-failed',
+    );
 
-    await this.git.runGit(prepared.path, ['add', '--all']);
+    await this.runGitChecked(
+      prepared.path,
+      ['add', '--all'],
+      'git-add-failed',
+    );
 
     const hasChanges = await this.git.hasUncommittedChanges(prepared.path);
     if (!hasChanges && !context.allowEmptyCommit) {
@@ -369,15 +418,7 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       '-m',
       commitMessage,
     ]);
-
-    if (commitResult.code && commitResult.code !== 0) {
-      throw new AutomationError('git-commit-failed', 'Git commit failed', {
-        details: {
-          code: commitResult.code,
-          stderr: commitResult.stderr,
-        },
-      });
-    }
+    await this.throwIfGitFailed(commitResult, 'git-commit-failed');
 
     const rev = await this.git.runGit(prepared.path, ['rev-parse', 'HEAD']);
     const sha = rev.stdout.trim();
@@ -440,7 +481,66 @@ export class GitHubAutomationService implements IGitHubAutomationService {
         'origin',
         prepared.branchName,
       ]);
-      await this.throwIfGitFailed(pushResult, 'git-push-failed');
+      if (pushResult.code !== 0) {
+        const stderr = pushResult.stderr || '';
+        const isNonFastForward =
+          /non-fast-forward/i.test(stderr) ||
+          /tip of your current branch is behind/i.test(stderr) ||
+          /fetch first/i.test(stderr);
+
+        if (isNonFastForward) {
+          this.log(logs, 'git.pushRetry', {
+            branch: prepared.branchName,
+            reason: 'non-fast-forward',
+          });
+          await this.runGitChecked(
+            prepared.path,
+            ['pull', '--rebase', 'origin', prepared.branchName],
+            'git-pull-rebase-before-retry-failed',
+          );
+          const retryResult = await this.git.runGit(prepared.path, [
+            'push',
+            '--set-upstream',
+            'origin',
+            prepared.branchName,
+          ]);
+          await this.throwIfGitFailed(retryResult, 'git-push-failed');
+        } else {
+          await this.throwIfGitFailed(pushResult, 'git-push-failed');
+        }
+      }
+
+      // Verify remote actually received the commit (prevents false-positive success).
+      const localHead = await this.runGitChecked(
+        prepared.path,
+        ['rev-parse', 'HEAD'],
+        'git-rev-parse-head-failed',
+      );
+      const localSha = localHead.stdout.trim();
+
+      if (authedRemote) {
+        const remoteLine = await this.git.runGit(prepared.path, [
+          'ls-remote',
+          authedRemote,
+          `refs/heads/${prepared.branchName}`,
+        ]);
+        await this.throwIfGitFailed(remoteLine, 'git-ls-remote-failed');
+        const remoteSha = remoteLine.stdout.trim().split(/\s+/)[0];
+        if (!remoteSha || remoteSha !== localSha) {
+          throw new AutomationError(
+            'git-push-verify-failed',
+            'Push completed but remote branch did not match local HEAD',
+            {
+              details: {
+                branch: prepared.branchName,
+                localSha,
+                remoteSha: remoteSha || null,
+              },
+            },
+          );
+        }
+      }
+
       this.log(logs, 'git.push', { branch: prepared.branchName });
     } finally {
       if (authedRemote && previousPushUrl) {
@@ -628,7 +728,7 @@ export class GitHubAutomationService implements IGitHubAutomationService {
     result: { code: number | null; stderr: string },
     code: string,
   ) {
-    if (result.code && result.code !== 0) {
+    if (result.code !== 0) {
       throw new AutomationError(code, 'Git command failed', {
         details: {
           code: result.code,
