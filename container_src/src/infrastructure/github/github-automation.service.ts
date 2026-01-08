@@ -158,7 +158,16 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       );
     }
 
-    if (!context.repository.owner || !context.repository.name) {
+    // In commit-only mode, default to producing a commit per prompt.
+    // Callers can override by explicitly setting allowEmptyCommit=false.
+    const allowEmptyCommit =
+      context.allowEmptyCommit ?? (decision.mode === 'commit-only');
+    const effectiveContext: GitHubAutomationContext =
+      allowEmptyCommit === context.allowEmptyCommit
+        ? context
+        : { ...context, allowEmptyCommit: allowEmptyCommit };
+
+    if (!effectiveContext.repository.owner || !effectiveContext.repository.name) {
       return this.buildErrorResult(
         start,
         logs,
@@ -169,9 +178,9 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       );
     }
 
-    const octokit = context.dryRun
+    const octokit = effectiveContext.dryRun
       ? undefined
-      : this.octokitFactory(context.auth.installationToken);
+      : this.octokitFactory(effectiveContext.auth.installationToken);
 
     let issue = context.existingIssue;
     let prepared: PreparedWorkspace | undefined;
@@ -180,57 +189,64 @@ export class GitHubAutomationService implements IGitHubAutomationService {
 
     try {
       this.log(logs, 'automation.start', {
-        sessionId: context.sessionId,
-        repository: `${context.repository.owner}/${context.repository.name}`,
+        sessionId: effectiveContext.sessionId,
+        repository: `${effectiveContext.repository.owner}/${effectiveContext.repository.name}`,
         mode: decision.mode,
+        allowEmptyCommit: allowEmptyCommit === true,
       });
 
       // ONLY create issue if NOT in commit-only mode AND we don't have one
       if (decision.mode !== 'commit-only' && !issue) {
-        issue = await this.createIssue(octokit, context, logs);
+        issue = await this.createIssue(octokit, effectiveContext, logs);
       }
 
-      prepared = await this.prepareWorkspace(context, issue, logs);
-      if (!prepared.hasChanges && !context.allowEmptyCommit) {
+      prepared = await this.prepareWorkspace(effectiveContext, issue, logs);
+      if (!prepared.hasChanges && !allowEmptyCommit) {
         return this.buildSkippedResult(
           'No workspace changes detected',
           start,
           logs,
-          context,
+          effectiveContext,
           issue,
         );
       }
 
       commit = await this.commitChanges(
-        context,
+        effectiveContext,
         prepared,
         logs,
         issue || undefined,
       );
-      if (!commit && !context.allowEmptyCommit) {
+      if (!commit && !allowEmptyCommit) {
         return this.buildSkippedResult(
           'Nothing to commit after staging',
           start,
           logs,
-          context,
+          effectiveContext,
           issue,
         );
       }
 
-      if (!context.dryRun) {
-        await this.pushBranch(context, prepared, logs);
+      if (!effectiveContext.dryRun) {
+        await this.pushBranch(effectiveContext, prepared, logs);
         
         // Skip PR and Issue comment if in commit-only mode
         if (decision.mode !== 'commit-only') {
           pullRequest = await this.openPullRequest(
             octokit!,
-            context,
+            effectiveContext,
             prepared,
             commit!,
             issue!,
             logs,
           );
-          await this.commentOnIssue(octokit!, context, issue!, pullRequest, logs);
+          await this.commentOnIssue(
+            octokit!,
+            effectiveContext,
+            issue!,
+            pullRequest,
+            logs,
+          );
         } else {
           this.log(logs, 'automation.commitOnly', {
             message: 'Skipping PR creation (commit-only mode)',
@@ -301,6 +317,73 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       });
     }
 
+    const branchName =
+      context.branchNameOverride ||
+      buildBranchName(
+        this.branchPrefix,
+        issue,
+        context.sessionId,
+        this.nowFn(),
+      );
+
+    // If the workspace has local edits (typical after the model wrote files), do NOT
+    // checkout/pull/rebase here; it can fail and/or discard edits. We'll commit first
+    // and rely on pushBranch() to rebase on non-fast-forward if needed.
+    const dirty = await this.git.hasUncommittedChanges(workspacePath);
+    if (dirty) {
+      const currentBranchResult = await this.git.runGit(workspacePath, [
+        'rev-parse',
+        '--abbrev-ref',
+        'HEAD',
+      ]);
+      const currentBranch =
+        currentBranchResult.code === 0
+          ? currentBranchResult.stdout.trim()
+          : undefined;
+
+      this.log(logs, 'git.workspaceDirty', {
+        currentBranch,
+        intendedBranch: branchName,
+        baseBranch,
+      });
+
+      if (!currentBranch) {
+        throw new AutomationError(
+          'git-unknown-branch-dirty',
+          'Workspace has uncommitted changes but current branch could not be determined',
+        );
+      }
+      if (currentBranch !== branchName) {
+        throw new AutomationError(
+          'git-dirty-wrong-branch',
+          'Workspace has uncommitted changes on an unexpected branch',
+          {
+            details: { currentBranch, intendedBranch: branchName },
+          },
+        );
+      }
+
+      // Still fetch remote refs (safe with a dirty tree) so later push verification has data.
+      await this.git.runGit(workspacePath, ['fetch', 'origin', baseBranch]);
+      await this.git.runGit(workspacePath, [
+        'fetch',
+        '--depth',
+        '50',
+        'origin',
+        `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`,
+      ]);
+
+      const hasChanges = true;
+      const changedFiles = await collectChangedFiles(this.git, workspacePath);
+      return {
+        path: workspacePath,
+        baseBranch,
+        branchName,
+        hasChanges,
+        changedFiles,
+      };
+    }
+
     await this.runGitChecked(
       workspacePath,
       ['fetch', 'origin', baseBranch],
@@ -316,15 +399,6 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       ['pull', '--ff-only', 'origin', baseBranch],
       'git-pull-base-failed',
     );
-
-    const branchName =
-      context.branchNameOverride ||
-      buildBranchName(
-        this.branchPrefix,
-        issue,
-        context.sessionId,
-        this.nowFn(),
-      );
 
     // Fetch the target branch if it exists remotely so we can align local state.
     // Use explicit refspec so this works even when the repo was cloned with a single-branch fetch refspec.
@@ -413,11 +487,11 @@ export class GitHubAutomationService implements IGitHubAutomationService {
     }
 
     const commitMessage = buildCommitMessage(issue, context.prompt.title);
-    const commitResult = await this.git.runGit(prepared.path, [
-      'commit',
-      '-m',
-      commitMessage,
-    ]);
+    const commitArgs = ['commit', '-m', commitMessage];
+    if (context.allowEmptyCommit) {
+      commitArgs.push('--allow-empty');
+    }
+    const commitResult = await this.git.runGit(prepared.path, commitArgs);
     await this.throwIfGitFailed(commitResult, 'git-commit-failed');
 
     const rev = await this.git.runGit(prepared.path, ['rev-parse', 'HEAD']);
