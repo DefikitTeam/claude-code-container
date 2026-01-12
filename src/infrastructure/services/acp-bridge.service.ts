@@ -224,6 +224,12 @@ export class ACPBridgeService implements IACPBridgeService {
         );
       }
 
+      // Ensure Remote Branch exists (Proactive Branch Creation)
+      // This is critical for persistent branch mode to prevent "git-dirty-wrong-branch" errors
+      if (method === 'session/prompt' && this.githubService && installationId) {
+        await this.ensureRemoteBranch(params, installationId);
+      }
+
       // Route all ACP operations to a consistent container instance to maintain session state.
       // NOTE: This must be provider-aware; ACP endpoints previously hardwired to Cloudflare (env.MY_CONTAINER)
       // which would wake Cloudflare containers even when CONTAINER_PROVIDER=daytona.
@@ -271,7 +277,7 @@ export class ACPBridgeService implements IACPBridgeService {
             ...(params.context || {}),
             // Auto-inject repository if not provided by user
             ...(repository && !params.context?.repository
-              ? { repository }
+              ? { repository } 
               : {}),
             // Inject GitHub token in context.github.token (for handlers that expect it here)
             ...(githubToken
@@ -293,7 +299,7 @@ export class ACPBridgeService implements IACPBridgeService {
         env.CONTAINER_PROVIDER === 'daytona'
           ? undefined
           : env.MY_CONTAINER.idFromName(containerName);
-      const cloudflareContainer =
+      const cloudflareContainer = 
         cloudflareContainerId && env.CONTAINER_PROVIDER !== 'daytona'
           ? env.MY_CONTAINER.get(cloudflareContainerId)
           : undefined;
@@ -566,6 +572,11 @@ export class ACPBridgeService implements IACPBridgeService {
       );
     }
 
+    // Ensure Remote Branch exists (Proactive Branch Creation)
+    if (method === 'session/prompt' && this.githubService && installationId) {
+      await this.ensureRemoteBranch(params, installationId);
+    }
+
     // Build JSON-RPC request with injected credentials (same structure as routeACPMethod)
     const containerName = 'acp-session';
     const jsonRpcRequest = {
@@ -583,7 +594,7 @@ export class ACPBridgeService implements IACPBridgeService {
           ...(params.context || {}),
           // Auto-inject repository if not provided by user
           ...(repository && !params.context?.repository
-            ? { repository }
+            ? { repository } 
             : {}),
           // Inject GitHub token in context.github.token (for handlers that expect it here)
           ...(githubToken
@@ -651,6 +662,58 @@ export class ACPBridgeService implements IACPBridgeService {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+  }
+
+  /**
+   * Helper to ensure remote branch exists before container tries to checkout
+   */
+  private async ensureRemoteBranch(params: any, installationId: string): Promise<void> {
+    try {
+        const repoContext = params.context?.repository || params.agentContext?.repository;
+        const automation = params.automation || params.context?.automation || params.agentContext?.automation;
+        
+        // Handle repo format: string "owner/repo" or object { workingBranch, url, etc. }
+        let workingBranch = automation?.branchName || automation?.workingBranch;
+        let baseBranch = automation?.baseBranch || 'main';
+        let owner: string | undefined;
+        let repo: string | undefined;
+
+        if (typeof repoContext === 'object') {
+            workingBranch = workingBranch || repoContext.workingBranch;
+            baseBranch = baseBranch || repoContext.baseBranch || 'main';
+            if (repoContext.url) {
+                const match = repoContext.url.match(/github.com\/([^/]+)\/([^/.]+)/);
+                if (match) {
+                    owner = match[1];
+                    repo = match[2];
+                }
+            } else if (repoContext.owner && repoContext.name) {
+                owner = repoContext.owner;
+                repo = repoContext.name;
+            }
+        } else if (typeof repoContext === 'string') {
+            const parts = repoContext.split('/');
+            if (parts.length === 2) {
+                owner = parts[0];
+                repo = parts[1];
+            }
+        }
+
+        if (owner && repo && workingBranch && this.githubService) {
+            console.log(`[ACP-BRIDGE] Ensuring remote branch ${workingBranch} exists for ${owner}/${repo}`);
+            await this.githubService.createBranch({
+                owner,
+                repo,
+                branchName: workingBranch,
+                baseBranch,
+                installationId
+            });
+            console.log(`[ACP-BRIDGE] Remote branch ${workingBranch} created/verified`);
+        }
+    } catch (error) {
+        // Non-fatal error, log and continue (container might handle it or fail later)
+        console.warn(`[ACP-BRIDGE] Failed to ensure remote branch:`, error);
     }
   }
 
@@ -927,10 +990,12 @@ export class ACPBridgeService implements IACPBridgeService {
 
     // Get registered snapshot name from environment (from Daytona Dashboard)
     // Default to base Daytona sandbox image which includes Node.js
-    const snapshotName: string =
+    const snapshotName:
+      string = 
       env.DAYTONA_ACP_SNAPSHOT_NAME || env.DAYTONA_SNAPSHOT_NAME || 'daytonaio/sandbox:0.5.0-slim';
 
-    const configId: string =
+    const configId:
+      string = 
       env.DAYTONA_ACP_CONFIG_ID || env.DAYTONA_CONFIG_ID || meta.containerName;
 
     // Organization ID for JWT token auth (required when using JWT instead of API key)
@@ -949,7 +1014,7 @@ export class ACPBridgeService implements IACPBridgeService {
       console.log(`[ACP-BRIDGE] Using organization ID: ${organizationId}`);
     }
 
-    type Workspace = {
+    type Workspace = { 
       id: string;
       status: string;
       state?: string;
@@ -1059,7 +1124,7 @@ export class ACPBridgeService implements IACPBridgeService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`, // Explicitly pass the Daytona API Key
+          'Authorization': `Bearer ${apiKey}`,
           ...(organizationId ? { 'X-Daytona-Organization-ID': organizationId } : {}),
         },
         body: JSON.stringify(jsonRpcRequest),
@@ -1122,7 +1187,7 @@ export class ACPBridgeService implements IACPBridgeService {
     }
     
     // Daytona /sandbox returns array directly
-    const sandboxes = (await listResp.json()) as Array<{
+    const sandboxes = (await listResp.json()) as Array<{ 
       id: string;
       state?: string;
       status: string;
@@ -1162,21 +1227,21 @@ export class ACPBridgeService implements IACPBridgeService {
       result:
         method === 'session/prompt'
           ? {
-            stopReason: 'mock',
-            usage: { inputTokens: 0, outputTokens: 0 },
-            summary: 'Mocked (containers disabled)',
-          }
+              stopReason: 'mock',
+              usage: { inputTokens: 0, outputTokens: 0 },
+              summary: 'Mocked (containers disabled)',
+            }
           : method === 'session/new'
             ? {
-              sessionId: `mock-session-${Date.now()}`,
-              modes: { currentModeId: 'default', availableModes: [] },
-            }
+                sessionId: `mock-session-${Date.now()}`,
+                modes: { currentModeId: 'default', availableModes: [] },
+              }
             : method === 'initialize'
               ? {
-                protocolVersion: 1,
-                agentCapabilities: {},
-                authMethods: [],
-              }
+                  protocolVersion: 1,
+                  agentCapabilities: {},
+                  authMethods: [],
+                }
               : {},
       id: Date.now(),
     };
@@ -1519,5 +1584,57 @@ export class ACPBridgeService implements IACPBridgeService {
       return value;
     }
     return `${value.slice(0, maxLength - 1)}…`;
+  }
+
+  /**
+   * Helper to ensure remote branch exists before container tries to checkout
+   */
+  private async ensureRemoteBranch(params: any, installationId: string): Promise<void> {
+    try {
+        const repoContext = params.context?.repository || params.agentContext?.repository;
+        const automation = params.automation || params.context?.automation || params.agentContext?.automation;
+        
+        // Handle repo format: string "owner/repo" or object { workingBranch, url, etc. }
+        let workingBranch = automation?.branchName || automation?.workingBranch;
+        let baseBranch = automation?.baseBranch || 'main';
+        let owner: string | undefined;
+        let repo: string | undefined;
+
+        if (typeof repoContext === 'object') {
+            workingBranch = workingBranch || repoContext.workingBranch;
+            baseBranch = baseBranch || repoContext.baseBranch || 'main';
+            if (repoContext.url) {
+                const match = repoContext.url.match(/github.com\/([^/]+)\/([^/.]+)/);
+                if (match) {
+                    owner = match[1];
+                    repo = match[2];
+                }
+            } else if (repoContext.owner && repoContext.name) {
+                owner = repoContext.owner;
+                repo = repoContext.name;
+            }
+        } else if (typeof repoContext === 'string') {
+            const parts = repoContext.split('/');
+            if (parts.length === 2) {
+                owner = parts[0];
+                repo = parts[1];
+            }
+        }
+
+        if (owner && repo && workingBranch && this.githubService) {
+            console.log(`[ACP-BRIDGE] Ensuring remote branch ${workingBranch} exists for ${owner}/${repo}`);
+            await this.githubService.createBranch({
+                owner,
+                repo,
+                branchName: workingBranch,
+                baseBranch,
+                installationId
+            });
+            console.log(`[ACP-BRIDGE] Remote branch ${workingBranch} created/verified`);
+        }
+    } catch (error) {
+        // Non-fatal error, log and continue (container might handle it or fail later)
+        console.warn(`[ACP-BRIDGE] Failed to ensure remote branch:`, error);
+    }
   }
 }

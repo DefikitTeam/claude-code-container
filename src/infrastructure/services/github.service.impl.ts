@@ -177,6 +177,78 @@ export class GitHubServiceImpl implements IGitHubService {
   }
 
   /**
+   * Create a branch from a base branch
+   */
+  async createBranch(params: {
+    owner: string;
+    repo: string;
+    branchName: string;
+    baseBranch: string;
+    installationId: string;
+  }): Promise<{
+    ref: string;
+    node_id: string;
+    url: string;
+    object: {
+      sha: string;
+      type: string;
+      url: string;
+    };
+  }> {
+    const { owner, repo, branchName, baseBranch, installationId } = params;
+
+    if (!owner || !repo || !branchName || !baseBranch || !installationId) {
+      throw new ValidationError(
+        'All branch creation parameters are required',
+      );
+    }
+
+    try {
+      const { token } = await this.tokenService.getInstallationToken(installationId);
+
+      // 1. Get SHA of base branch
+      const refResponse = await this.githubRequest(
+        'GET',
+        `/repos/{owner}/{repo}/git/ref/heads/{baseBranch}`,
+        token,
+        { owner, repo, baseBranch }
+      );
+
+      if (!refResponse.ok) {
+        throw new Error(`Failed to get base branch '${baseBranch}': ${refResponse.status}`);
+      }
+
+      const refData = await refResponse.json() as any;
+      const sha = refData.object.sha;
+
+      // 2. Create new ref
+      const createResponse = await this.githubRequest(
+        'POST',
+        `/repos/{owner}/{repo}/git/refs`,
+        token,
+        {
+          owner,
+          repo,
+          ref: `refs/heads/${branchName}`,
+          sha
+        }
+      );
+
+      if (!createResponse.ok) {
+        // If 422, it might already exist, which is fine, but we should check content
+        const errText = await createResponse.text();
+        throw new Error(`Failed to create branch: ${createResponse.status} - ${errText}`);
+      }
+
+      return (await createResponse.json()) as any;
+    } catch (error) {
+      throw new Error(
+        `Failed to create branch ${branchName} in ${owner}/${repo}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
    * Create a pull request
    * @param params - PR creation parameters
    * @returns PR number, URL, and title
