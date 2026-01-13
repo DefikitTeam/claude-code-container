@@ -97,6 +97,7 @@ export interface GitHubAutomationContext {
   metadata?: Record<string, unknown>;
   dryRun?: boolean;
   allowEmptyCommit?: boolean;
+  commitMessage?: string;
   workspaceAlreadyPrepared?: boolean;
 }
 

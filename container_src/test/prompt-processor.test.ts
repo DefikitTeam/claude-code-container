@@ -228,6 +228,69 @@ describe('PromptProcessor', () => {
     expect(res.githubOperations?.branchCreated).toBe(automationResult.branch);
   });
 
+  it('generates intelligent commit message using secondary LLM call', async () => {
+    // Mock Claude client to return different responses
+    // 1. Task execution response
+    // 2. Commit message generation response
+    claudeClient.runPrompt
+      .mockResolvedValueOnce({ fullText: 'I fixed the bug.', tokens: { input: 10, output: 5 } })
+      .mockResolvedValueOnce({ fullText: 'Fix critical bug in login flow', tokens: { input: 50, output: 5 } });
+
+    // Mock file changes for context
+    const automationResult = { status: 'success' } as GitHubAutomationResult;
+    githubAutomationService.execute.mockResolvedValueOnce(automationResult);
+    
+    // Setup metadata with files changed (needed to trigger explicit commit message gen)
+    const session = makeSession({ 
+        sessionId: 'sess-commit-gen',
+        sessionOptions: {
+            persistHistory: false,
+            enableGitOps: true,
+            contextFiles: []
+        }
+    });
+    sessionStore.load.mockResolvedValue(session);
+    
+    // We need to simulate the metadata having filesChanged which usually happens during tool use
+    // But since we are mocking everything, we can just pass specific intent
+    
+    const res = await processor.processPrompt({
+      sessionId: 'sess-commit-gen',
+      content: [{ type: 'text', text: 'Fix the bug' }],
+      agentContext: {
+        automation: {
+            mode: 'commit-only'
+        },
+        repository: 'org/repo',
+      },
+      // Simulate that tools were used and files changed
+      rawParams: {
+        context: {
+            metadata: {
+                filesChanged: ['src/login.ts']
+            }
+        }
+      }
+    });
+
+    // Expect Claude to be called twice
+    expect(claudeClient.runPrompt).toHaveBeenCalledTimes(2);
+    
+    // Check first call (task)
+    expect(claudeClient.runPrompt.mock.calls[0][1].sessionId).toBe('sess-commit-gen');
+    
+    // Check second call (commit gen)
+    // The prompt should contain the user request and summary
+    const genPrompt = claudeClient.runPrompt.mock.calls[1][0];
+    expect(genPrompt).toContain('Fix the bug');
+    expect(genPrompt).toContain('I fixed the bug');
+    
+    // Expect GitHub automation to receive the generated message
+    expect(githubAutomationService.execute).toHaveBeenCalledTimes(1);
+    const contextArg = githubAutomationService.execute.mock.calls[0][0];
+    expect(contextArg.commitMessage).toBe('Fix critical bug in login flow');
+  });
+
   describe('GitHub automation integration', () => {
     it('executes automation end-to-end and merges legacy githubOperations', async () => {
       const git = createIntegrationGitService();
@@ -334,6 +397,7 @@ describe('PromptProcessor', () => {
         gitService: git.gitService,
         octokitFactory: () => octokit.octokit,
         now: () => new Date('2025-09-25T12:00:00Z'),
+        branchPrefix: 'integration',
       });
 
       const integrationSessionStore = {
@@ -467,6 +531,12 @@ function createIntegrationGitService(options: { failPush?: boolean } = {}) {
     if (key === 'rev-parse HEAD') {
       return { stdout: 'deadbeefdeadbeef\n', stderr: '', code: 0 };
     }
+    if (key.includes('rev-parse --abbrev-ref HEAD')) {
+        return { stdout: 'integration/issue-42-2025-09-25-120000\n', stderr: '', code: 0 };
+    }
+    if (key.includes('ls-remote')) {
+        return { stdout: 'deadbeefdeadbeef\trefs/heads/integration/issue-42-2025-09-25-120000\n', stderr: '', code: 0 };
+    }
     if (key === 'remote get-url --push origin') {
       return {
         stdout: 'https://github.com/org/repo.git\n',
@@ -511,6 +581,15 @@ function createIntegrationGitService(options: { failPush?: boolean } = {}) {
     checkoutBranch: vi.fn(async () => {}),
     hasUncommittedChanges: vi.fn(async () => true),
     listChangedFiles: vi.fn(async () => ['src/index.ts']),
+    getStatus: vi.fn(async () => ' M src/index.ts'),
+    getCurrentBranch: vi.fn(async () => 'integration/issue-42-2025-09-25-120000'),
+    getRemoteUrl: vi.fn(async () => 'https://github.com/org/repo.git'),
+    getInfo: vi.fn(async () => ({
+        currentBranch: 'integration/issue-42-2025-09-25-120000',
+        hasUncommittedChanges: true,
+        remoteUrl: 'https://github.com/org/repo.git',
+        vcsRef: 'HEAD'
+    })),
   };
 
   return { gitService: gitService as GitService, runGit };

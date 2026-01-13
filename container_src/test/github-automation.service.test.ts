@@ -216,4 +216,113 @@ describe('GitHubAutomationService', () => {
     expect(result.status).toBe('error');
     expect(result.error?.code).toBe('git-push-failed');
   });
+
+  it('derives commit message from prompt body when title is missing', async () => {
+    const context = {
+      sessionId: 'session-no-title',
+      workspacePath: '/tmp/workspace',
+      repository: {
+        owner: 'org',
+        name: 'repo',
+        defaultBranch: 'main',
+      },
+      auth: {
+        installationToken: 'token123',
+      },
+      prompt: {
+        body: 'Refactor the login component to use hooks.',
+      },
+      intent: {
+        mode: 'commit-only',
+      },
+      allowEmptyCommit: true,
+    } as const;
+
+    const result = await service.execute(context);
+    
+    expect(result.commit?.message).toBe('Refactor the login component to use hooks.');
+  });
+
+  it('uses summary for commit message when available', async () => {
+    const context = {
+      sessionId: 'session-summary',
+      workspacePath: '/tmp/workspace',
+      repository: {
+        owner: 'org',
+        name: 'repo',
+        defaultBranch: 'main',
+      },
+      auth: {
+        installationToken: 'token123',
+      },
+      prompt: {
+        body: 'Do some work',
+      },
+      summaryMarkdown: 'I have successfully implemented the registration page with new styles.',
+      intent: {
+        mode: 'commit-only',
+      },
+      allowEmptyCommit: true,
+    } as const;
+
+    const result = await service.execute(context);
+    
+    expect(result.commit?.message).toBe('Successfully implemented the registration page with new styles.');
+  });
+
+  it('cleans up "I have" prefixes from summary', async () => {
+    const context = {
+      sessionId: 'session-clean',
+      workspacePath: '/tmp/workspace',
+      repository: {
+        owner: 'org',
+        name: 'repo',
+        defaultBranch: 'main',
+      },
+      auth: {
+        installationToken: 'token123',
+      },
+      prompt: {
+        body: 'Do some work',
+      },
+      summaryMarkdown: 'I have updated the API endpoints.',
+      intent: {
+        mode: 'commit-only',
+      },
+      allowEmptyCommit: true,
+    } as const;
+
+    const result = await service.execute(context);
+    
+    expect(result.commit?.message).toBe('Updated the API endpoints.');
+  });
+
+  it('does not use streaming narration as commit message', async () => {
+    const context = {
+      sessionId: 'session-narration',
+      workspacePath: '/tmp/workspace',
+      repository: {
+        owner: 'org',
+        name: 'repo',
+        defaultBranch: 'main',
+      },
+      auth: {
+        installationToken: 'token123',
+      },
+      prompt: {
+        body: 'Do some work',
+      },
+      summaryMarkdown:
+        "Now I'll improve the UI of the registration page.\n\n- Add gradient background\n- Update RegistrationActivity\n",
+      intent: {
+        mode: 'commit-only',
+      },
+      allowEmptyCommit: true,
+    } as const;
+
+    const result = await service.execute(context);
+
+    // It should fall back to a meaningful non-narration line.
+    expect(result.commit?.message).toBe('Add gradient background');
+  });
 });

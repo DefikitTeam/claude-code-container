@@ -485,7 +485,13 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       return null;
     }
 
-    const commitMessage = buildCommitMessage(issue, context.prompt.title);
+    const commitMessage = buildCommitMessage(
+      issue,
+      context.prompt.title,
+      context.prompt.body,
+      context.summaryMarkdown,
+      context.commitMessage,
+    );
     const commitArgs = ['commit', '-m', commitMessage];
     if (context.allowEmptyCommit) {
       commitArgs.push('--allow-empty');
@@ -932,14 +938,81 @@ function derivePullRequestTitle(
 function buildCommitMessage(
   issue?: GitHubIssueReference,
   promptTitle?: string,
+  promptBody?: string,
+  summaryMarkdown?: string,
+  explicitCommitMessage?: string,
 ): string {
+  // 1. Prefer explicit commit message (from separate AI generation)
+  if (explicitCommitMessage && explicitCommitMessage.trim()) {
+    return sanitizeCommitSubject(explicitCommitMessage);
+  }
+
+  // 2. If we have an issue, use a stable reference format
   if (issue) {
-    const suffix = promptTitle ? `: ${promptTitle}` : '';
+    const suffix = promptTitle ? `: ${sanitizeCommitSubject(promptTitle)}` : '';
     return `Fix issue #${issue.number}${suffix}`;
   }
-  return promptTitle
-    ? `Apply automation: ${promptTitle}`
-    : 'Apply automated changes';
+  
+  // 3. Prefer promptTitle if explicitly provided (usually by user override)
+  if (promptTitle) {
+    return sanitizeCommitSubject(promptTitle);
+  }
+
+  // 4. Try to derive from AI summary (what was actually done)
+  if (summaryMarkdown) {
+    const derived = deriveActionFromSummary(summaryMarkdown);
+    if (derived) return derived;
+  }
+
+  // 5. Fallback to deriving from prompt body (what was requested)
+  if (promptBody) {
+    const derived = deriveIssueTitle(promptBody);
+    return derived;
+  }
+
+  return 'Automated changes';
+}
+
+function sanitizeCommitSubject(input: string): string {
+  const firstLine = (input || '').split(/\r?\n/)[0] ?? '';
+  const cleaned = firstLine
+    .replace(/^[-*]\s+/, '')
+    .replace(/^["']|["']$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return 'Automated changes';
+  return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned;
+}
+
+function deriveActionFromSummary(summary: string): string | undefined {
+  // Try to find the first sentence or a bullet point that looks like an action
+  const lines = summary.trim().split(/\r?\n/);
+  
+  for (const line of lines) {
+     const clean = line.replace(/^[-*]\s+/, '').trim();
+     if (!clean) continue;
+     
+     // If it starts with a verb-like structure (heuristically)
+     // Or just take the first meaningful line that isn't a header
+     if (clean.startsWith('#')) continue;
+
+     // Skip narration / planning lines commonly produced during streaming.
+     // Patterns: "Now I'll", "Now I will", "Now I understand", "Let me", "I'll", "I need to", 
+     // "First", "Next", "Let's", "Looking at", "Based on", "This is", "I see", "I can see"
+     if (/^(?:now\s+)?(?:i(?:\s+will|\'ll|\s+understand|\s+need\s+to|\s+see|\s+can\s+see|\s+am\s+going\s+to)|let(?:\s+me|\'s)|next\b|first\b|looking\s+at|based\s+on|this\s+is)/i.test(clean)) {
+       continue;
+     }
+     
+     // Heuristic: remove "I have " or "I "
+     const action = clean
+        .replace(/^(?:I(?:'ve| have))?\s+/i, '')
+        .replace(/^(?:I(?:'ll| will))?\s+/i, '')
+        .replace(/^(?:The system|We)\s+/i, '');
+        
+     // Capitalize first letter
+     return sanitizeCommitSubject(action.charAt(0).toUpperCase() + action.slice(1));
+  }
+  return undefined;
 }
 
 function buildBranchName(
