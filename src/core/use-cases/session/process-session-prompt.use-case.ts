@@ -120,6 +120,60 @@ export class ProcessSessionPromptUseCase {
       console.log(`[ProcessSessionPrompt] Reusing container ${containerId}`);
     }
 
+    // PROACTIVE REMOTE BRANCH CREATION
+    // This ensures the branch exists on remote so the Container's 'ensureRepo' logic
+    // can successfully fetch and checkout the branch, instead of falling back to 'main'
+    // and causing "dirty workspace" errors when files are created.
+    if (session.workingBranch && (session.totalCommits === 0 || !session.totalCommits)) {
+      try {
+        console.log(`[ProcessSessionPrompt] Attempting to create remote branch ${session.workingBranch}`);
+        const baseBranch = session.selectedBranch || 'main';
+        
+        // 1. Get SHA of base branch
+        const baseRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${baseBranch}`;
+        const baseRefResp = await fetch(baseRefUrl, {
+            headers: { 
+                'Authorization': `Bearer ${dto.githubToken}`,
+                'User-Agent': 'LumiLink-Worker',
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (baseRefResp.ok) {
+            const baseRefData = await baseRefResp.json<any>();
+            const sha = baseRefData.object.sha;
+            
+            // 2. Create new ref
+            const createRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/refs`;
+            const createResp = await fetch(createRefUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${dto.githubToken}`,
+                    'User-Agent': 'LumiLink-Worker',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json'
+                },
+                body: JSON.stringify({
+                    ref: `refs/heads/${session.workingBranch}`,
+                    sha: sha
+                })
+            });
+            
+            if (createResp.ok || createResp.status === 422) { 
+                // 422 usually means already exists, which is fine
+                console.log(`[ProcessSessionPrompt] Remote branch ${session.workingBranch} ensured (SHA: ${sha})`);
+            } else {
+                const errText = await createResp.text();
+                console.warn(`[ProcessSessionPrompt] Failed to create remote branch: ${createResp.status} - ${errText}`);
+            }
+        } else {
+             console.warn(`[ProcessSessionPrompt] Failed to get base branch SHA: ${baseRefResp.status}`);
+        }
+      } catch (e) {
+        console.warn("[ProcessSessionPrompt] Remote branch creation failed", e);
+      }
+    }
+
     // Prepare JSON-RPC request for ACP session/prompt
     // This uses the main branch's robust ACP flow which handles git internally via Claude SDK
     const rpcRequest = {

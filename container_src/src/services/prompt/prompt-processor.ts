@@ -651,14 +651,23 @@ export class PromptProcessor {
       }
     }
 
+    // IMPORTANT: Do NOT pass the full streamed assistant output as "summaryText".
+    // That output often contains step-by-step narration ("Now I'll..."), which can leak
+    // into commit messages and PR metadata. Prefer the model-provided concise summary.
+    const automationSummaryText =
+      (response.summary && response.summary.trim())
+        ? response.summary
+        : this.extractAutomationSummaryFallback(fullText);
+
     const automationResult = await this.executeGitHubAutomation({
       session,
       workspace: wsDesc,
       promptText: prompt,
-      summaryText: fullText,
+      summaryText: automationSummaryText,
       agentContext: activeAgentContext,
       options: opts,
       operationId,
+      apiKey, // Pass API key for commit message generation
     });
 
     // Comprehensive diagnostic: capture detailed git state right before automation executes
@@ -717,6 +726,22 @@ export class PromptProcessor {
     return s;
   }
 
+  private extractAutomationSummaryFallback(fullText: string): string {
+    const text = (fullText || '').trim();
+    if (!text) return '';
+
+    // Prefer an explicit "Summary" section if present.
+    const summaryMatch = text.match(/\n\s*(?:#+\s*)?summary\s*\n([\s\S]{1,2000})/i);
+    if (summaryMatch && summaryMatch[1]) {
+      return summaryMatch[1].trim().slice(0, 2000);
+    }
+
+    // Otherwise, take a short tail window (often contains the final wrap-up).
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    const tail = lines.slice(Math.max(0, lines.length - 25)).join('\n');
+    return tail.trim().slice(0, 2000);
+  }
+
   private mergeAgentContext(
     existing: Record<string, unknown> | undefined,
     incoming: Record<string, unknown> | undefined,
@@ -748,6 +773,7 @@ export class PromptProcessor {
     agentContext?: Record<string, unknown>;
     options: ProcessPromptOptions;
     operationId?: string;
+    apiKey?: string;
   }): Promise<GitHubAutomationResult | undefined> {
     const service = this.deps.githubAutomationService;
     if (!service) {
@@ -767,6 +793,7 @@ export class PromptProcessor {
       agentContext,
       options,
       operationId,
+      apiKey,
     } = args;
 
     if (session.sessionOptions?.enableGitOps === false) {
@@ -802,6 +829,18 @@ export class PromptProcessor {
       operationId,
     );
 
+    // NEW: Generate intelligent commit message from AI summary
+    let explicitCommitMessage: string | undefined;
+    if (intent?.mode === 'commit-only' || intent?.mode === 'github') {
+      explicitCommitMessage = await this.generateAutoCommitMessage(
+        session.sessionId,
+        promptText,
+        summaryText,
+        workspace.path,
+        apiKey,
+      );
+    }
+
     const context: GitHubAutomationContext = {
       sessionId: session.sessionId,
       workspacePath: workspace.path,
@@ -826,6 +865,7 @@ export class PromptProcessor {
       metadata,
       dryRun: resolvedRepo.dryRun,
       allowEmptyCommit: resolvedRepo.allowEmptyCommit,
+      commitMessage: explicitCommitMessage,
       workspaceAlreadyPrepared: true,
     };
 
@@ -1391,6 +1431,108 @@ export class PromptProcessor {
       );
     } else {
       console.error(`[GITHUB-AUTO][${sessionId}${suffix}] ${event}`);
+    }
+  }
+
+  /**
+   * Generates a concise, standard commit message using a secondary LLM call.
+   * This decoupled step ensures the message is reflective rather than stream-of-consciousness.
+   */
+  private async generateAutoCommitMessage(
+    sessionId: string,
+    prompt: string,
+    summary: string,
+    workspacePath: string,
+    apiKey?: string,
+  ): Promise<string | undefined> {
+    try {
+        let derivedFilesChanged: string[] | undefined;
+        let diffStat = '';
+        let diffSnippet = '';
+
+        if (this.deps.gitService && workspacePath) {
+          try {
+            derivedFilesChanged = await this.deps.gitService.listChangedFiles(
+              workspacePath,
+            );
+          } catch {
+            // ignore
+          }
+
+          try {
+            const stat = await this.deps.gitService.runGit(workspacePath, [
+              'diff',
+              '--stat',
+            ]);
+            if (stat.code === 0 && stat.stdout) diffStat = stat.stdout.trim().slice(0, 1500);
+          } catch {
+            // ignore
+          }
+
+          try {
+            // Keep snippet small to avoid token bloat.
+            const diff = await this.deps.gitService.runGit(workspacePath, [
+              'diff',
+              '--unified=0',
+            ]);
+            if (diff.code === 0 && diff.stdout) diffSnippet = diff.stdout.trim().slice(0, 3500);
+          } catch {
+            // ignore
+          }
+        }
+
+        const fileContext = derivedFilesChanged && derivedFilesChanged.length > 0
+            ? `\nFiles changed:\n${derivedFilesChanged.slice(0, 12).map(f => `- ${f}`).join('\n')}${derivedFilesChanged.length > 12 ? '\n...and more' : ''}`
+            : '';
+
+        const changeContext = [
+          diffStat ? `\nGit diff --stat:\n${diffStat}` : '',
+          diffSnippet ? `\nGit diff snippet (truncated):\n${diffSnippet}` : '',
+        ].join('');
+
+        const generationPrompt = `
+You are an AI assistant finalizing a coding task.
+      Based on the user's original request and the actual code changes (git diff context), generate a concise, professional Git commit message.
+
+User Request: "${prompt.slice(0, 500)}..."
+
+      Work Summary (may be incomplete): "${summary.slice(0, 800)}..."
+${fileContext}
+      ${changeContext}
+
+Rules:
+1. Return ONLY the commit message. No quotes, no preamble.
+2. Use the imperative mood (e.g., "Refactor login", "Fix bug", not "Refactored" or "Fixed").
+      3. Output a SINGLE LINE commit subject (no blank lines, no body).
+      4. Keep it under 72 characters if possible (hard max 120).
+      5. Do NOT include step-by-step narration like "Now I'll" / "Let me".
+`.trim();
+
+        const result = await this.deps.claudeClient.runPrompt(
+            generationPrompt,
+            {
+                sessionId,
+                apiKey, // Pass API key for LLM call
+                // Use a cheaper/faster model if possible, or same model
+                // Minimal context needed
+            }
+        );
+
+        const raw = result.fullText.trim();
+        const firstLine = raw.split(/\r?\n/)[0] ?? '';
+        const cleaned = firstLine
+          .replace(/^["']|["']$/g, '')
+          .replace(/\s+/g, ' ')
+          // Strip common streaming narration prefixes
+          .replace(/^(?:now\s+)?(?:i(?:\s+will|\'ll|\s+understand|\s+need\s+to|\s+see|\s+can\s+see|\s+am\s+going\s+to)|let(?:\s+me|\'s)|next\b|first\b|looking\s+at|based\s+on|this\s+is)\s*/i, '')
+          .trim();
+
+        if (!cleaned) return undefined;
+        return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned;
+
+    } catch (error) {
+        console.warn(`[PROMPT] Failed to generate auto-commit message: ${error}`);
+        return undefined;
     }
   }
 }

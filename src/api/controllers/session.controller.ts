@@ -19,6 +19,7 @@ import {
 interface EnableCodingModeRequestBody {
   selectedRepository: string;
   selectedBranch?: string;
+  workingBranch?: string; // Optional custom branch name
 }
 
 interface ProcessPromptRequestBody {
@@ -62,6 +63,7 @@ export class SessionController {
       installationId,
       selectedRepository: body.selectedRepository,
       selectedBranch: body.selectedBranch,
+      workingBranch: body.workingBranch,
     });
 
     return successResponse<EnableCodingModeResult>(c, result);

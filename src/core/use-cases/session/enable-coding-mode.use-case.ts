@@ -6,6 +6,7 @@ export interface EnableCodingModeDto {
   installationId: string;
   selectedRepository: string; // Format: "owner/repo"
   selectedBranch?: string;     // Default: "main"
+  workingBranch?: string;      // Optional custom branch name
 }
 
 export interface EnableCodingModeResult {
@@ -40,8 +41,8 @@ export class EnableCodingModeUseCase {
 
     const selectedBranch = dto.selectedBranch || 'main';
 
-    // Generate working branch name
-    const workingBranch = this.generateWorkingBranchName(dto.sessionId);
+    // Generate working branch name or use provided one
+    const workingBranch = dto.workingBranch || this.generateWorkingBranchName(dto.sessionId);
 
     // Get session from Durable Object
     const sessionDO = this.env.ACP_SESSION.idFromName(dto.sessionId);
@@ -58,15 +59,26 @@ export class EnableCodingModeUseCase {
     }
 
     // If session exists and coding mode is already enabled, return existing config
+    // UNLESS we are explicitly resetting/updating it with a new branch
+    // Note: The logic here prioritizes existing session state if it matches what we want,
+    // but if we are "resetting" (create-dual call), we usually want to force the new state.
+    // However, create-dual only calls this once.
     if (session?.codingModeEnabled && session?.workingBranch) {
-      return {
-        success: true,
-        sessionId: dto.sessionId,
-        workingBranch: session.workingBranch,
-        selectedRepository: session.selectedRepository,
-        selectedBranch: session.selectedBranch,
-        codingModeEnabled: true,
-      };
+        // If the session already has a working branch, and it's DIFFERENT from the requested one,
+        // we should probably update it.
+        // But for safety in this specific "Enable" use case, let's update it if provided.
+        if (dto.workingBranch && session.workingBranch !== dto.workingBranch) {
+             // Fall through to update logic
+        } else {
+            return {
+                success: true,
+                sessionId: dto.sessionId,
+                workingBranch: session.workingBranch,
+                selectedRepository: session.selectedRepository,
+                selectedBranch: session.selectedBranch,
+                codingModeEnabled: true,
+            };
+        }
     }
 
     // If session doesn't exist, create it with coding mode enabled

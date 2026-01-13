@@ -94,6 +94,17 @@ export async function sessionPromptHandler(
     });
   }
 
+  // Prevent concurrent prompt executions for the same session/workspace.
+  // Concurrent git operations on a shallow clone can corrupt .git state and break
+  // downstream automation (e.g., "fatal: shallow file has changed since we read it").
+  if (acpState.hasActiveOperations(sessionId)) {
+    const count = acpState.getActiveOperationCount(sessionId);
+    throw Object.assign(new Error('operation_already_in_progress'), {
+      code: -32009,
+      data: { sessionId, activeOperationCount: count },
+    });
+  }
+
   const operationId = `prompt-${Date.now()}`;
   // Track operation in state (for future enhanced cancellation)
   acpState.startOperation(sessionId, operationId);
@@ -117,33 +128,36 @@ export async function sessionPromptHandler(
     }
   }
 
-  const result = await promptProcessor.processPrompt({
-    sessionId,
-    content,
-    contextFiles,
-    agentContext: mergedAgentContext ?? session.agentContext,
-    apiKey,
-    notificationSender,
-    historyAlreadyAppended: false,
-    operationId,
-    sessionMeta: {
-      userId:
-        typeof rawParams.userId === 'string'
-          ? (rawParams.userId as string)
+  try {
+    const result = await promptProcessor.processPrompt({
+      sessionId,
+      content,
+      contextFiles,
+      agentContext: mergedAgentContext ?? session.agentContext,
+      apiKey,
+      notificationSender,
+      historyAlreadyAppended: false,
+      operationId,
+      sessionMeta: {
+        userId:
+          typeof rawParams.userId === 'string'
+            ? (rawParams.userId as string)
+            : undefined,
+        installationId:
+          typeof rawParams.installationId === 'string'
+            ? (rawParams.installationId as string)
+            : undefined,
+      },
+      githubToken:
+        typeof rawParams.githubToken === 'string'
+          ? (rawParams.githubToken as string)
           : undefined,
-      installationId:
-        typeof rawParams.installationId === 'string'
-          ? (rawParams.installationId as string)
-          : undefined,
-    },
-    githubToken:
-      typeof rawParams.githubToken === 'string'
-        ? (rawParams.githubToken as string)
-        : undefined,
-    rawParams,
-  });
-  acpState.completeOperation(sessionId, operationId);
-  return result;
+      rawParams,
+    });
+    return result;
+  } finally {
+    acpState.completeOperation(sessionId, operationId);
+  }
 }
 
 export default sessionPromptHandler;
