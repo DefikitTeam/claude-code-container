@@ -160,8 +160,7 @@ export class GitHubAutomationService implements IGitHubAutomationService {
 
     // In commit-only mode, default to producing a commit per prompt.
     // Callers can override by explicitly setting allowEmptyCommit=false.
-    const allowEmptyCommit =
-      context.allowEmptyCommit ?? (decision.mode === 'commit-only');
+    const allowEmptyCommit = context.allowEmptyCommit ?? false;
     const effectiveContext: GitHubAutomationContext =
       allowEmptyCommit === context.allowEmptyCommit
         ? context

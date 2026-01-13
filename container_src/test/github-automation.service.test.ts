@@ -22,6 +22,9 @@ function createGitServiceMock(overrides: Partial<GitService> = {}): GitService {
         code: 0,
       };
     }
+    if (args[0] === 'ls-remote') {
+      return { stdout: 'deadbeefdeadbeef\trefs/heads/branch\n', stderr: '', code: 0 };
+    }
     return { stdout: '', stderr: '', code: 0 };
   });
 
@@ -30,7 +33,7 @@ function createGitServiceMock(overrides: Partial<GitService> = {}): GitService {
     runGit,
     createBranch: vi.fn(async () => {}),
     checkoutBranch: vi.fn(async () => {}),
-    hasUncommittedChanges: vi.fn(async () => true),
+    hasUncommittedChanges: vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true),
   };
 
   return { ...gitService, ...overrides } as GitService;
