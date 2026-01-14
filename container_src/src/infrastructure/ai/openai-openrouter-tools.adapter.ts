@@ -357,6 +357,21 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           // Heuristic: If model is "planning" but not "doing" (common in smaller models), bounce back
           // check for phrases like "Let me check", "I will", "I need to", "I'll", "checking"
           const planningPhrases = /Let me check|I will|I'll|I need to|checking|verify|examine/i;
+          const isHallucinatedToolResult = currentMessage.trim().startsWith('{') && currentMessage.includes('"success":');
+
+          if (isHallucinatedToolResult) {
+            logger.warn('⚠️ Model hallucinated tool result. Forcing retry.');
+             conversationMessages.push({ 
+               role: 'assistant', 
+               content: currentMessage 
+             });
+             conversationMessages.push({ 
+               role: 'user', 
+               content: 'STOP! You are Hallucinating. You manually wrote the tool output instead of calling the tool. DO NOT write JSON. Call the function "readFile" (or appropriate tool) using the proper tool call syntax.' 
+             });
+             continue;
+          }
+
           if (loopCount < 3 && planningPhrases.test(currentMessage) && currentMessage.length < 300) {
              logger.warn('⚠️ Model discussed action but used no tools. Forcing retry with instruction.');
              
@@ -366,7 +381,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
              });
              conversationMessages.push({ 
                role: 'user', 
-               content: 'Do not describe the plan. Use the tools IMMEDIATELY to perform the action.' 
+               content: 'Do not describe the plan. Use the tools IMMEDIATELY to perform the action. Do not simulate the action.' 
              });
              continue;
           }
