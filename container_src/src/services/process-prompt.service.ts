@@ -44,7 +44,7 @@ export class ProcessPromptService {
     this.git = options.gitService;
     this.claude = options.claudeService;
     this.apiKey = options.apiKey;
-    this.model = options.model || 'mistralai/devstral-2512:free';
+    this.model = options.model || 'x-ai/grok-code-fast-1';
   }
 
   async execute(request: ProcessPromptRequest): Promise<ProcessPromptResult> {

@@ -43,7 +43,7 @@ export function createContainer(): Container {
     gitService,
     claudeService: claudeClient,
     apiKey: process.env.ANTHROPIC_API_KEY || '',
-    model: 'mistralai/devstral-2512:free',
+    model: 'x-ai/grok-code-fast-1',
   });
 
   return {

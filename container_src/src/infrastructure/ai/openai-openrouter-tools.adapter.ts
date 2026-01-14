@@ -31,7 +31,7 @@ import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
-const FORCED_OPENROUTER_MODEL = 'mistralai/devstral-2512:free' as const;
+const FORCED_OPENROUTER_MODEL = 'x-ai/grok-code-fast-1' as const;
 
 // Lightweight logger scoped to this adapter
 const logger = {
@@ -819,7 +819,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     };
 
     if (!requestedModel) {
-      return 'mistralai/devstral-2512:free';
+      return 'x-ai/grok-code-fast-1';
     }
 
     if (requestedModel.includes('/')) {
