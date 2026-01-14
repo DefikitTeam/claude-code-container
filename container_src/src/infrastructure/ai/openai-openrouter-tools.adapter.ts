@@ -357,7 +357,18 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           // Heuristic: If model is "planning" but not "doing" (common in smaller models), bounce back
           // check for phrases like "Let me check", "I will", "I need to", "I'll", "checking"
           const planningPhrases = /Let me check|I will|I'll|I need to|checking|verify|examine/i;
-          const isHallucinatedToolResult = currentMessage.trim().startsWith('{') && currentMessage.includes('"success":');
+          
+          // Enhanced hallucination detection: catch JSON that looks like tool results or raw JSON output
+          // Matches:
+          // 1. Starts with optional text/whitespace then {"success":...
+          // 2. Starts with "Assistant:" then optional text then {"success":...
+          // 3. Contains "content":"..." and "path":"..." (common in file operations)
+          const jsonHallucinationRegex = /^\s*(?:Assistant:\s*)?\{.*"success"\s*:\s*/s;
+          const looksLikeFileContent = /"path"\s*:\s*".*"\s*,\s*"content"\s*:/s;
+          
+          const isHallucinatedToolResult = 
+            jsonHallucinationRegex.test(currentMessage) || 
+            (currentMessage.includes('{') && looksLikeFileContent.test(currentMessage));
 
           if (isHallucinatedToolResult) {
             logger.warn('⚠️ Model hallucinated tool result. Forcing retry.');
@@ -367,7 +378,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
              });
              conversationMessages.push({ 
                role: 'user', 
-               content: 'STOP! You are Hallucinating. You manually wrote the tool output instead of calling the tool. DO NOT write JSON. Call the function "readFile" (or appropriate tool) using the proper tool call syntax.' 
+               content: 'STOP! You are Hallucinating. You manually wrote the tool output instead of calling the tool. DO NOT write JSON. Call the function "readFile" or "writeFile" using the PROPER TOOL CALL SYNTAX.' 
              });
              continue;
           }
