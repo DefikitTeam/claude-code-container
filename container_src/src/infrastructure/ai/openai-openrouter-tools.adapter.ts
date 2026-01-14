@@ -61,7 +61,7 @@ const DEFAULT_CONFIG: Required<Omit<OpenAIOpenRouterToolsConfig, 'apiKey'>> = {
     process.env.OPENROUTER_HTTP_REFERER ||
     'https://github.com/DefikitTeam/claude-code-container',
   siteName: process.env.OPENROUTER_SITE_NAME || 'Claude Code Container',
-  timeout: Number(process.env.OPENROUTER_TIMEOUT || 180000),
+  timeout: Number(process.env.OPENROUTER_TIMEOUT || 300000),
   maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES || 2),
 };
 
@@ -119,6 +119,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
     abortSignal: AbortSignal,
   ): Promise<ClaudeResult> {
     const startTime = Date.now();
+    let fullText = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
 
     try {
       // Resolve API key
@@ -185,7 +188,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       // We'll implement manual tool calling loop for maximum compatibility
       // This follows the pattern from OpenAI docs but with manual loop control
 
-      let fullText = '';
+
       let conversationMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         { role: 'system', content: systemPrompt },
       ];
@@ -254,8 +257,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
       const maxToolLoops = 10; // Prevent infinite loops
       let loopCount = 0;
-      let inputTokens = this.estimateTokens(prompt + systemPrompt);
-      let outputTokens = 0;
+      // Variables for tracking progress (declared outside try for error handling access)
+      fullText = '';
+      inputTokens = this.estimateTokens(prompt + systemPrompt);
+      outputTokens = 0;
 
       while (loopCount < maxToolLoops) {
         loopCount++;
@@ -547,6 +552,30 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         };
         callbacks.onError?.(apiError);
         throw apiError;
+      }
+
+      // Handle timeouts gracefully by returning explanatory text instead of throwing
+      if (error instanceof OpenAI.APIConnectionTimeoutError || 
+          (error.code === 'ETIMEDOUT') || 
+          error.message?.includes('timeout')) {
+        
+        const timeoutMessage = "\n\n⚠️ **Task Timeout**: This task took longer than 5 minutes to complete. The model may be struggling with the size or complexity of the request.\n\n**Recommendation:**\nPlease split this task into smaller, more manageable sub-tasks and try again.";
+        
+        logger.warn('request timed out, sending advice to user');
+        
+        // Return partial result with warning
+        callbacks.onDelta?.({ text: timeoutMessage, tokens: 0 });
+        callbacks.onComplete?.({ fullText: fullText + timeoutMessage, durationMs: Date.now() - startTime });
+        
+        return {
+          fullText: fullText + timeoutMessage,
+          tokens: {
+            input: inputTokens,
+            output: outputTokens,
+          },
+          stopReason: 'timeout',
+          toolUse: [],
+        };
       }
 
       callbacks.onError?.(error);
