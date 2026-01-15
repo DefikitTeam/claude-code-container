@@ -54,6 +54,8 @@ type Session = {
   input: Pushable<SDKUserMessage>;
   cancelled: boolean;
   permissionMode: PermissionMode;
+  pendingHistory: any[];
+  historyReplayed: boolean;
 };
 
 /**
@@ -123,6 +125,8 @@ export class LightweightClaudeAcpAgent implements Agent {
       input: input,
       cancelled: false,
       permissionMode: 'default',
+      pendingHistory: (params as any).opts?.history || [],
+      historyReplayed: false,
     };
 
     return {
@@ -161,7 +165,29 @@ export class LightweightClaudeAcpAgent implements Agent {
     }
 
     this.sessions[params.sessionId].cancelled = false;
-    const { query, input } = this.sessions[params.sessionId];
+    const session = this.sessions[params.sessionId];
+    const { query, input } = session;
+
+    // Rehydration Logic (Phase 2)
+    if (!session.historyReplayed) {
+        const historyObj = session.pendingHistory || [];
+        // Tail-only strategy: safeguard against massive history (max 30 turns)
+        const effectiveHistory = historyObj.length > 30 
+            ? historyObj.slice(historyObj.length - 30) 
+            : historyObj;
+
+        if (effectiveHistory.length > 0) {
+            console.error(`[Rehydration] Replaying ${effectiveHistory.length} messages...`);
+            for (const msg of effectiveHistory) {
+                const sdkMsg = this.toSDKMessage(msg, params.sessionId);
+                if (sdkMsg) {
+                     input.push(sdkMsg as SDKUserMessage); // Type cast as input stream accepts SDKUserMessage (which covers common structure) or extended types
+                }
+            }
+            console.error(`[Rehydration] Complete.`);
+        }
+        session.historyReplayed = true;
+    }
 
     // Convert ACP prompt to Claude format
     const claudeMessage = this.promptToClaude(params);
@@ -371,6 +397,52 @@ export class LightweightClaudeAcpAgent implements Agent {
     }
 
     return notifications;
+  }
+
+  private toSDKMessage(msg: any, sessionId: string): SDKUserMessage | SDKAssistantMessage | null {
+    // Basic role mapping and sanitization
+    // We strictly filter tool_use to prevent re-execution, retaining only text context.
+
+    if (msg.role === 'user') {
+      // sanitize content
+      const content = Array.isArray(msg.content) 
+        ? msg.content 
+        : [{ type: 'text', text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }];
+
+      return {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: content.map((c: any) => ({
+             type: 'text',
+             text: c.text || JSON.stringify(c) 
+          }))
+        },
+        session_id: sessionId,
+      } as SDKUserMessage;
+    }
+
+    if (msg.role === 'assistant') {
+      const content = Array.isArray(msg.content)
+         ? msg.content
+         : [{ type: 'text', text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }];
+      
+      // Filter out tool uses, keep thoughts and text
+      const sanitizedContent = content.filter((c: any) => c.type === 'text' || c.type === 'thinking');
+      
+      if (sanitizedContent.length === 0) return null; // Skip if only tool calls
+
+      return {
+        type: 'assistant',
+        message: {
+            role: 'assistant',
+            content: sanitizedContent
+        },
+        session_id: sessionId
+      } as unknown as SDKAssistantMessage; // cast due to type strictness maybe
+    }
+
+    return null;
   }
 }
 
