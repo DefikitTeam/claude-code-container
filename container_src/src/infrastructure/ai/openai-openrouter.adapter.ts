@@ -36,7 +36,8 @@ const logger = {
     console.debug('[OpenAIOpenRouterAdapter]', ...args),
 };
 
-const FORCED_OPENROUTER_MODEL = 'x-ai/grok-code-fast-1' as const;
+// const FORCED_OPENROUTER_MODEL = 'x-ai/grok-code-fast-1' as const;
+const FORCED_OPENROUTER_MODEL = 'mistralai/devstral-2512:free' as const;
 
 /**
  * Configuration for OpenAI OpenRouter adapter

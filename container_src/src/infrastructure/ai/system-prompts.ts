@@ -47,7 +47,7 @@ You have access to the following file system tools:
 - **readFile**: Read the contents of any file in the workspace
 - **writeFile**: Create new files or completely replace existing file contents
 - **listDirectory**: List files and directories (use this to explore the project structure)
-- **executeBash**: Execute bash commands for operations like git, npm, testing, etc.
+- **executeBash**: Execute bash commands for operations specifically: \`git\`, \`npm\`, \`ls\`, etc. REQUIRED for all git operations.
 - **deletePath**: Delete files or directories
 - **movePath**: Move or rename files and directories
 - **applyPatch**: Apply git-style unified diff patches for efficient multi-file updates

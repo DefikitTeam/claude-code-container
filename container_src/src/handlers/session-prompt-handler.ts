@@ -121,10 +121,38 @@ export async function sessionPromptHandler(
     console.error(`[SESSION-PROMPT-TRACE] incomingHistory present: ${!!incomingHistory}, isArray: ${Array.isArray(incomingHistory)}, length: ${incomingHistory?.length}`);
     console.error(`[SESSION-PROMPT-TRACE] current session history length: ${session.messageHistory.length}`);
 
-    if (incomingHistory && Array.isArray(incomingHistory) && session.messageHistory.length === 0) {
+    if (incomingHistory) {
+      console.error(`[SESSION-PROMPT-DEBUG] incomingHistory type: ${typeof incomingHistory}`);
+      console.error(`[SESSION-PROMPT-DEBUG] incomingHistory isArray: ${Array.isArray(incomingHistory)}`);
+      if (Array.isArray(incomingHistory)) {
+         console.error(`[SESSION-PROMPT-DEBUG] incomingHistory length: ${incomingHistory.length}`);
+      } else {
+         console.error(`[SESSION-PROMPT-DEBUG] incomingHistory JSON: ${JSON.stringify(incomingHistory).substring(0, 200)}`);
+         // Attempt to parse if string
+         if (typeof incomingHistory === 'string') {
+            try {
+               const parsed = JSON.parse(incomingHistory);
+               if (Array.isArray(parsed)) {
+                  console.error(`[SESSION-PROMPT-DEBUG] incomingHistory was stringified JSON array, parsing...`);
+                  (session as any).messageHistory = parsed;
+               }
+            } catch (e) {
+               console.error(`[SESSION-PROMPT-DEBUG] Failed to parse string history: ${e}`);
+            }
+         }
+      }
+    }
+
+    if (incomingHistory && Array.isArray(incomingHistory)) {
        // Force update history
        (session as any).messageHistory = incomingHistory;
        console.error(`[SESSION-PROMPT] Hydrated session ${sessionId} with ${incomingHistory.length} history items from request.`);
+       
+       // DEBUG: Log the first item to understand structure (Array vs Object)
+       if (incomingHistory.length > 0) {
+         console.error(`[SESSION-PROMPT-DEBUG] First history item: ${JSON.stringify(incomingHistory[0]).substring(0, 500)}`);
+         console.error(`[SESSION-PROMPT-DEBUG] First item type: ${typeof incomingHistory[0]}, isArray: ${Array.isArray(incomingHistory[0])}`);
+       }
     }
   }
 
@@ -138,6 +166,7 @@ export async function sessionPromptHandler(
       notificationSender,
       historyAlreadyAppended: false,
       operationId,
+      session, // PASS THE HYDRATED SESSION!
       sessionMeta: {
         userId:
           typeof rawParams.userId === 'string'

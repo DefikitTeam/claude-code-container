@@ -251,7 +251,8 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
     void requestedModel;
 
     // Hard-force a single OpenRouter model.
-    return 'x-ai/grok-code-fast-1';
+    // return 'x-ai/grok-code-fast-1';
+    return 'mistralai/devstral-2512:free';
 
     /*
     // Default model mappings

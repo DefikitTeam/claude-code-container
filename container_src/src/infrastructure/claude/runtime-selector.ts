@@ -15,7 +15,7 @@ import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adap
 
 // Hard-force OpenRouter model selection.
 // Any requested Claude model strings (e.g. "claude-sonnet-4") are ignored downstream.
-const DEFAULT_MODEL = 'x-ai/grok-code-fast-1';
+const DEFAULT_MODEL = 'mistralai/devstral-2512:free';
 
 type InFlight = {
   sessionId: string;
