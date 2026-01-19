@@ -31,14 +31,18 @@ import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
-const FORCED_OPENROUTER_MODEL = 'x-ai/grok-code-fast-1' as const;
+const FORCED_OPENROUTER_MODEL = 'mistralai/devstral-2512:free'; // Fallback default if needed
 
 // Lightweight logger scoped to this adapter
 const logger = {
-  error: (...args: unknown[]) => console.error('[OpenAIToolsAdapter]', ...args),
-  warn: (...args: unknown[]) => console.warn('[OpenAIToolsAdapter]', ...args),
-  info: (...args: unknown[]) => console.info('[OpenAIToolsAdapter]', ...args),
-  debug: (...args: unknown[]) => console.debug('[OpenAIToolsAdapter]', ...args),
+  error: (...args: unknown[]) =>
+    console.error('[OpenAIOpenRouterToolsAdapter]', ...args),
+  warn: (...args: unknown[]) =>
+    console.warn('[OpenAIOpenRouterToolsAdapter]', ...args),
+  info: (...args: unknown[]) =>
+    console.info('[OpenAIOpenRouterToolsAdapter]', ...args),
+  debug: (...args: unknown[]) =>
+    console.debug('[OpenAIOpenRouterToolsAdapter]', ...args),
 };
 
 /**
@@ -83,8 +87,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       ...(config || {}),
     };
 
-    // Enforce the model even if caller tries to override it.
-    this.config.defaultModel = FORCED_OPENROUTER_MODEL;
+    // REMOVED: Do not enforce the model override. Let the caller decide.
+    // this.config.defaultModel = FORCED_OPENROUTER_MODEL;
 
     logger.debug('initialized', {
       baseURL: this.config.baseURL,
@@ -137,7 +141,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       // Resolve model with mapping
       const requestedModel =
         runOptions.model ?? context.model ?? this.config.defaultModel;
-      const model = this.selectModel(requestedModel);
+      
+      // Use the requested model directly, no internal selection/mapping that could force Grok
+      const model = requestedModel; 
 
       logger.info('🚀 OpenAI Tools Adapter SELECTED and STARTING', {
         requestedModel,
@@ -216,6 +222,14 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           }
           // LEGACY FORMAT: ContentBlock[] - convert to text-only message
           else if (Array.isArray(item)) {
+            // ROBUSTNESS FIX: Check if the array contains a structured message (unnecessary wrapping)
+            const firstBlock = item[0];
+            if (firstBlock && typeof firstBlock === 'object' && 'role' in firstBlock) {
+               conversationMessages.push(firstBlock as OpenAI.Chat.ChatCompletionMessageParam);
+               logger.debug(`history[${index}]: unwrapped array -> role=${(firstBlock as any).role}, hasToolCalls=${!!(firstBlock as any).tool_calls}`);
+               return;
+            }
+
             const role = index % 2 === 0 ? 'user' : 'assistant';
             const text = item
               .filter((b: any) => b && b.type === 'text')
@@ -361,7 +375,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         if (currentMessage && currentToolCalls.length === 0) {
           // Heuristic: If model is "planning" but not "doing" (common in smaller models), bounce back
           // check for phrases like "Let me check", "I will", "I need to", "I'll", "checking"
-          const planningPhrases = /Let me check|I will|I'll|I need to|checking|verify|examine/i;
+          // Expanded for Mistral/Devstral: "Cloning", "Running", "Executing"
+          const planningPhrases = /Let me check|I will|I'll|I need to|checking|verify|examine|cloning|running|executing|starting|creating|updating|modifying/i;
           
           // Enhanced hallucination detection: catch JSON that looks like tool results or raw JSON output
           // Matches:
@@ -383,12 +398,18 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
              });
              conversationMessages.push({ 
                role: 'user', 
+               
+               // Stronger prompt for Devstral
                content: 'STOP! You are Hallucinating. You manually wrote the tool output instead of calling the tool. DO NOT write JSON. Call the function "readFile" or "writeFile" using the PROPER TOOL CALL SYNTAX.' 
              });
              continue;
           }
 
-          if (loopCount < 3 && planningPhrases.test(currentMessage) && currentMessage.length < 300) {
+          // Relaxed check: Retry if it looks like planning, even if message is longer (up to 500 chars)
+          // Also check for raw commands that should be executed vs described
+          const commandLike = /^\s*`{0,3}\$?\s*(?:git|npm|node|pnpm|ls|cd|mkdir|touch)\s+/m.test(currentMessage);
+          
+          if ((loopCount < 5) && (planningPhrases.test(currentMessage) || commandLike) && currentMessage.length < 500) {
              logger.warn('⚠️ Model discussed action but used no tools. Forcing retry with instruction.');
              
              conversationMessages.push({ 
@@ -397,7 +418,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
              });
              conversationMessages.push({ 
                role: 'user', 
-               content: 'Do not describe the plan. Use the tools IMMEDIATELY to perform the action. Do not simulate the action.' 
+               content: 'You did not call any tools. Do not describe the plan. Use the tools IMMEDIATELY to perform the action. Example: Call executeBash for git commands.' 
              });
              continue;
           }

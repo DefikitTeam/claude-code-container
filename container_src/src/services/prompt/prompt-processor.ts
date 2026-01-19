@@ -75,6 +75,7 @@ export interface ProcessPromptOptions {
     installationId?: string;
   };
   githubToken?: string;
+  session?: ACPSession;
   githubTokenError?: string;
   rawParams?: Record<string, unknown>;
 }
@@ -114,8 +115,18 @@ export class PromptProcessor {
     if (!Array.isArray(content) || content.length === 0)
       throw new Error('content must be non-empty array');
 
-    // 1. Load session (from store or error)
-    const baseSession = await this.loadSession(sessionId);
+    // 1. Load session (from options OR store)
+    // CRITICAL FIX: Prioritize opts.session which contains hydrated history from the request
+    // The session store might be stale or empty for stateless usage patterns.
+    let baseSession = opts.session;
+    if (!baseSession) {
+       baseSession = await this.loadSession(sessionId);
+    } else {
+       // If we have both, ensure we don't lose anything from store, but prioritize request history
+       // actually, opts.session from session-prompt-handler is already constructed correctly
+       // so we just use it.
+    }
+
     const entitiesEnabled = useDomainEntities();
     let sessionEntity = entitiesEnabled
       ? SessionEntity.fromPlain(baseSession)
@@ -123,6 +134,11 @@ export class PromptProcessor {
     let session: ACPSession = sessionEntity
       ? sessionEntity.toJSON()
       : baseSession;
+
+    // CRITICAL: Ensure message history from options is preserved if it wasn't valid in baseSession
+    if (opts.session && opts.session.messageHistory && opts.session.messageHistory.length > 0) {
+       session.messageHistory = opts.session.messageHistory;
+    }
 
     const mergedAgentContext = this.mergeAgentContext(
       session.agentContext,
@@ -715,6 +731,30 @@ export class PromptProcessor {
         );
       }
     }
+
+    // Return generated messages for persistence
+    // We reconstruct the user message (from prompt) and assistant message (from result)
+    // so the caller can save them with full metadata.
+    const userMessage = {
+      role: 'user',
+      content: prompt, // The expanded prompt
+    };
+
+    const assistantMsgForReturn = {
+      role: 'assistant',
+      content: fullText || runResult?.fullText || '(no response)',
+      // Include full tool use data if available
+      ...(runResult?.toolUse && runResult.toolUse.length > 0 ? {
+        tool_calls: runResult.toolUse,
+        metadata: {
+           // Flag for easy detection
+           hasToolUsage: true,
+           toolsUsed: runResult.toolUse.map((t: any) => t.name)
+        }
+      } : {})
+    };
+
+    response.generatedMessages = [userMessage, assistantMsgForReturn];
 
     (response as any).meta = meta; // eslint-disable-line @typescript-eslint/no-explicit-any
     return response;

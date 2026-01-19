@@ -48,13 +48,16 @@ export async function sessionLoadHandler(
       : process.cwd(),
     hasUncommittedChanges: false,
   };
+  // Ensure messageHistory is an array (handle malformed persisted sessions)
+  const history = Array.isArray(session.messageHistory) ? session.messageHistory : [];
+  
   const result: SessionLoadResponse['result'] = {
     sessionInfo,
     workspaceInfo,
-    historyAvailable: session.messageHistory.length > 0,
+    historyAvailable: history.length > 0,
   };
-  if (includeHistory && session.messageHistory.length > 0)
-    (result as any).history = session.messageHistory; // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (includeHistory && history.length > 0)
+    (result as any).history = history; // eslint-disable-line @typescript-eslint/no-explicit-any
   return result;
 }
 

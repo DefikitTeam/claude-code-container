@@ -188,6 +188,12 @@ export interface SessionPromptResponse extends JSONRPCResponse {
     };
     summary?: string;
     githubAutomation?: GitHubAutomationResult;
+    generatedMessages?: Array<{
+      role: string;
+      content: string;
+      metadata?: Record<string, unknown>;
+      tool_calls?: any[];
+    }>;
     [key: string]: unknown;
   };
 }
