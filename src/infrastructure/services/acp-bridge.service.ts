@@ -274,23 +274,26 @@ export class ACPBridgeService implements IACPBridgeService {
           ...(githubTokenError ? { githubTokenError } : {}),
           // Auto-inject GitHub context (token + repository) from installation
           context: {
-            ...(params.context || {}),
-            // Auto-inject repository if not provided by user
-            ...(repository && !params.context?.repository
-              ? { repository } 
-              : {}),
-            // Inject GitHub token in context.github.token (for handlers that expect it here)
-            ...(githubToken
-              ? {
-                github: {
-                  ...(params.context?.github || {}),
-                  token: githubToken,
-                },
-              }
-              : {}),
-            // ✅ CRITICAL FIX: Include message history from persistent storage
-            ...(messageHistory.length > 0 ? { messageHistory } : {}),
-          },
+             ...(params.context || {}),
+             // Auto-inject repository if not provided by user
+             ...(repository && !params.context?.repository
+               ? { repository } 
+               : {}),
+             // Inject GitHub token in context.github.token (for handlers that expect it here)
+             ...(githubToken
+               ? {
+                 github: {
+                   ...(params.context?.github || {}),
+                   token: githubToken,
+                 },
+               }
+               : {}),
+             // ✅ CRITICAL FIX: Include message history from persistent storage
+             ...(messageHistory.length > 0 ? { messageHistory } : {}),
+             ...(params.context?.orchestration
+               ? { orchestration: params.context.orchestration }
+               : {}),
+           },
         },
         id: Date.now(),
       };
@@ -580,35 +583,38 @@ export class ACPBridgeService implements IACPBridgeService {
     // Build JSON-RPC request with injected credentials (same structure as routeACPMethod)
     const containerName = 'acp-session';
     const jsonRpcRequest = {
-      jsonrpc: '2.0',
-      method: method,
-      params: {
-        ...params,
-        anthropicApiKey: openrouterApiKey,
-        // Also pass GitHub token at top level for container compatibility
-        ...(githubToken ? { githubToken } : {}),
-        // Pass token error if generation failed
-        ...(githubTokenError ? { githubTokenError } : {}),
-        // Auto-inject GitHub context (token + repository) from installation
-        context: {
-          ...(params.context || {}),
-          // Auto-inject repository if not provided by user
-          ...(repository && !params.context?.repository
-            ? { repository } 
-            : {}),
-          // Inject GitHub token in context.github.token (for handlers that expect it here)
-          ...(githubToken
-            ? {
-              github: {
-                ...(params.context?.github || {}),
-                token: githubToken,
-              },
-            }
-            : {}),
-        },
-      },
-      id: Date.now(),
-    };
+       jsonrpc: '2.0',
+       method: method,
+       params: {
+         ...params,
+         anthropicApiKey: openrouterApiKey,
+         // Also pass GitHub token at top level for container compatibility
+         ...(githubToken ? { githubToken } : {}),
+         // Pass token error if generation failed
+         ...(githubTokenError ? { githubTokenError } : {}),
+         // Auto-inject GitHub context (token + repository) from installation
+         context: {
+           ...(params.context || {}),
+           // Auto-inject repository if not provided by user
+           ...(repository && !params.context?.repository
+             ? { repository } 
+             : {}),
+           // Inject GitHub token in context.github.token (for handlers that expect it here)
+           ...(githubToken
+             ? {
+               github: {
+                 ...(params.context?.github || {}),
+                 token: githubToken,
+               },
+             }
+             : {}),
+           ...(params.context?.orchestration
+             ? { orchestration: params.context.orchestration }
+             : {}),
+         },
+       },
+       id: Date.now(),
+     };
 
     console.log(`[ACP-BRIDGE-STREAM] Routing ${method} to container (streaming mode)`, {
       hasGithubToken: !!githubToken,

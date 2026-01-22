@@ -84,6 +84,33 @@ describe('PromptEntity', () => {
     expect(entity.text).toContain('hello');
     expect(entity.tokenEstimate).toBeGreaterThan(0);
   });
+
+  it('accepts orchestration context in agentContext', () => {
+    const session = createSession({
+      agentContext: {
+        requestingAgent: 'tester',
+        orchestration: {
+          planId: 'plan-123',
+          stepId: 'step-1',
+          requestingAgent: 'orchestrator',
+          subTask: 'Update docs',
+          expectedOutput: 'Doc update summary',
+        },
+      },
+    });
+    const entity = PromptEntity.create(
+      {
+        content: [{ type: 'text', text: 'hello' }] as ContentBlock[],
+        agentContext: session.agentContext,
+      },
+      session,
+    );
+    expect(entity.agentContext?.orchestration).toMatchObject({
+      planId: 'plan-123',
+      stepId: 'step-1',
+      requestingAgent: 'orchestrator',
+    });
+  });
 });
 
 describe('WorkspaceEntity', () => {

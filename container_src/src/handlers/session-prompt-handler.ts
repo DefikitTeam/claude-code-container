@@ -40,9 +40,20 @@ export async function sessionPromptHandler(
   const supplementalContext = rawParams.context as
     | Record<string, unknown>
     | undefined;
+  const orchestrationContext =
+    (supplementalContext &&
+    typeof supplementalContext === 'object' &&
+    'orchestration' in supplementalContext
+      ? (supplementalContext as { orchestration?: Record<string, unknown> })
+          .orchestration
+      : undefined) ?? undefined;
   const mergedAgentContext = combineAgentContexts(
     agentContextParam,
     supplementalContext,
+  );
+  const mergedAgentContextWithOrchestration = combineAgentContexts(
+    mergedAgentContext,
+    orchestrationContext ? { orchestration: orchestrationContext } : undefined,
   );
   const anthropicApiKey = rawParams.anthropicApiKey as string | undefined; // optional per worker bridge
   const apiKey =
@@ -108,16 +119,21 @@ export async function sessionPromptHandler(
   const operationId = `prompt-${Date.now()}`;
   // Track operation in state (for future enhanced cancellation)
   acpState.startOperation(sessionId, operationId);
-  if (mergedAgentContext) {
+  if (mergedAgentContextWithOrchestration) {
     session.agentContext = combineAgentContexts(
       session.agentContext,
-      mergedAgentContext,
+      mergedAgentContextWithOrchestration,
     );
     
     // Hydrate history if provided in context (replaces "amnesia" with "memory")
-    const incomingHistory = mergedAgentContext.messageHistory as ContentBlock[][] | undefined;
+    const incomingHistory =
+      mergedAgentContextWithOrchestration.messageHistory as
+        | ContentBlock[][]
+        | undefined;
     
-    console.error(`[SESSION-PROMPT-TRACE] mergedAgentContext keys: ${Object.keys(mergedAgentContext)}`);
+    console.error(
+      `[SESSION-PROMPT-TRACE] mergedAgentContext keys: ${Object.keys(mergedAgentContextWithOrchestration)}`,
+    );
     console.error(`[SESSION-PROMPT-TRACE] incomingHistory present: ${!!incomingHistory}, isArray: ${Array.isArray(incomingHistory)}, length: ${incomingHistory?.length}`);
     console.error(`[SESSION-PROMPT-TRACE] current session history length: ${session.messageHistory.length}`);
 
@@ -161,7 +177,7 @@ export async function sessionPromptHandler(
       sessionId,
       content,
       contextFiles,
-      agentContext: mergedAgentContext ?? session.agentContext,
+      agentContext: mergedAgentContextWithOrchestration ?? session.agentContext,
       apiKey,
       notificationSender,
       historyAlreadyAppended: false,

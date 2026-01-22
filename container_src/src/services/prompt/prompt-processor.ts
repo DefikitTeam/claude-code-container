@@ -590,6 +590,9 @@ export class PromptProcessor {
         git: wsDesc.gitInfo || undefined,
         createdAt: wsDesc.createdAt,
       },
+      orchestration: this.asRecord(
+        this.getNested(activeAgentContext, ['orchestration']),
+      ),
     };
 
     // Attempt to auto-apply unified-diff patches produced by the model, if enabled.

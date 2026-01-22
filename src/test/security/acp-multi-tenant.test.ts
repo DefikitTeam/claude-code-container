@@ -245,7 +245,17 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
 
       await acpBridge.routeACPMethod(
         'session/new',
-        { userId: 'user_1', configuration: {} },
+        {
+          userId: 'user_1',
+          configuration: {},
+          context: {
+            orchestration: {
+              planId: 'plan-1',
+              stepId: 'step-1',
+              requestingAgent: 'orchestrator',
+            },
+          },
+        },
         mockEnv,
       );
 
@@ -258,6 +268,11 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       expect(capturedBody.params.anthropicApiKey).toBe(
         'test-openrouter-key',
       );
+      expect(capturedBody.params.context?.orchestration).toMatchObject({
+        planId: 'plan-1',
+        stepId: 'step-1',
+        requestingAgent: 'orchestrator',
+      });
     });
 
     it('should generate different GitHub tokens for different users', async () => {

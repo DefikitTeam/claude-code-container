@@ -373,6 +373,14 @@ export interface ACPSessionPromptMeta {
   preDiagnostics?: Record<string, unknown>;
   workspace?: ACPSessionPromptWorkspaceMeta;
   githubAutomationVersion?: string;
+  orchestration?: {
+    planId?: string;
+    stepId?: string;
+    requestingAgent?: string;
+    subTask?: string;
+    expectedOutput?: string;
+    plan?: Record<string, unknown>;
+  };
 }
 
 export interface ACPSessionPromptResult {
