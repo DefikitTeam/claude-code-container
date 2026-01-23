@@ -68,8 +68,7 @@ export class Pushable<T> {
     this.closed = true;
     while (this.resolvers.length > 0) {
       const resolve = this.resolvers.shift()!;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      resolve({ value: undefined as any, done: true });
+      resolve({ value: undefined as unknown, done: true });
     }
   }
 
@@ -93,8 +92,7 @@ export class Pushable<T> {
     if (this.items.length > 0) {
       return { value: this.items.shift()!, done: false };
     } else if (this.closed) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return { value: undefined as any, done: true };
+      return { value: undefined as unknown, done: true };
     } else {
       return new Promise<IteratorResult<T>>((resolve) => {
         this.resolvers.push(resolve);
