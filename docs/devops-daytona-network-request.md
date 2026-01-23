@@ -2,7 +2,9 @@
 
 ## Executive Summary
 
-The LumiLink integration with Daytona Sandbox is blocked due to network/proxy limitations. We need DevOps to configure **SSL wildcard proxy** to enable HTTP access to sandbox containers, similar to how Cloudflare Containers work.
+The LumiLink integration with Daytona Sandbox is blocked due to network/proxy
+limitations. We need DevOps to configure **SSL wildcard proxy** to enable HTTP
+access to sandbox containers, similar to how Cloudflare Containers work.
 
 ---
 
@@ -31,7 +33,8 @@ The LumiLink integration with Daytona Sandbox is blocked due to network/proxy li
 
 ### Current Workaround (Failed)
 
-We attempted to use Daytona Toolbox API's `/process/execute` endpoint to run commands inside the sandbox. This approach failed because:
+We attempted to use Daytona Toolbox API's `/process/execute` endpoint to run
+commands inside the sandbox. This approach failed because:
 
 1. Commands timeout (`exitCode=-1`) even for simple operations
 2. Shell redirection (`>`, `|`) doesn't work reliably
@@ -141,5 +144,5 @@ curl -X POST https://openrouter.ai/api/v1/chat/completions \
 
 For questions about this request, please contact the LumiLink development team.
 
-**Priority:** High - Blocking production deployment
-**Estimated Impact:** Enables full AI coding assistant functionality
+**Priority:** High - Blocking production deployment **Estimated Impact:**
+Enables full AI coding assistant functionality

@@ -15,7 +15,7 @@ import { ValidationError } from '../../shared/errors/validation.error';
  * containers.
  */
 export class CloudflareContainerService implements IContainerService {
-  constructor(private readonly namespace: DurableObjectNamespace) {}
+  constructor(private readonly namespace: DurableObjectNamespace<any>) {}
 
   /**
    * Spawn a new container with the given configuration
@@ -279,7 +279,7 @@ export class CloudflareContainerService implements IContainerService {
     query?: Record<string, string>,
   ): Promise<Response> {
     const id = this.namespace.idFromName(containerId);
-    const stub = this.namespace.get(id);
+    const stub = (this.namespace as any).get(id);
 
     const url = new URL(`https://container${path}`);
     if (query) {

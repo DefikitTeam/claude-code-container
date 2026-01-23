@@ -21,19 +21,30 @@ export async function resolveClaudeCli(): Promise<CliResolution | null> {
         versionStdout: stdout ? String(stdout).trim() : null,
         versionStderr: stderr ? String(stderr).trim() : null,
       };
-    } catch (error: any) {
-      if (error?.code === 'ENOENT' || error?.code === 'ENOTFOUND') {
-        continue;
-      }
+      } catch (error: unknown) {
+        if (
+          (error as { code?: string })?.code === 'ENOENT' ||
+          (error as { code?: string })?.code === 'ENOTFOUND'
+        ) {
+          continue;
+        }
 
-      return {
-        command: candidate,
-        versionStdout: error?.stdout ? String(error.stdout).trim() : null,
-        versionStderr: error?.stderr ? String(error.stderr).trim() : null,
-        versionError:
-          typeof error?.message === 'string' ? error.message : String(error),
-      };
-    }
+        const errObj = error as {
+          stdout?: string;
+          stderr?: string;
+          message?: string;
+        };
+
+        return {
+          command: candidate,
+          versionStdout: errObj?.stdout ? String(errObj.stdout).trim() : null,
+          versionStderr: errObj?.stderr ? String(errObj.stderr).trim() : null,
+          versionError:
+            typeof errObj?.message === 'string'
+              ? errObj.message
+              : String(error),
+        };
+      }
   }
 
   return null;

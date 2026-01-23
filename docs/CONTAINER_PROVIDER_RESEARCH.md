@@ -4,25 +4,29 @@
 
 ## Executive Summary
 
-After thoroughly analyzing the `claude-code-containers` project codebase, official Cloudflare documentation, and alternative sandbox providers, this report presents findings on why **Cloudflare Containers are NOT suitable** for an interactive coding agent product, especially with planned "interactive mode" features for user-agent sessions.
+After thoroughly analyzing the `claude-code-containers` project codebase,
+official Cloudflare documentation, and alternative sandbox providers, this
+report presents findings on why **Cloudflare Containers are NOT suitable** for
+an interactive coding agent product, especially with planned "interactive mode"
+features for user-agent sessions.
 
 ### Key Findings
 
-| Issue | Severity | Impact |
-|-------|----------|--------|
-| Ephemeral Filesystem | 🔴 Critical | All data lost when container sleeps |
-| CPU Time Limits | 🟠 High | 30s default, 5min max between I/O operations |
-| No Pause/Resume | 🔴 Critical | Cannot hibernate sessions |
-| Beta Status | 🟡 Medium | Missing autoscaling, co-location, persistent disk |
-| Cold Start Latency | 🟡 Medium | 2-3 seconds per wake-up + repo re-clone |
+| Issue                | Severity    | Impact                                            |
+| -------------------- | ----------- | ------------------------------------------------- |
+| Ephemeral Filesystem | 🔴 Critical | All data lost when container sleeps               |
+| CPU Time Limits      | 🟠 High     | 30s default, 5min max between I/O operations      |
+| No Pause/Resume      | 🔴 Critical | Cannot hibernate sessions                         |
+| Beta Status          | 🟡 Medium   | Missing autoscaling, co-location, persistent disk |
+| Cold Start Latency   | 🟡 Medium   | 2-3 seconds per wake-up + repo re-clone           |
 
 ### Recommended Alternatives
 
-| Provider | Best For | Key Advantage |
-|----------|----------|---------------|
-| **E2B** | Cloud-first, rapid scaling | Purpose-built for AI agents, pause/resume |
-| **Self-Hosted (K8S)** | Enterprise, compliance | Full control, persistent volumes, familiar tooling |
-| **Self-Hosted (Firecracker)** | Performance-critical | ~125ms boot, VM-level isolation, snapshots |
+| Provider                      | Best For                   | Key Advantage                                      |
+| ----------------------------- | -------------------------- | -------------------------------------------------- |
+| **E2B**                       | Cloud-first, rapid scaling | Purpose-built for AI agents, pause/resume          |
+| **Self-Hosted (K8S)**         | Enterprise, compliance     | Full control, persistent volumes, familiar tooling |
+| **Self-Hosted (Firecracker)** | Performance-critical       | ~125ms boot, VM-level isolation, snapshots         |
 
 ---
 
@@ -44,17 +48,20 @@ After thoroughly analyzing the `claude-code-containers` project codebase, offici
 
 ### 1.1 The Core Problem: AI Needs to Execute Code
 
-An **AI Coding Agent** (like Claude Code, Devin, OpenHands, Cursor Agent, etc.) is fundamentally different from a simple chatbot:
+An **AI Coding Agent** (like Claude Code, Devin, OpenHands, Cursor Agent, etc.)
+is fundamentally different from a simple chatbot:
 
-| Simple AI Chatbot | AI Coding Agent |
-|-------------------|-----------------|
+| Simple AI Chatbot           | AI Coding Agent                  |
+| --------------------------- | -------------------------------- |
 | Receives text, returns text | Receives task, **executes code** |
-| Stateless conversation | Needs **persistent workspace** |
-| No file system access | Must **read/write files** |
-| No command execution | Must **run terminal commands** |
-| Response in milliseconds | Tasks take **minutes to hours** |
+| Stateless conversation      | Needs **persistent workspace**   |
+| No file system access       | Must **read/write files**        |
+| No command execution        | Must **run terminal commands**   |
+| Response in milliseconds    | Tasks take **minutes to hours**  |
 
-**The key insight:** An AI coding agent must have a **real computing environment** where it can:
+**The key insight:** An AI coding agent must have a **real computing
+environment** where it can:
+
 - Clone Git repositories
 - Read and modify source code files
 - Run build commands (`npm install`, `cargo build`, etc.)
@@ -95,13 +102,14 @@ You might ask: "Why not just run these operations on your backend server?"
 
 These terms are often used interchangeably, but have technical differences:
 
-| Term | Technology | Isolation Level | Startup Time | Example Providers |
-|------|-----------|-----------------|--------------|-------------------|
-| **Container** | Docker, containerd | Process-level (namespaces, cgroups) | ~100ms-3s | Docker, Cloudflare Containers, Fly.io |
-| **Sandbox** | Language-level or lightweight VM | Varies (often higher-level) | ~50ms-1s | E2B, CodeSandbox, Cloudflare Workers |
-| **MicroVM** | Firecracker, gVisor | Hardware-level virtualization | ~125ms | AWS Lambda, Fly.io Machines, E2B |
+| Term          | Technology                       | Isolation Level                     | Startup Time | Example Providers                     |
+| ------------- | -------------------------------- | ----------------------------------- | ------------ | ------------------------------------- |
+| **Container** | Docker, containerd               | Process-level (namespaces, cgroups) | ~100ms-3s    | Docker, Cloudflare Containers, Fly.io |
+| **Sandbox**   | Language-level or lightweight VM | Varies (often higher-level)         | ~50ms-1s     | E2B, CodeSandbox, Cloudflare Workers  |
+| **MicroVM**   | Firecracker, gVisor              | Hardware-level virtualization       | ~125ms       | AWS Lambda, Fly.io Machines, E2B      |
 
 **For AI Coding Agents, the requirements are:**
+
 1. ✅ **Isolated filesystem** - Each user/session has own files
 2. ✅ **Command execution** - Run `git`, `npm`, `python`, etc.
 3. ✅ **Network access** - Clone repos, call APIs
@@ -205,18 +213,18 @@ The Container CAN do all of this!
 
 When researching alternatives to Cloudflare Containers, evaluate these criteria:
 
-| Criterion | Why It Matters | Questions to Ask |
-|-----------|---------------|------------------|
-| **Filesystem Persistence** | Can users resume work? | Does disk survive sleep/pause? |
-| **Pause/Resume** | Cost savings, state preservation | Can I hibernate and restore? |
-| **Cold Start Time** | User experience | How fast does it wake up? |
-| **Max Resources** | Handle large repos | Memory? CPU? Disk size? |
-| **Execution Time Limits** | Long AI tasks | Timeout after 30s? 5min? Unlimited? |
-| **Network Access** | Clone repos, call APIs | Can it reach the internet? |
-| **SDK/API Quality** | Developer experience | Is there a good SDK? |
-| **Pricing Model** | Cost at scale | Per-second? Per-request? Per-GB? |
-| **Git Support** | Core functionality | Pre-installed? Fast cloning? |
-| **Security Isolation** | Multi-tenant safety | VM-level? Container-level? |
+| Criterion                  | Why It Matters                   | Questions to Ask                    |
+| -------------------------- | -------------------------------- | ----------------------------------- |
+| **Filesystem Persistence** | Can users resume work?           | Does disk survive sleep/pause?      |
+| **Pause/Resume**           | Cost savings, state preservation | Can I hibernate and restore?        |
+| **Cold Start Time**        | User experience                  | How fast does it wake up?           |
+| **Max Resources**          | Handle large repos               | Memory? CPU? Disk size?             |
+| **Execution Time Limits**  | Long AI tasks                    | Timeout after 30s? 5min? Unlimited? |
+| **Network Access**         | Clone repos, call APIs           | Can it reach the internet?          |
+| **SDK/API Quality**        | Developer experience             | Is there a good SDK?                |
+| **Pricing Model**          | Cost at scale                    | Per-second? Per-request? Per-GB?    |
+| **Git Support**            | Core functionality               | Pre-installed? Fast cloning?        |
+| **Security Isolation**     | Multi-tenant safety              | VM-level? Container-level?          |
 
 ### 1.7 Visual: Where Containers Fit in AI Agent Architectures
 
@@ -286,15 +294,15 @@ From `src/infrastructure/durable-objects/container.do.ts`:
 ```typescript
 export class ContainerDO extends Container<any> {
   defaultPort = 8080;
-  sleepAfter = '5m';  // Auto-sleep after 5 minutes of inactivity
-  
+  sleepAfter = '5m'; // Auto-sleep after 5 minutes of inactivity
+
   envVars = {
     NODE_ENV: 'production',
     CONTAINER_ID: crypto.randomUUID(),
     PORT: '8080',
     ACP_MODE: 'http-server',
   };
-  
+
   cmd = ['npm', 'start'];
 }
 ```
@@ -315,45 +323,59 @@ export class ContainerDO extends Container<any> {
 
 ### 3.1 The "30-Second Timeout" Misconception
 
-There is a common misconception that Cloudflare Workers have a hard 30-second request timeout. **This is NOT accurate.** Let me clarify the actual limits:
+There is a common misconception that Cloudflare Workers have a hard 30-second
+request timeout. **This is NOT accurate.** Let me clarify the actual limits:
 
 #### Wall-Clock Duration (No Hard Limit!)
 
-From [Cloudflare Workers Limits Documentation](https://developers.cloudflare.com/workers/platform/limits/):
+From
+[Cloudflare Workers Limits Documentation](https://developers.cloudflare.com/workers/platform/limits/):
 
-> **"There is no hard limit on the duration of a Worker. As long as the client that sent the request remains connected, the Worker can continue processing, making subrequests, and setting timeouts on behalf of that request."**
+> **"There is no hard limit on the duration of a Worker. As long as the client
+> that sent the request remains connected, the Worker can continue processing,
+> making subrequests, and setting timeouts on behalf of that request."**
 
 This means:
+
 - ✅ A request can run for minutes or even hours
 - ✅ Long-running operations are allowed
-- ⚠️ BUT: If client disconnects, tasks are canceled (with 30s grace via `waitUntil()`)
+- ⚠️ BUT: If client disconnects, tasks are canceled (with 30s grace via
+  `waitUntil()`)
 
 #### CPU Time Limits (This IS the Real Constraint)
 
-| Plan | CPU Time Limit | Can Be Increased? |
-|------|---------------|-------------------|
-| Free | 10 ms | No |
-| Paid (default) | 30 seconds | Yes, up to 5 minutes |
-| Paid (configured) | Up to 5 minutes (300,000 ms) | Via `limits.cpu_ms` |
+| Plan              | CPU Time Limit               | Can Be Increased?    |
+| ----------------- | ---------------------------- | -------------------- |
+| Free              | 10 ms                        | No                   |
+| Paid (default)    | 30 seconds                   | Yes, up to 5 minutes |
+| Paid (configured) | Up to 5 minutes (300,000 ms) | Via `limits.cpu_ms`  |
 
 **Critical distinction:**
-- **CPU time** = Active processing time (JavaScript execution, cryptography, JSON parsing)
-- **NOT counted** = Time waiting on network requests, storage calls, I/O operations
+
+- **CPU time** = Active processing time (JavaScript execution, cryptography,
+  JSON parsing)
+- **NOT counted** = Time waiting on network requests, storage calls, I/O
+  operations
 
 ### 3.2 Durable Objects CPU Limits
 
-From [Durable Objects Limits](https://developers.cloudflare.com/durable-objects/platform/limits/):
+From
+[Durable Objects Limits](https://developers.cloudflare.com/durable-objects/platform/limits/):
 
-| Metric | Limit | Notes |
-|--------|-------|-------|
-| CPU per request | 30s default, 5min max | Resets on each incoming HTTP request or WebSocket message |
-| Storage per DO | 10 GB (SQLite) | For SQLite-backed DOs |
-| WebSocket message size | 32 MiB | Received messages only |
+| Metric                 | Limit                 | Notes                                                     |
+| ---------------------- | --------------------- | --------------------------------------------------------- |
+| CPU per request        | 30s default, 5min max | Resets on each incoming HTTP request or WebSocket message |
+| Storage per DO         | 10 GB (SQLite)        | For SQLite-backed DOs                                     |
+| WebSocket message size | 32 MiB                | Received messages only                                    |
 
 **Key behavior:**
-> "Each incoming HTTP request or WebSocket message resets the remaining available CPU time to 30 seconds."
 
-This means for interactive sessions with frequent messages, CPU time is less of a concern. But for long-running single operations (like cloning a large repo + AI processing), this becomes problematic.
+> "Each incoming HTTP request or WebSocket message resets the remaining
+> available CPU time to 30 seconds."
+
+This means for interactive sessions with frequent messages, CPU time is less of
+a concern. But for long-running single operations (like cloning a large repo +
+AI processing), this becomes problematic.
 
 ### 3.3 When Timeouts ACTUALLY Occur
 
@@ -369,17 +391,18 @@ The 30-second (or 5-minute) CPU time limit becomes a problem when:
 ```typescript
 // ❌ This WILL hit CPU limits
 async function processLargeRepo() {
-  const files = await readAllFiles();  // I/O - doesn't count
-  
+  const files = await readAllFiles(); // I/O - doesn't count
+
   // 🔴 This counts toward CPU time!
-  for (const file of files) {  // 10,000 files
-    const ast = parseAST(file);  // Heavy CPU
-    const analysis = analyzeCode(ast);  // Heavy CPU
+  for (const file of files) {
+    // 10,000 files
+    const ast = parseAST(file); // Heavy CPU
+    const analysis = analyzeCode(ast); // Heavy CPU
     results.push(analysis);
   }
-  
+
   // 🔴 This also counts!
-  const hugeResponse = JSON.stringify(results);  // Large serialization
+  const hugeResponse = JSON.stringify(results); // Large serialization
 }
 ```
 
@@ -387,10 +410,10 @@ async function processLargeRepo() {
 // ✅ This is fine - most time is I/O wait
 async function callClaudeAPI() {
   const response = await fetch('https://api.anthropic.com/...', {
-    body: JSON.stringify(prompt)  // Small CPU hit
+    body: JSON.stringify(prompt), // Small CPU hit
   });
   // Waiting for API response - NOT counted as CPU time
-  const result = await response.json();  // Small CPU hit
+  const result = await response.json(); // Small CPU hit
   return result;
 }
 ```
@@ -399,22 +422,23 @@ async function callClaudeAPI() {
 
 For `claude-code-containers`, the actual risk scenarios are:
 
-| Operation | CPU Intensive? | Risk Level |
-|-----------|---------------|------------|
-| Waiting for Claude API | ❌ No (I/O wait) | ✅ Low |
-| Git clone (network) | ❌ No (I/O wait) | ✅ Low |
-| Parsing large responses | ⚠️ Moderate | 🟡 Medium |
-| Processing many files locally | ✅ Yes | 🔴 High |
-| Heavy JSON serialization | ✅ Yes | 🟡 Medium |
+| Operation                     | CPU Intensive?   | Risk Level |
+| ----------------------------- | ---------------- | ---------- |
+| Waiting for Claude API        | ❌ No (I/O wait) | ✅ Low     |
+| Git clone (network)           | ❌ No (I/O wait) | ✅ Low     |
+| Parsing large responses       | ⚠️ Moderate      | 🟡 Medium  |
+| Processing many files locally | ✅ Yes           | 🔴 High    |
+| Heavy JSON serialization      | ✅ Yes           | 🟡 Medium  |
 
 **Current Mitigation in Wrangler Config:**
 
 The project should add to `wrangler.jsonc`:
+
 ```jsonc
 {
   "limits": {
-    "cpu_ms": 300000  // 5 minutes max CPU time
-  }
+    "cpu_ms": 300000, // 5 minutes max CPU time
+  },
 }
 ```
 
@@ -424,13 +448,18 @@ The project should add to `wrangler.jsonc`:
 
 ### 4.1 Ephemeral Disk - The Fatal Flaw
 
-From [Cloudflare Containers FAQ](https://developers.cloudflare.com/containers/faq/):
+From
+[Cloudflare Containers FAQ](https://developers.cloudflare.com/containers/faq/):
 
-> **"All disk is ephemeral. When a Container instance goes to sleep, the next time it is started, it will have a fresh disk as defined by its container image."**
+> **"All disk is ephemeral. When a Container instance goes to sleep, the next
+> time it is started, it will have a fresh disk as defined by its container
+> image."**
 
-> **"Persistent disk is something the Cloudflare team is exploring in the future, but is not slated for the near term."**
+> **"Persistent disk is something the Cloudflare team is exploring in the
+> future, but is not slated for the near term."**
 
 **Impact on Interactive Sessions:**
+
 - ❌ Cannot persist cloned repositories between sessions
 - ❌ Each wake-up requires re-cloning entire repository (seconds to minutes)
 - ❌ Work-in-progress changes are lost if container sleeps
@@ -438,30 +467,32 @@ From [Cloudflare Containers FAQ](https://developers.cloudflare.com/containers/fa
 
 ### 4.2 Aggressive Sleep Behavior
 
-| Limitation | Value | Impact |
-|------------|-------|--------|
-| Default `sleepAfter` | Immediate after no requests | Rapid state loss |
-| Custom `sleepAfter` | Max ~5m configured in code | Still too short for interactive work |
-| Host server restarts | "Irregular cadence, frequent enough" | No guaranteed uptime |
-| SIGTERM→SIGKILL gap | 15 minutes | Cleanup time only, not persistence |
+| Limitation           | Value                                | Impact                               |
+| -------------------- | ------------------------------------ | ------------------------------------ |
+| Default `sleepAfter` | Immediate after no requests          | Rapid state loss                     |
+| Custom `sleepAfter`  | Max ~5m configured in code           | Still too short for interactive work |
+| Host server restarts | "Irregular cadence, frequent enough" | No guaranteed uptime                 |
+| SIGTERM→SIGKILL gap  | 15 minutes                           | Cleanup time only, not persistence   |
 
 **For Interactive Mode:**
+
 - User types in chat → thinks for 30 seconds
 - Container already sleeping → all context lost
 - Next message = cold start + full repo re-clone
 
 ### 4.3 Instance Type Constraints
 
-| Type | vCPU | Memory | Disk |
-|------|------|--------|------|
-| lite | 1/16 | 256 MiB | 2 GB |
-| basic | 1/4 | 1 GiB | 4 GB |
-| standard-1 | 1/2 | 4 GiB | 8 GB |
-| standard-2 | 1 | 6 GiB | 12 GB |
-| standard-3 | 2 | 8 GiB | 16 GB |
-| standard-4 | 4 | 12 GiB | 20 GB |
+| Type       | vCPU | Memory  | Disk  |
+| ---------- | ---- | ------- | ----- |
+| lite       | 1/16 | 256 MiB | 2 GB  |
+| basic      | 1/4  | 1 GiB   | 4 GB  |
+| standard-1 | 1/2  | 4 GiB   | 8 GB  |
+| standard-2 | 1    | 6 GiB   | 12 GB |
+| standard-3 | 2    | 8 GiB   | 16 GB |
+| standard-4 | 4    | 12 GiB  | 20 GB |
 
 **Problems:**
+
 - Maximum 12 GiB memory may be insufficient for large monorepos + Claude SDK
 - Disk sizes (2-20 GB) too small for many production repositories
 - No GPU support for future advanced AI features
@@ -469,7 +500,8 @@ From [Cloudflare Containers FAQ](https://developers.cloudflare.com/containers/fa
 
 ### 4.4 Beta Status & Missing Features
 
-From [Beta Info & Roadmap](https://developers.cloudflare.com/containers/beta-info/):
+From
+[Beta Info & Roadmap](https://developers.cloudflare.com/containers/beta-info/):
 
 - ⚠️ **No autoscaling or load balancing** (manual only)
 - ⚠️ **Durable Objects not co-located** with containers (adds latency)
@@ -479,21 +511,25 @@ From [Beta Info & Roadmap](https://developers.cloudflare.com/containers/beta-inf
 
 ### 4.5 Memory Constraints
 
-From [Workers Limits](https://developers.cloudflare.com/workers/platform/limits/):
+From
+[Workers Limits](https://developers.cloudflare.com/workers/platform/limits/):
 
-> **"Each isolate of your Worker's code runs can consume up to 128 MB of memory."**
+> **"Each isolate of your Worker's code runs can consume up to 128 MB of
+> memory."**
 
-While Containers have higher memory limits (up to 12 GiB), the Worker layer that orchestrates them is still limited to 128 MB per isolate.
+While Containers have higher memory limits (up to 12 GiB), the Worker layer that
+orchestrates them is still limited to 128 MB per isolate.
 
 ### 4.6 Pricing Concerns for Interactive Sessions
 
-| Resource | Rate | Concern |
-|----------|------|---------|
-| Memory | $0.0000025/GiB-second | Billed when awake even if idle |
-| vCPU | $0.000020/vCPU-second | High for long interactive sessions |
-| Network Egress | $0.025-0.05/GB | Repository transfers add up |
+| Resource       | Rate                  | Concern                            |
+| -------------- | --------------------- | ---------------------------------- |
+| Memory         | $0.0000025/GiB-second | Billed when awake even if idle     |
+| vCPU           | $0.000020/vCPU-second | High for long interactive sessions |
+| Network Egress | $0.025-0.05/GB        | Repository transfers add up        |
 
 **Interactive Mode Cost Scenario:**
+
 - User on 4 GiB container, 30-minute interactive session
 - = 4 GiB × 1800 seconds × $0.0000025 = $0.018 per session
 - Plus CPU + egress + re-clone costs each time container wakes
@@ -504,25 +540,25 @@ While Containers have higher memory limits (up to 12 GiB), the Worker layer that
 
 ### 5.1 For "Send and Do" (Current Model) - Marginal Fit
 
-| Aspect | Assessment |
-|--------|------------|
-| Simple GitHub issue → PR | ✅ Works |
-| 2-3s cold starts | ⚠️ Acceptable for async |
-| Re-clone every task | ❌ Wasteful but functional |
-| Session state between issues | ❌ Not possible |
+| Aspect                       | Assessment                 |
+| ---------------------------- | -------------------------- |
+| Simple GitHub issue → PR     | ✅ Works                   |
+| 2-3s cold starts             | ⚠️ Acceptable for async    |
+| Re-clone every task          | ❌ Wasteful but functional |
+| Session state between issues | ❌ Not possible            |
 
 ### 5.2 For Interactive Mode (Planned) - Fundamentally Incompatible
 
-| Requirement | Cloudflare Containers | Verdict |
-|-------------|----------------------|---------|
-| Persistent workspace | ❌ Ephemeral disk | **FAIL** |
-| Long-running sessions | ⚠️ Max ~hours before host restart | **RISKY** |
-| Pause/resume sessions | ❌ No hibernation | **FAIL** |
-| Fast context switching | ❌ Cold start + re-clone | **FAIL** |
-| Large repositories | ⚠️ 2-20 GB disk | **LIMITED** |
-| Real-time streaming | ✅ WebSocket support | **PASS** |
-| Sub-second responses | ❌ 2-3 second cold starts | **FAIL** |
-| CPU-heavy operations | ⚠️ 30s-5min limit | **RISKY** |
+| Requirement            | Cloudflare Containers             | Verdict     |
+| ---------------------- | --------------------------------- | ----------- |
+| Persistent workspace   | ❌ Ephemeral disk                 | **FAIL**    |
+| Long-running sessions  | ⚠️ Max ~hours before host restart | **RISKY**   |
+| Pause/resume sessions  | ❌ No hibernation                 | **FAIL**    |
+| Fast context switching | ❌ Cold start + re-clone          | **FAIL**    |
+| Large repositories     | ⚠️ 2-20 GB disk                   | **LIMITED** |
+| Real-time streaming    | ✅ WebSocket support              | **PASS**    |
+| Sub-second responses   | ❌ 2-3 second cold starts         | **FAIL**    |
+| CPU-heavy operations   | ⚠️ 30s-5min limit                 | **RISKY**   |
 
 ### 5.3 The Interactive Session Problem
 
@@ -560,6 +596,7 @@ Heavy CPU Operations in This Project:
 ```
 
 If a single operation exceeds the CPU limit between I/O calls:
+
 - ❌ Request is terminated
 - ❌ Partial work is lost
 - ❌ No graceful recovery
@@ -572,15 +609,15 @@ If a single operation exceeds the CPU limit between I/O calls:
 
 From [E2B Documentation](https://e2b.dev/docs):
 
-| Feature | Capability |
-|---------|------------|
-| **Pause/Resume** | `sbx.betaPause()` → `Sandbox.connect(sandboxId)` |
-| **Persistent Filesystem** | State preserved across pause/resume |
-| **Custom Timeout** | Configurable (default 5 min, extendable to hours) |
-| **Auto-pause (Beta)** | Automatic hibernation with state preservation |
-| **Large Instances** | Up to 8 vCPU, 32 GB RAM |
-| **Code Interpreter SDK** | Purpose-built for AI code execution |
-| **MCP Support** | Native Model Context Protocol integration |
+| Feature                   | Capability                                        |
+| ------------------------- | ------------------------------------------------- |
+| **Pause/Resume**          | `sbx.betaPause()` → `Sandbox.connect(sandboxId)`  |
+| **Persistent Filesystem** | State preserved across pause/resume               |
+| **Custom Timeout**        | Configurable (default 5 min, extendable to hours) |
+| **Auto-pause (Beta)**     | Automatic hibernation with state preservation     |
+| **Large Instances**       | Up to 8 vCPU, 32 GB RAM                           |
+| **Code Interpreter SDK**  | Purpose-built for AI code execution               |
+| **MCP Support**           | Native Model Context Protocol integration         |
 
 **E2B Claude Code Example** (from `e2b-dev/claude-code-fastapi`):
 
@@ -604,61 +641,64 @@ sandbox = await Sandbox.connect(sandbox_id, timeout=60*30)
 
 ### 6.2 Modal.com
 
-| Feature | Capability |
-|---------|------------|
-| **Sandbox API** | Serverless compute with persistent volumes |
-| **Python-first** | Strong SDK for AI/ML workloads |
-| **GPU Support** | A10G, A100, H100 available |
-| **Function Chaining** | Easy workflow orchestration |
-| **Volume Mounts** | Persistent storage across runs |
+| Feature               | Capability                                 |
+| --------------------- | ------------------------------------------ |
+| **Sandbox API**       | Serverless compute with persistent volumes |
+| **Python-first**      | Strong SDK for AI/ML workloads             |
+| **GPU Support**       | A10G, A100, H100 available                 |
+| **Function Chaining** | Easy workflow orchestration                |
+| **Volume Mounts**     | Persistent storage across runs             |
 
 ### 6.3 Daytona
 
-| Feature | Capability |
-|---------|------------|
-| **Dev Environments** | Full IDE-grade workspaces |
-| **Git Integration** | Native devcontainer support |
-| **Multi-repo** | Workspace with multiple repositories |
-| **Self-hosted Option** | Deploy on own infrastructure |
-| **Long-running** | Persistent development environments |
+| Feature                | Capability                           |
+| ---------------------- | ------------------------------------ |
+| **Dev Environments**   | Full IDE-grade workspaces            |
+| **Git Integration**    | Native devcontainer support          |
+| **Multi-repo**         | Workspace with multiple repositories |
+| **Self-hosted Option** | Deploy on own infrastructure         |
+| **Long-running**       | Persistent development environments  |
 
 ### 6.4 CodeSandbox SDK
 
-| Feature | Capability |
-|---------|------------|
-| **VM Snapshots** | Full state preservation |
-| **Dockerfile Support** | Custom environments |
-| **Fast Cloning** | Near-instant workspace duplication |
-| **IDE Integration** | Full development environment |
+| Feature                | Capability                         |
+| ---------------------- | ---------------------------------- |
+| **VM Snapshots**       | Full state preservation            |
+| **Dockerfile Support** | Custom environments                |
+| **Fast Cloning**       | Near-instant workspace duplication |
+| **IDE Integration**    | Full development environment       |
 
 ### 6.5 Cloudflare Sandbox SDK (Hybrid Option)
 
 From [Cloudflare Sandbox SDK](https://developers.cloudflare.com/sandbox/):
 
-| Feature | Capability |
-|---------|------------|
-| **Same Cloudflare ecosystem** | Integrates with existing Worker |
-| **Edge execution** | Low latency globally |
-| **File management** | Sandboxed filesystem operations |
-| **Limitations** | Still ephemeral, same underlying constraints |
+| Feature                       | Capability                                   |
+| ----------------------------- | -------------------------------------------- |
+| **Same Cloudflare ecosystem** | Integrates with existing Worker              |
+| **Edge execution**            | Low latency globally                         |
+| **File management**           | Sandboxed filesystem operations              |
+| **Limitations**               | Still ephemeral, same underlying constraints |
 
 ### 6.6 Self-Hosted: Kubernetes (K8S) / Firecracker MicroVMs
 
-For early-stage projects or teams with specific compliance requirements, **self-hosting containers on your own infrastructure** can be a viable option. This approach provides maximum control at the cost of operational complexity.
+For early-stage projects or teams with specific compliance requirements,
+**self-hosting containers on your own infrastructure** can be a viable option.
+This approach provides maximum control at the cost of operational complexity.
 
 #### 6.6.1 Why Consider Self-Hosted?
 
-| Benefit | Description |
-|---------|-------------|
-| **Full Control** | Complete ownership of data, networking, and security policies |
-| **No Vendor Lock-in** | Switch providers or scale infrastructure independently |
+| Benefit                 | Description                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| **Full Control**        | Complete ownership of data, networking, and security policies                |
+| **No Vendor Lock-in**   | Switch providers or scale infrastructure independently                       |
 | **Cost Predictability** | Fixed server costs vs. per-usage cloud pricing (better for high-utilization) |
-| **Compliance** | Meet specific regulatory requirements (GDPR, HIPAA, data residency) |
-| **Customization** | Tune container resources, timeouts, and behaviors exactly as needed |
+| **Compliance**          | Meet specific regulatory requirements (GDPR, HIPAA, data residency)          |
+| **Customization**       | Tune container resources, timeouts, and behaviors exactly as needed          |
 
 #### 6.6.2 Architecture Option A: Kubernetes (K8S)
 
-Kubernetes provides a production-grade orchestration layer for container workloads.
+Kubernetes provides a production-grade orchestration layer for container
+workloads.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -699,14 +739,14 @@ Kubernetes provides a production-grade orchestration layer for container workloa
 
 **Key K8S Features for AI Agents:**
 
-| Feature | Capability | Benefit for AI Agents |
-|---------|------------|----------------------|
-| **PersistentVolumeClaim (PVC)** | Attach persistent disks to pods | ✅ Repos survive pod restarts |
-| **StatefulSet** | Stable network identity + ordered deployment | ✅ Predictable container naming |
-| **HorizontalPodAutoscaler (HPA)** | Scale pods based on CPU/memory | ✅ Auto-scale 5→10 containers |
-| **Pod Disruption Budget** | Limit involuntary disruptions | ✅ Protect active sessions |
-| **Resource Limits** | CPU/memory requests & limits | ✅ Prevent runaway containers |
-| **Init Containers** | Pre-clone repos before main container starts | ✅ Faster session startup |
+| Feature                           | Capability                                   | Benefit for AI Agents           |
+| --------------------------------- | -------------------------------------------- | ------------------------------- |
+| **PersistentVolumeClaim (PVC)**   | Attach persistent disks to pods              | ✅ Repos survive pod restarts   |
+| **StatefulSet**                   | Stable network identity + ordered deployment | ✅ Predictable container naming |
+| **HorizontalPodAutoscaler (HPA)** | Scale pods based on CPU/memory               | ✅ Auto-scale 5→10 containers   |
+| **Pod Disruption Budget**         | Limit involuntary disruptions                | ✅ Protect active sessions      |
+| **Resource Limits**               | CPU/memory requests & limits                 | ✅ Prevent runaway containers   |
+| **Init Containers**               | Pre-clone repos before main container starts | ✅ Faster session startup       |
 
 **Recommended K8S Setup for 5-10 Container Pool:**
 
@@ -717,7 +757,7 @@ kind: StatefulSet
 metadata:
   name: ai-agent-pool
 spec:
-  replicas: 5  # Start with 5, scale to 10
+  replicas: 5 # Start with 5, scale to 10
   serviceName: ai-agents
   selector:
     matchLabels:
@@ -725,31 +765,32 @@ spec:
   template:
     spec:
       containers:
-      - name: claude-agent
-        image: your-registry/claude-agent:latest
+        - name: claude-agent
+          image: your-registry/claude-agent:latest
+          resources:
+            requests:
+              memory: '4Gi'
+              cpu: '2'
+            limits:
+              memory: '8Gi'
+              cpu: '4'
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: ['ReadWriteOnce']
         resources:
           requests:
-            memory: "4Gi"
-            cpu: "2"
-          limits:
-            memory: "8Gi"
-            cpu: "4"
-        volumeMounts:
-        - name: workspace
-          mountPath: /workspace
-  volumeClaimTemplates:
-  - metadata:
-      name: workspace
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 50Gi  # Persistent disk per pod!
+            storage: 50Gi # Persistent disk per pod!
 ```
 
 #### 6.6.3 Architecture Option B: Firecracker MicroVMs
 
-[Firecracker](https://firecracker-microvm.github.io/) is the technology behind AWS Lambda, providing lightweight VMs with strong security isolation.
+[Firecracker](https://firecracker-microvm.github.io/) is the technology behind
+AWS Lambda, providing lightweight VMs with strong security isolation.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -783,26 +824,27 @@ spec:
 
 **Key Firecracker Features:**
 
-| Feature | Capability | Benefit |
-|---------|------------|---------|
-| **~125ms Boot Time** | MicroVM starts in milliseconds | ✅ Near-instant session start |
-| **Pause/Resume (Snapshots)** | Freeze VM state to disk | ✅ Resume exactly where left off |
-| **Strong Isolation** | Hardware-level virtualization (KVM) | ✅ Better security than containers |
-| **Minimal Overhead** | ~5MB memory per VM | ✅ Run more VMs on same hardware |
-| **Root Filesystem Persistence** | Writable rootfs survives pause | ✅ Cloned repos preserved |
-| **Rate Limiting** | Built-in network/disk rate limiters | ✅ Prevent resource abuse |
+| Feature                         | Capability                          | Benefit                            |
+| ------------------------------- | ----------------------------------- | ---------------------------------- |
+| **~125ms Boot Time**            | MicroVM starts in milliseconds      | ✅ Near-instant session start      |
+| **Pause/Resume (Snapshots)**    | Freeze VM state to disk             | ✅ Resume exactly where left off   |
+| **Strong Isolation**            | Hardware-level virtualization (KVM) | ✅ Better security than containers |
+| **Minimal Overhead**            | ~5MB memory per VM                  | ✅ Run more VMs on same hardware   |
+| **Root Filesystem Persistence** | Writable rootfs survives pause      | ✅ Cloned repos preserved          |
+| **Rate Limiting**               | Built-in network/disk rate limiters | ✅ Prevent resource abuse          |
 
 **Firecracker Management Tools:**
 
-| Tool | Description |
-|------|-------------|
+| Tool                                                             | Description                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------- |
 | [Flintlock](https://github.com/weaveworks-liquidmetal/flintlock) | Declarative MicroVM management (like K8S for VMs) |
-| [Ignite](https://github.com/weaveworks/ignite) | Docker-like CLI for Firecracker |
-| [Kata Containers](https://katacontainers.io/) | Run containers inside Firecracker VMs |
+| [Ignite](https://github.com/weaveworks/ignite)                   | Docker-like CLI for Firecracker                   |
+| [Kata Containers](https://katacontainers.io/)                    | Run containers inside Firecracker VMs             |
 
 #### 6.6.4 Queue-Based Request Handling
 
-When running a limited pool (5-10 containers), implement a queue system for overflow:
+When running a limited pool (5-10 containers), implement a queue system for
+overflow:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -817,7 +859,7 @@ Request arrives → Check pool availability
            │                               │
            ▼                               ▼
     Assign immediately              Add to Queue
-    Route to /api/session           Return: { 
+    Route to /api/session           Return: {
                                       status: "queued",
                                       position: 3,
                                       estimatedWait: "~2 minutes"
@@ -831,26 +873,26 @@ Request arrives → Check pool availability
 
 **Queue Implementation Options:**
 
-| Technology | Best For | Features |
-|------------|----------|----------|
-| **Redis + BullMQ** | Node.js apps | Reliable, simple, priority queues |
-| **RabbitMQ** | Complex routing | Dead-letter queues, multiple consumers |
-| **NATS JetStream** | High throughput | Lightweight, clustering support |
-| **PostgreSQL SKIP LOCKED** | Simplicity | No extra infra, just SQL |
+| Technology                 | Best For        | Features                               |
+| -------------------------- | --------------- | -------------------------------------- |
+| **Redis + BullMQ**         | Node.js apps    | Reliable, simple, priority queues      |
+| **RabbitMQ**               | Complex routing | Dead-letter queues, multiple consumers |
+| **NATS JetStream**         | High throughput | Lightweight, clustering support        |
+| **PostgreSQL SKIP LOCKED** | Simplicity      | No extra infra, just SQL               |
 
 #### 6.6.5 Self-Hosted Comparison: K8S vs Firecracker
 
-| Aspect | Kubernetes | Firecracker |
-|--------|------------|-------------|
-| **Isolation** | Container-level (namespaces) | Hardware-level (KVM) |
-| **Boot Time** | 1-5 seconds | ~125ms |
-| **Memory Overhead** | ~50MB per pod | ~5MB per MicroVM |
-| **Pause/Resume** | Limited (checkpoint/restore) | ✅ Native snapshots |
-| **Complexity** | High (etcd, API server, etc.) | Medium (custom orchestrator) |
-| **Existing Expertise** | Common in DevOps teams | Requires learning curve |
-| **GPU Support** | ✅ Yes (device plugins) | ⚠️ Experimental |
-| **Persistence** | ✅ PersistentVolumes | ✅ Root filesystem |
-| **Community** | Huge ecosystem | Growing (AWS-backed) |
+| Aspect                 | Kubernetes                    | Firecracker                  |
+| ---------------------- | ----------------------------- | ---------------------------- |
+| **Isolation**          | Container-level (namespaces)  | Hardware-level (KVM)         |
+| **Boot Time**          | 1-5 seconds                   | ~125ms                       |
+| **Memory Overhead**    | ~50MB per pod                 | ~5MB per MicroVM             |
+| **Pause/Resume**       | Limited (checkpoint/restore)  | ✅ Native snapshots          |
+| **Complexity**         | High (etcd, API server, etc.) | Medium (custom orchestrator) |
+| **Existing Expertise** | Common in DevOps teams        | Requires learning curve      |
+| **GPU Support**        | ✅ Yes (device plugins)       | ⚠️ Experimental              |
+| **Persistence**        | ✅ PersistentVolumes          | ✅ Root filesystem           |
+| **Community**          | Huge ecosystem                | Growing (AWS-backed)         |
 
 #### 6.6.6 Recommended Self-Hosted Stack for Early Stage
 
@@ -891,47 +933,47 @@ Estimated Cost:
 
 **✅ Advantages:**
 
-| Advantage | Description |
-|-----------|-------------|
-| **True Persistence** | Full filesystem survives indefinitely |
-| **No Time Limits** | Containers can run for hours/days |
+| Advantage              | Description                             |
+| ---------------------- | --------------------------------------- |
+| **True Persistence**   | Full filesystem survives indefinitely   |
+| **No Time Limits**     | Containers can run for hours/days       |
 | **Full Customization** | Install any tools, configure any limits |
-| **Predictable Costs** | Fixed monthly cost, no usage surprises |
-| **Data Sovereignty** | All code stays on your servers |
-| **No Cold Starts** | Keep containers warm and ready |
+| **Predictable Costs**  | Fixed monthly cost, no usage surprises  |
+| **Data Sovereignty**   | All code stays on your servers          |
+| **No Cold Starts**     | Keep containers warm and ready          |
 
 **❌ Disadvantages:**
 
-| Disadvantage | Description |
-|--------------|-------------|
-| **Operational Burden** | You manage updates, security, monitoring |
-| **Limited Scale** | Fixed capacity (need more servers to grow) |
-| **No Global Distribution** | Single region unless you set up multi-region |
-| **Upfront Investment** | Need DevOps expertise or hire |
-| **Availability Risk** | You're responsible for uptime (99.9% is hard) |
-| **Capacity Planning** | Must predict and provision ahead |
+| Disadvantage               | Description                                   |
+| -------------------------- | --------------------------------------------- |
+| **Operational Burden**     | You manage updates, security, monitoring      |
+| **Limited Scale**          | Fixed capacity (need more servers to grow)    |
+| **No Global Distribution** | Single region unless you set up multi-region  |
+| **Upfront Investment**     | Need DevOps expertise or hire                 |
+| **Availability Risk**      | You're responsible for uptime (99.9% is hard) |
+| **Capacity Planning**      | Must predict and provision ahead              |
 
 ---
 
 ## 7. Comparison Matrix
 
-| Feature | Cloudflare Containers | E2B | Modal | Daytona | CodeSandbox | Self-Hosted (K8S) | Self-Hosted (Firecracker) |
-|---------|----------------------|-----|-------|---------|-------------|-------------------|---------------------------|
-| **Persistent Disk** | ❌ Ephemeral | ✅ Via Pause | ✅ Volumes | ✅ Full | ✅ Snapshots | ✅ PVC | ✅ Root FS |
-| **Pause/Resume** | ❌ No | ✅ Beta | ✅ Yes | ✅ Yes | ✅ Yes | ⚠️ Limited | ✅ Snapshots |
-| **Cold Start** | 2-3s | <1s (warm) | <2s | N/A (always-on) | <1s | 1-5s | ~125ms |
-| **Max Memory** | 12 GiB | 32 GB | 64 GB+ | Unlimited | 16 GB | Unlimited | Unlimited |
-| **Max Disk** | 20 GB | Unlimited | 100 GB+ | Unlimited | 100 GB+ | Unlimited | Unlimited |
-| **GPU Support** | ❌ No | ❌ No | ✅ Yes | ✅ Optional | ❌ No | ✅ Yes | ⚠️ Experimental |
-| **Interactive Sessions** | ❌ Poor | ✅ Designed for | ✅ Good | ✅ Excellent | ✅ Good | ✅ Excellent | ✅ Excellent |
-| **AI Agent Focus** | ❌ Generic | ✅ Purpose-built | ✅ ML-focused | ⚠️ Dev-focused | ⚠️ Dev-focused | ⚠️ General | ⚠️ General |
-| **CPU Time Limits** | 30s-5min | No limit | No limit | No limit | No limit | No limit | No limit |
-| **WebSocket** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| **MCP Support** | Manual | ✅ Native | Manual | Manual | Manual | Manual | Manual |
-| **Ops Complexity** | ✅ Managed | ✅ Managed | ✅ Managed | ✅ Managed | ✅ Managed | ❌ High | 🟡 Medium |
-| **Cost Model** | Per-usage | Per-usage | Per-usage | Per-usage | Per-usage | Fixed + usage | Fixed |
-| **Data Sovereignty** | ❌ Cloud | ❌ Cloud | ❌ Cloud | ⚠️ Depends | ❌ Cloud | ✅ Full | ✅ Full |
-| **Queue Support** | Manual | Manual | Manual | Manual | Manual | ✅ Easy | ✅ Easy |
+| Feature                  | Cloudflare Containers | E2B              | Modal         | Daytona         | CodeSandbox    | Self-Hosted (K8S) | Self-Hosted (Firecracker) |
+| ------------------------ | --------------------- | ---------------- | ------------- | --------------- | -------------- | ----------------- | ------------------------- |
+| **Persistent Disk**      | ❌ Ephemeral          | ✅ Via Pause     | ✅ Volumes    | ✅ Full         | ✅ Snapshots   | ✅ PVC            | ✅ Root FS                |
+| **Pause/Resume**         | ❌ No                 | ✅ Beta          | ✅ Yes        | ✅ Yes          | ✅ Yes         | ⚠️ Limited        | ✅ Snapshots              |
+| **Cold Start**           | 2-3s                  | <1s (warm)       | <2s           | N/A (always-on) | <1s            | 1-5s              | ~125ms                    |
+| **Max Memory**           | 12 GiB                | 32 GB            | 64 GB+        | Unlimited       | 16 GB          | Unlimited         | Unlimited                 |
+| **Max Disk**             | 20 GB                 | Unlimited        | 100 GB+       | Unlimited       | 100 GB+        | Unlimited         | Unlimited                 |
+| **GPU Support**          | ❌ No                 | ❌ No            | ✅ Yes        | ✅ Optional     | ❌ No          | ✅ Yes            | ⚠️ Experimental           |
+| **Interactive Sessions** | ❌ Poor               | ✅ Designed for  | ✅ Good       | ✅ Excellent    | ✅ Good        | ✅ Excellent      | ✅ Excellent              |
+| **AI Agent Focus**       | ❌ Generic            | ✅ Purpose-built | ✅ ML-focused | ⚠️ Dev-focused  | ⚠️ Dev-focused | ⚠️ General        | ⚠️ General                |
+| **CPU Time Limits**      | 30s-5min              | No limit         | No limit      | No limit        | No limit       | No limit          | No limit                  |
+| **WebSocket**            | ✅ Yes                | ✅ Yes           | ✅ Yes        | ✅ Yes          | ✅ Yes         | ✅ Yes            | ✅ Yes                    |
+| **MCP Support**          | Manual                | ✅ Native        | Manual        | Manual          | Manual         | Manual            | Manual                    |
+| **Ops Complexity**       | ✅ Managed            | ✅ Managed       | ✅ Managed    | ✅ Managed      | ✅ Managed     | ❌ High           | 🟡 Medium                 |
+| **Cost Model**           | Per-usage             | Per-usage        | Per-usage     | Per-usage       | Per-usage      | Fixed + usage     | Fixed                     |
+| **Data Sovereignty**     | ❌ Cloud              | ❌ Cloud         | ❌ Cloud      | ⚠️ Depends      | ❌ Cloud       | ✅ Full           | ✅ Full                   |
+| **Queue Support**        | Manual                | Manual           | Manual        | Manual          | Manual         | ✅ Easy           | ✅ Easy                   |
 
 ---
 
@@ -944,8 +986,8 @@ Estimated Cost:
    ```jsonc
    {
      "limits": {
-       "cpu_ms": 300000  // 5 minutes
-     }
+       "cpu_ms": 300000, // 5 minutes
+     },
    }
    ```
 3. Accept the re-clone overhead as a tradeoff for simplicity
@@ -965,9 +1007,11 @@ Estimated Cost:
 
 1. **Deploy 5-10 container pool** on self-managed infrastructure
 2. Implement job queue (Redis/BullMQ) for overflow handling
-3. Use persistent volumes (K8S) or snapshots (Firecracker) for state preservation
+3. Use persistent volumes (K8S) or snapshots (Firecracker) for state
+   preservation
 4. Keep Cloudflare Worker for routing/auth layer
-5. **Best for:** Teams with DevOps capability, data sovereignty requirements, or predictable high-utilization workloads
+5. **Best for:** Teams with DevOps capability, data sovereignty requirements, or
+   predictable high-utilization workloads
 
 **Self-Hosted Pool Architecture:**
 
@@ -1034,20 +1078,22 @@ When slot becomes available:
 ### 8.3 Long-term (Scale)
 
 1. Evaluate **Daytona** for full workspace environments
-2. **Hybrid approach:** E2B for cloud users + Self-hosted for enterprise/compliance
+2. **Hybrid approach:** E2B for cloud users + Self-hosted for
+   enterprise/compliance
 3. Monitor Cloudflare Container roadmap for persistent disk
-4. Build abstraction layer to swap providers easily (provider-agnostic interface)
+4. Build abstraction layer to swap providers easily (provider-agnostic
+   interface)
 
 ### 8.4 Decision Matrix: When to Choose What
 
-| Scenario | Recommended Solution | Reason |
-|----------|---------------------|--------|
+| Scenario                  | Recommended Solution            | Reason                          |
+| ------------------------- | ------------------------------- | ------------------------------- |
 | **Early MVP, small team** | Self-Hosted (5-10 pool) + Queue | Predictable costs, full control |
-| **Rapid scaling needed** | E2B | No ops burden, pay-as-you-go |
-| **Enterprise/Compliance** | Self-Hosted (K8S) | Data sovereignty, audit trails |
-| **Maximum performance** | Self-Hosted (Firecracker) | ~125ms boot, snapshots |
-| **Global distribution** | E2B or Modal | Built-in multi-region |
-| **GPU workloads** | Modal or Self-Hosted K8S | GPU support |
+| **Rapid scaling needed**  | E2B                             | No ops burden, pay-as-you-go    |
+| **Enterprise/Compliance** | Self-Hosted (K8S)               | Data sovereignty, audit trails  |
+| **Maximum performance**   | Self-Hosted (Firecracker)       | ~125ms boot, snapshots          |
+| **Global distribution**   | E2B or Modal                    | Built-in multi-region           |
+| **GPU workloads**         | Modal or Self-Hosted K8S        | GPU support                     |
 
 ### 8.5 Suggested Architecture Evolution
 
@@ -1097,12 +1143,12 @@ Phase 3 - Scale:
 
 **Scenario: 100 active sessions/day, average 15 minutes each**
 
-| Solution | Monthly Cost Estimate | Notes |
-|----------|----------------------|-------|
-| **Cloudflare Containers** | ~$50-100 | Per-usage, but re-clone overhead |
-| **E2B** | ~$150-300 | Per-minute billing, pause saves costs |
-| **Self-Hosted (3 servers)** | ~$250-300 fixed | Predictable, includes spare capacity |
-| **Self-Hosted (Hetzner)** | ~$100-150 fixed | Budget option, good performance |
+| Solution                    | Monthly Cost Estimate | Notes                                 |
+| --------------------------- | --------------------- | ------------------------------------- |
+| **Cloudflare Containers**   | ~$50-100              | Per-usage, but re-clone overhead      |
+| **E2B**                     | ~$150-300             | Per-minute billing, pause saves costs |
+| **Self-Hosted (3 servers)** | ~$250-300 fixed       | Predictable, includes spare capacity  |
+| **Self-Hosted (Hetzner)**   | ~$100-150 fixed       | Budget option, good performance       |
 
 ---
 
@@ -1110,18 +1156,22 @@ Phase 3 - Scale:
 
 ### Primary Verdict
 
-**Cloudflare Containers are fundamentally unsuitable for interactive AI coding agent sessions** due to:
+**Cloudflare Containers are fundamentally unsuitable for interactive AI coding
+agent sessions** due to:
 
 1. **Ephemeral filesystem** - No way to persist cloned repos or work-in-progress
 2. **Aggressive sleep behavior** - Loses all state after brief inactivity
 3. **No pause/resume capability** - Cannot hibernate and restore sessions
-4. **Beta limitations** - Missing critical features like persistent disk, autoscaling
+4. **Beta limitations** - Missing critical features like persistent disk,
+   autoscaling
 5. **Cold start overhead** - 2-3 seconds + re-clone time for each session wake
 6. **CPU time constraints** - 30s-5min limits can terminate long operations
 
 ### The Timeout Clarification
 
-The commonly cited "30-second timeout" is **specifically about CPU time, not wall-clock time**. While this is less restrictive than often assumed:
+The commonly cited "30-second timeout" is **specifically about CPU time, not
+wall-clock time**. While this is less restrictive than often assumed:
+
 - Waiting for Claude API responses does NOT consume CPU time
 - Heavy local processing (parsing, analysis, serialization) DOES
 - The limit is configurable up to 5 minutes
@@ -1132,9 +1182,11 @@ The commonly cited "30-second timeout" is **specifically about CPU time, not wal
 For the planned **"interactive mode"** feature, there are **two viable paths**:
 
 #### Path A: E2B (Cloud-Managed)
+
 **Best for:** Teams prioritizing time-to-market over infrastructure control
 
-1. **Keep Cloudflare Worker** as the orchestration, authentication, and routing layer
+1. **Keep Cloudflare Worker** as the orchestration, authentication, and routing
+   layer
 2. **Migrate container workloads to E2B** for:
    - Persistent filesystem across sessions
    - Pause/resume with full state preservation
@@ -1143,9 +1195,12 @@ For the planned **"interactive mode"** feature, there are **two viable paths**:
 3. Create a **hybrid architecture** that leverages the best of both platforms
 
 #### Path B: Self-Hosted K8S/Firecracker (Recommended for Early Stage)
-**Best for:** Teams with DevOps capability, compliance needs, or predictable workloads
 
-1. **Keep Cloudflare Worker** as the orchestration, authentication, and routing layer
+**Best for:** Teams with DevOps capability, compliance needs, or predictable
+workloads
+
+1. **Keep Cloudflare Worker** as the orchestration, authentication, and routing
+   layer
 2. **Deploy 5-10 container pool** on self-managed infrastructure:
    - Kubernetes with PersistentVolumes (familiar, enterprise-ready)
    - OR Firecracker MicroVMs with snapshots (faster, more efficient)
@@ -1161,22 +1216,23 @@ For the planned **"interactive mode"** feature, there are **two viable paths**:
 
 ### Summary Comparison
 
-| Approach | Pros | Cons | Best For |
-|----------|------|------|----------|
-| **Cloudflare Containers** | Simple, managed | Ephemeral, limits | Simple "send and do" only |
-| **E2B** | Purpose-built, fast | Per-usage costs, vendor lock-in | Rapid scaling, cloud-first |
-| **Self-Hosted K8S** | Full control, familiar | Ops burden, complexity | Enterprise, compliance |
-| **Self-Hosted Firecracker** | Fast boot, snapshots | Learning curve, custom tooling | Performance-critical |
+| Approach                    | Pros                   | Cons                            | Best For                   |
+| --------------------------- | ---------------------- | ------------------------------- | -------------------------- |
+| **Cloudflare Containers**   | Simple, managed        | Ephemeral, limits               | Simple "send and do" only  |
+| **E2B**                     | Purpose-built, fast    | Per-usage costs, vendor lock-in | Rapid scaling, cloud-first |
+| **Self-Hosted K8S**         | Full control, familiar | Ops burden, complexity          | Enterprise, compliance     |
+| **Self-Hosted Firecracker** | Fast boot, snapshots   | Learning curve, custom tooling  | Performance-critical       |
 
 ### Final Recommendation
 
 For a **phased approach**:
 
 1. **Now:** Continue Cloudflare Containers for "Send and Do" MVP
-2. **Next (Interactive Mode):** 
+2. **Next (Interactive Mode):**
    - If limited budget/early stage: **Self-Hosted with 5-10 pool + queue**
    - If prioritizing speed-to-market: **E2B**
-3. **Later (Scale):** Build provider abstraction layer supporting multiple backends
+3. **Later (Scale):** Build provider abstraction layer supporting multiple
+   backends
 
 ---
 

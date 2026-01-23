@@ -21,6 +21,7 @@ import type {
   IClaudeService,
   ClaudeCallbacks,
   ClaudeResult,
+  RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
 import type { GitService } from '../git/git-service.js';
 import type { DiagnosticsService } from '../../core/diagnostics/diagnostics-service.js';
@@ -45,7 +46,10 @@ import { useDomainEntities } from '../../core/config/feature-flags.js';
 import { SessionEntity } from '../../core/entities/session.entity.js';
 import { PromptEntity } from '../../core/entities/prompt.entity.js';
 import { WorkspaceEntity } from '../../core/entities/workspace.entity.js';
-import { extractPatchesFromText, extractFileWriteCandidate } from './patch-applier.js';
+import {
+  extractPatchesFromText,
+  extractFileWriteCandidate,
+} from './patch-applier.js';
 
 const GITHUB_AUTOMATION_VERSION = '1.0.0';
 
@@ -66,7 +70,7 @@ export interface ProcessPromptOptions {
   agentContext?: Record<string, unknown>;
   apiKey?: string;
   reuseWorkspace?: boolean;
-  notificationSender?: (method: string, params: any) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+  notificationSender?: (method: string, params: unknown) => void;
   abortSignal?: AbortSignal;
   historyAlreadyAppended?: boolean; // if handler already appended, avoid double push
   operationId?: string; // for enhanced cancellation tracking
@@ -120,11 +124,11 @@ export class PromptProcessor {
     // The session store might be stale or empty for stateless usage patterns.
     let baseSession = opts.session;
     if (!baseSession) {
-       baseSession = await this.loadSession(sessionId);
+      baseSession = await this.loadSession(sessionId);
     } else {
-       // If we have both, ensure we don't lose anything from store, but prioritize request history
-       // actually, opts.session from session-prompt-handler is already constructed correctly
-       // so we just use it.
+      // If we have both, ensure we don't lose anything from store, but prioritize request history
+      // actually, opts.session from session-prompt-handler is already constructed correctly
+      // so we just use it.
     }
 
     const entitiesEnabled = useDomainEntities();
@@ -136,8 +140,12 @@ export class PromptProcessor {
       : baseSession;
 
     // CRITICAL: Ensure message history from options is preserved if it wasn't valid in baseSession
-    if (opts.session && opts.session.messageHistory && opts.session.messageHistory.length > 0) {
-       session.messageHistory = opts.session.messageHistory;
+    if (
+      opts.session &&
+      opts.session.messageHistory &&
+      opts.session.messageHistory.length > 0
+    ) {
+      session.messageHistory = opts.session.messageHistory;
     }
 
     const mergedAgentContext = this.mergeAgentContext(
@@ -201,7 +209,7 @@ export class PromptProcessor {
           cloneUrl?: string;
           issueTitle?: string;
           labels?: string[];
-          issue?: any;
+          issue?: GitHubIssueReference | Record<string, unknown>;
           branchNameOverride?: string;
           baseBranchOverride?: string;
           gitIdentity?: { name?: string; email?: string };
@@ -213,8 +221,12 @@ export class PromptProcessor {
 
     try {
       if (logFullContent) {
-        console.error(`[PROMPT-DEBUG][${sessionId}] rawParams.context.repository:`, 
-          JSON.stringify(this.getNested(opts.rawParams, ['context', 'repository'])));
+        console.error(
+          `[PROMPT-DEBUG][${sessionId}] rawParams.context.repository:`,
+          JSON.stringify(
+            this.getNested(opts.rawParams, ['context', 'repository']),
+          ),
+        );
       }
 
       resolvedRepo = this.resolveRepositoryDescriptor(
@@ -222,39 +234,65 @@ export class PromptProcessor {
         opts,
         wsDesc,
       );
-      console.error(`[PROMPT][${sessionId}] resolvedRepo:`, JSON.stringify({
-        owner: resolvedRepo?.owner,
-        name: resolvedRepo?.name,
-        cloneUrl: resolvedRepo?.cloneUrl ? 'present' : 'missing',
-        defaultBranch: resolvedRepo?.defaultBranch,
-        branchNameOverride: resolvedRepo?.branchNameOverride,
-      }));
+      console.error(
+        `[PROMPT][${sessionId}] resolvedRepo:`,
+        JSON.stringify({
+          owner: resolvedRepo?.owner,
+          name: resolvedRepo?.name,
+          cloneUrl: resolvedRepo?.cloneUrl ? 'present' : 'missing',
+          defaultBranch: resolvedRepo?.defaultBranch,
+          branchNameOverride: resolvedRepo?.branchNameOverride,
+        }),
+      );
       const token = await this.resolveGitHubToken(activeAgentContext, opts);
-      console.error(`[PROMPT][${sessionId}] token:`, token ? 'present' : 'missing', 'gitService:', !!this.deps.gitService);
+      console.error(
+        `[PROMPT][${sessionId}] token:`,
+        token ? 'present' : 'missing',
+        'gitService:',
+        !!this.deps.gitService,
+      );
 
       // CRITICAL FIX: If cloneUrl is missing but we have owner/name, construct it
       // DO NOT embed token here - let buildAuthedUrl handle it in automation service
-      if (resolvedRepo && !resolvedRepo.cloneUrl && resolvedRepo.owner && resolvedRepo.name) {
+      if (
+        resolvedRepo &&
+        !resolvedRepo.cloneUrl &&
+        resolvedRepo.owner &&
+        resolvedRepo.name
+      ) {
         const baseUrl = `https://github.com/${resolvedRepo.owner}/${resolvedRepo.name}.git`;
         resolvedRepo.cloneUrl = baseUrl; // Plain URL without token
-        console.error(`[PROMPT][${sessionId}] auto-constructed cloneUrl from owner/name:`, baseUrl);
+        console.error(
+          `[PROMPT][${sessionId}] auto-constructed cloneUrl from owner/name:`,
+          baseUrl,
+        );
       }
 
       if (resolvedRepo && resolvedRepo.cloneUrl && this.deps.gitService) {
         // Attempt to ensure the repo is present in the workspace path (shallow clone/init)
         // Add authentication for clone operation
-        const authedCloneUrl = token && resolvedRepo.cloneUrl
-          ? resolvedRepo.cloneUrl.replace('https://github.com/', `https://x-access-token:${token}@github.com/`)
-          : resolvedRepo.cloneUrl;
-        console.error(`[PROMPT][${sessionId}] calling ensureRepo at path:`, wsDesc.path);
+        const authedCloneUrl =
+          token && resolvedRepo.cloneUrl
+            ? resolvedRepo.cloneUrl.replace(
+                'https://github.com/',
+                `https://x-access-token:${token}@github.com/`,
+              )
+            : resolvedRepo.cloneUrl;
+        console.error(
+          `[PROMPT][${sessionId}] calling ensureRepo at path:`,
+          wsDesc.path,
+        );
         try {
           await this.deps.gitService.ensureRepo(wsDesc.path, {
             defaultBranch: resolvedRepo.defaultBranch,
             cloneUrl: authedCloneUrl,
           });
-          console.error(`[PROMPT][${sessionId}] ensureRepo completed successfully`);
+          console.error(
+            `[PROMPT][${sessionId}] ensureRepo completed successfully`,
+          );
           // Try to fetch the base branch so workspace is up-to-date
-          const targetBranch = resolvedRepo.branchNameOverride || resolvedRepo.defaultBranch;
+          const targetBranch =
+            resolvedRepo.branchNameOverride || resolvedRepo.defaultBranch;
           if (targetBranch) {
             // Fetch with explicit refspec so `origin/<branch>` exists even if clone used single-branch refspec.
             await this.deps.gitService.runGit(wsDesc.path, [
@@ -296,25 +334,35 @@ export class PromptProcessor {
             }
           }
           repoEnsured = true;
-          console.error(`[PROMPT][${sessionId}] ensured repo present at workspace`);
+          console.error(
+            `[PROMPT][${sessionId}] ensured repo present at workspace`,
+          );
         } catch (e) {
-          console.error(`[PROMPT][${sessionId}] pre-clone failed:`,
+          console.error(
+            `[PROMPT][${sessionId}] pre-clone failed:`,
             e instanceof Error ? e.message : String(e),
-            e instanceof Error ? e.stack : '');
+            e instanceof Error ? e.stack : '',
+          );
         }
       } else {
-        console.error(`[PROMPT][${sessionId}] skipping ensureRepo - condition not met`);
+        console.error(
+          `[PROMPT][${sessionId}] skipping ensureRepo - condition not met`,
+        );
       }
     } catch (e) {
       // non-fatal: proceed without pre-clone (automation will still attempt),
       // but log for diagnostics
-      console.error(`[PROMPT][${sessionId}] resolveRepo (pre-clone) failed:`,
+      console.error(
+        `[PROMPT][${sessionId}] resolveRepo (pre-clone) failed:`,
         e instanceof Error ? e.message : String(e),
-        e instanceof Error ? e.stack : '');
+        e instanceof Error ? e.stack : '',
+      );
     }
 
     if (!repoEnsured) {
-      console.error(`[PROMPT][${sessionId}] WARNING: Repository was not cloned before Claude run. File writes may not be detected by git!`);
+      console.error(
+        `[PROMPT][${sessionId}] WARNING: Repository was not cloned before Claude run. File writes may not be detected by git!`,
+      );
     }
 
     if (entitiesEnabled) {
@@ -339,8 +387,8 @@ export class PromptProcessor {
     const startTime = Date.now();
     let fullText = '';
     let outputTokens = 0;
-  let completionError: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
-  let runResult: ClaudeResult | undefined;
+    let completionError: unknown = null;  
+    let runResult: ClaudeResult | undefined;
 
     const callbacks: ClaudeCallbacks = {
       onStart: () => {
@@ -388,8 +436,8 @@ export class PromptProcessor {
     };
 
     try {
-      // runtimeOptions typed as any to avoid requiring changes to RunOptions
-      const runtimeOptions: any = {
+      // runtimeOptions typed as RunOptions & Record<string, unknown> to allow repository extension
+      const runtimeOptions: RunOptions & Record<string, unknown> = {
         sessionId,
         operationId,
         workspacePath: wsDesc.path,
@@ -415,7 +463,7 @@ export class PromptProcessor {
     if (completionError) {
       const classified = defaultErrorClassifier.classify(completionError);
       // extract stderr / diagnostics from error.detail if present
-      const detail = (completionError as any)?.detail || {}; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const detail = ((completionError as Record<string, unknown>)?.detail as Record<string, unknown>) || {};  
       const stderr: string | undefined =
         typeof detail.stderr === 'string'
           ? detail.stderr.slice(0, 4000)
@@ -448,7 +496,7 @@ export class PromptProcessor {
           preDiagnostics,
           runtimeDiagnostics: rawDiagnostics,
         },
-      } as any; // keep compatibility with existing handler
+      } as SessionPromptResponse['result']; // keep compatibility with existing handler
     }
 
     // 6. Persist session updates (append message history if not already appended by caller)
@@ -465,11 +513,11 @@ export class PromptProcessor {
       session.messageHistory.push({
         role: 'user',
         content: prompt,
-      } as any);
+      } as unknown as any); // TODO: Fix messageHistory type to allow strict roles
 
       // Assistant message with tool usage (if any)
       // Extract tool usage from runResult
-      const assistantMessage: any = {
+      const assistantMessage: Record<string, unknown> = {
         role: 'assistant',
         content: fullText || runResult?.fullText || '(no response)',
       };
@@ -479,12 +527,12 @@ export class PromptProcessor {
         // Note: We're storing simplified tool info here since we don't have full tool_calls with IDs
         // This is metadata for reference, not for exact replay
         assistantMessage.metadata = {
-          toolsUsed: runResult.toolUse.map((t: any) => t.name),
+          toolsUsed: runResult.toolUse.map((t) => t.name),
           hadToolUsage: true,
         };
       }
 
-      session.messageHistory.push(assistantMessage);
+      session.messageHistory.push(assistantMessage as unknown as any);
 
       // Update lastActiveAt
       session.lastActiveAt = lastActiveTimestamp;
@@ -493,7 +541,7 @@ export class PromptProcessor {
       if (sessionEntity) {
         // The entity's appendMessageHistory might not support our new format
         // So we bypass it and directly update session
-        (session as any).messageHistory = session.messageHistory;
+        (session as unknown as { messageHistory: unknown }).messageHistory = session.messageHistory;
         sessionEntity = sessionEntity.touchLastActiveAt(lastActiveTimestamp);
         session = sessionEntity.toJSON();
       }
@@ -537,7 +585,7 @@ export class PromptProcessor {
             branchCreated: undefined,
             filesModified:
               modified && modified.length ? modified.slice(0, 50) : undefined,
-          } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+          } as SessionPromptResponse['result']['githubOperations'];
         }
       } catch {
         /* ignore git detection errors */
@@ -546,8 +594,8 @@ export class PromptProcessor {
       // fallback lightweight
       if (wsDesc.gitInfo?.currentBranch) {
         githubOperations = wsDesc.gitInfo.hasUncommittedChanges
-          ? ({ filesModified: ['(uncommitted changes present)'] } as any)
-          : undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+          ? ({ filesModified: ['(uncommitted changes present)'] } as SessionPromptResponse['result']['githubOperations'])
+          : undefined;
       }
     }
 
@@ -557,13 +605,16 @@ export class PromptProcessor {
 
     // Debug tool usage
     if (runResult) {
-      console.error(`[PROMPT-DEBUG][${sessionId}] Run Result:`, JSON.stringify({
-         stopReason: runResult.stopReason,
-         inputTokens: runResult.tokens?.input,
-         outputTokens: runResult.tokens?.output,
-         toolUseCount: runResult.toolUse?.length || 0,
-         toolUses: runResult.toolUse?.map((t: { name: string }) => t.name)
-      }));
+      console.error(
+        `[PROMPT-DEBUG][${sessionId}] Run Result:`,
+        JSON.stringify({
+          stopReason: runResult.stopReason,
+          inputTokens: runResult.tokens?.input,
+          outputTokens: runResult.tokens?.output,
+          toolUseCount: runResult.toolUse?.length || 0,
+          toolUses: runResult.toolUse?.map((t: { name: string }) => t.name),
+        }),
+      );
     }
 
     const inputTokensUsed = runResult?.tokens?.input ?? inputEst;
@@ -590,11 +641,18 @@ export class PromptProcessor {
         git: wsDesc.gitInfo || undefined,
         createdAt: wsDesc.createdAt,
       },
+      orchestration: this.asRecord(
+        this.getNested(activeAgentContext, ['orchestration']),
+      ),
     };
 
     // Attempt to auto-apply unified-diff patches produced by the model, if enabled.
     // Controlled via env APPLY_MODEL_PATCHES (default: enabled). Uses gitService.applyPatch.
-    if (process.env.APPLY_MODEL_PATCHES !== '0' && this.deps.gitService && fullText) {
+    if (
+      process.env.APPLY_MODEL_PATCHES !== '0' &&
+      this.deps.gitService &&
+      fullText
+    ) {
       try {
         const patches = extractPatchesFromText(fullText);
         if (patches && patches.length) {
@@ -610,21 +668,29 @@ export class PromptProcessor {
               // applyPatch may throw; we capture and continue
               // @ts-ignore - gitService is optional but checked above
               await this.deps.gitService.applyPatch(wsDesc.path, patch);
-              console.error(`[PATCH-APPLY][${sessionId}] patch #${i + 1} applied`);
+              console.error(
+                `[PATCH-APPLY][${sessionId}] patch #${i + 1} applied`,
+              );
             } catch (err) {
               console.error(
                 `[PATCH-APPLY][${sessionId}] failed to apply patch #${i + 1}`,
                 err instanceof Error ? err.message : String(err),
               );
               // record patch apply error in meta for diagnostics / issue body
-              const arr = (meta as any).patchApplyErrors || [];
-              arr.push({ index: i + 1, error: err instanceof Error ? err.message : String(err) });
-              (meta as any).patchApplyErrors = arr;
+              const arr = (meta['patchApplyErrors'] as unknown[]) || [];
+              arr.push({
+                index: i + 1,
+                error: err instanceof Error ? err.message : String(err),
+              });
+              meta['patchApplyErrors'] = arr;
             }
           }
         }
       } catch (e) {
-        console.error(`[PATCH-APPLY][${sessionId}] extractor error`, e instanceof Error ? e.message : String(e));
+        console.error(
+          `[PATCH-APPLY][${sessionId}] extractor error`,
+          e instanceof Error ? e.message : String(e),
+        );
       }
     }
 
@@ -643,27 +709,40 @@ export class PromptProcessor {
     // Set environment variable: ENABLE_FALLBACK_FILE_WRITE=1
 
     if (process.env.ENABLE_FALLBACK_FILE_WRITE === '1') {
-      console.warn(`[FILE-WRITE][${sessionId}] WARNING: Legacy fallback file write is enabled. This can produce incorrect results.`);
+      console.warn(
+        `[FILE-WRITE][${sessionId}] WARNING: Legacy fallback file write is enabled. This can produce incorrect results.`,
+      );
 
       try {
         let preChanged: string[] = [];
-        if (this.deps.gitService && typeof this.deps.gitService.listChangedFiles === 'function') {
+        if (
+          this.deps.gitService &&
+          typeof this.deps.gitService.listChangedFiles === 'function'
+        ) {
           // @ts-ignore - guarded above
-          preChanged = (await this.deps.gitService.listChangedFiles(wsDesc.path)) || [];
+          preChanged =
+            (await this.deps.gitService.listChangedFiles(wsDesc.path)) || [];
         }
 
         if (preChanged.length === 0 && fullText) {
           const candidate = extractFileWriteCandidate(prompt, fullText);
           if (!candidate) {
-            console.error(`[FILE-WRITE][${sessionId}] No file write candidate found. AI may have responded conversationally without using tools or providing code blocks.`);
+            console.error(
+              `[FILE-WRITE][${sessionId}] No file write candidate found. AI may have responded conversationally without using tools or providing code blocks.`,
+            );
           } else {
-            console.warn(`[FILE-WRITE][${sessionId}] Attempting fallback file write for ${candidate.filename} - this may produce incorrect results!`);
+            console.warn(
+              `[FILE-WRITE][${sessionId}] Attempting fallback file write for ${candidate.filename} - this may produce incorrect results!`,
+            );
             // Fallback logic would go here, but we're not implementing it
             // to prevent wrong results from being committed
           }
         }
       } catch (e) {
-        console.error(`[FILE-WRITE][${sessionId}] fallback detection error`, e instanceof Error ? e.message : String(e));
+        console.error(
+          `[FILE-WRITE][${sessionId}] fallback detection error`,
+          e instanceof Error ? e.message : String(e),
+        );
       }
     }
 
@@ -671,7 +750,7 @@ export class PromptProcessor {
     // That output often contains step-by-step narration ("Now I'll..."), which can leak
     // into commit messages and PR metadata. Prefer the model-provided concise summary.
     const automationSummaryText =
-      (response.summary && response.summary.trim())
+      response.summary && response.summary.trim()
         ? response.summary
         : this.extractAutomationSummaryFallback(fullText);
 
@@ -690,35 +769,54 @@ export class PromptProcessor {
     try {
       if (this.deps.gitService) {
         // Import diagnostic utility
-        const { diagnoseWorkspace, formatDiagnosticResult } = await import('./workspace-diagnostic.js');
+        const { diagnoseWorkspace, formatDiagnosticResult } = await import(
+          './workspace-diagnostic.js'
+        );
 
         // Run comprehensive diagnostic
-        const diagnostic = await diagnoseWorkspace(wsDesc.path, [
-          'styles.css',
-          (meta as any).autoWrittenFile,
-        ].filter(Boolean));
+        const diagnostic = await diagnoseWorkspace(
+          wsDesc.path,
+          ['styles.css', meta['autoWrittenFile'] as string].filter(Boolean),
+        );
 
         // Store in meta for API response
-        (meta as any).workspaceDiagnostic = diagnostic;
+        meta['workspaceDiagnostic'] = diagnostic;
 
         // Log formatted report
-        console.error(`[WORKSPACE-DIAGNOSTIC][${session.sessionId}]\n${formatDiagnosticResult(diagnostic)}`);
+        console.error(
+          `[WORKSPACE-DIAGNOSTIC][${session.sessionId}]\n${formatDiagnosticResult(diagnostic)}`,
+        );
 
         // Also keep lightweight version for backwards compatibility
-        const gitStatus = await this.deps.gitService.getStatus(wsDesc.path).catch((e) => `error: ${String(e)}`);
-        const changedFiles = await this.deps.gitService.listChangedFiles(wsDesc.path).catch((e) => [`error: ${String(e)}`]);
-        const hasUncommitted = await this.deps.gitService.hasUncommittedChanges(wsDesc.path).catch(() => {
-          return false;
-        });
-        (meta as any).githubPreAuto = {
-          gitStatus: typeof gitStatus === 'string' ? gitStatus : String(gitStatus),
-          changedFiles: Array.isArray(changedFiles) ? changedFiles : [String(changedFiles)],
+        const gitStatus = await this.deps.gitService
+          .getStatus(wsDesc.path)
+          .catch((e) => `error: ${String(e)}`);
+        const changedFiles = await this.deps.gitService
+          .listChangedFiles(wsDesc.path)
+          .catch((e) => [`error: ${String(e)}`]);
+        const hasUncommitted = await this.deps.gitService
+          .hasUncommittedChanges(wsDesc.path)
+          .catch(() => {
+            return false;
+          });
+        const githubPreAuto = {
+          gitStatus:
+            typeof gitStatus === 'string' ? gitStatus : String(gitStatus),
+          changedFiles: Array.isArray(changedFiles)
+            ? changedFiles
+            : [String(changedFiles)],
           hasUncommittedChanges: hasUncommitted,
         };
-        console.error(`[GIT-DIAG][${session.sessionId}] status=${(meta as any).githubPreAuto.gitStatus} hasUncommitted=${hasUncommitted} files=${JSON.stringify((meta as any).githubPreAuto.changedFiles)}`);
+        meta['githubPreAuto'] = githubPreAuto;
+        console.error(
+          `[GIT-DIAG][${session.sessionId}] status=${githubPreAuto.gitStatus} hasUncommitted=${hasUncommitted} files=${JSON.stringify(githubPreAuto.changedFiles)}`,
+        );
       }
     } catch (e) {
-      console.error(`[GIT-DIAG][${session.sessionId}] diagnostic failed`, e instanceof Error ? e.message : String(e));
+      console.error(
+        `[GIT-DIAG][${session.sessionId}] diagnostic failed`,
+        e instanceof Error ? e.message : String(e),
+      );
     }
 
     if (automationResult) {
@@ -744,19 +842,21 @@ export class PromptProcessor {
       role: 'assistant',
       content: fullText || runResult?.fullText || '(no response)',
       // Include full tool use data if available
-      ...(runResult?.toolUse && runResult.toolUse.length > 0 ? {
-        tool_calls: runResult.toolUse,
-        metadata: {
-           // Flag for easy detection
-           hasToolUsage: true,
-           toolsUsed: runResult.toolUse.map((t: any) => t.name)
-        }
-      } : {})
+      ...(runResult?.toolUse && runResult.toolUse.length > 0
+        ? {
+            tool_calls: runResult.toolUse,
+            metadata: {
+              // Flag for easy detection
+              hasToolUsage: true,
+              toolsUsed: runResult.toolUse.map((t) => t.name),
+            },
+          }
+        : {}),
     };
 
     response.generatedMessages = [userMessage, assistantMsgForReturn];
 
-    (response as any).meta = meta; // eslint-disable-line @typescript-eslint/no-explicit-any
+    (response as Record<string, unknown>).meta = meta;
     return response;
   }
 
@@ -771,7 +871,9 @@ export class PromptProcessor {
     if (!text) return '';
 
     // Prefer an explicit "Summary" section if present.
-    const summaryMatch = text.match(/\n\s*(?:#+\s*)?summary\s*\n([\s\S]{1,2000})/i);
+    const summaryMatch = text.match(
+      /\n\s*(?:#+\s*)?summary\s*\n([\s\S]{1,2000})/i,
+    );
     if (summaryMatch && summaryMatch[1]) {
       return summaryMatch[1].trim().slice(0, 2000);
     }
@@ -837,13 +939,17 @@ export class PromptProcessor {
     } = args;
 
     if (session.sessionOptions?.enableGitOps === false) {
-      console.error(`[PROMPT][${session.sessionId}] Automation skipped: GitOps disabled`);
+      console.error(
+        `[PROMPT][${session.sessionId}] Automation skipped: GitOps disabled`,
+      );
       return this.buildAutomationSkipped('GitOps disabled for session');
     }
 
     const token = await this.resolveGitHubToken(agentContext, options);
     if (!token) {
-      console.error(`[PROMPT][${session.sessionId}] Automation skipped: Missing GitHub token`);
+      console.error(
+        `[PROMPT][${session.sessionId}] Automation skipped: Missing GitHub token`,
+      );
       return this.buildAutomationSkipped('Missing GitHub token');
     }
 
@@ -945,15 +1051,15 @@ export class PromptProcessor {
 
   /**
    * Resolve GitHub token from context
-   * 
+   *
    * IMPORTANT: Containers NO LONGER generate tokens.
    * Tokens must be provided by the caller (worker) who gets them from LumiLink API.
-   * 
+   *
    * Priority:
    * 1. Explicit token in options
    * 2. Token in context
    * 3. Environment variable GITHUB_TOKEN (set by worker)
-   * 
+   *
    * @returns GitHub token or undefined
    */
   private async resolveGitHubToken(
@@ -989,18 +1095,22 @@ export class PromptProcessor {
 
     if (installationId) {
       // Check for specific token error propagated from worker
-      const explicitError = options.githubTokenError || this.getNested(options.rawParams, ['githubTokenError']) as string;
+      const explicitError =
+        options.githubTokenError ||
+        (this.getNested(options.rawParams, ['githubTokenError']) as string);
       if (explicitError) {
-        console.error(`[PROMPT] ❌ GitHub Token Error from Worker: ${explicitError}`);
+        console.error(
+          `[PROMPT] ❌ GitHub Token Error from Worker: ${explicitError}`,
+        );
       }
-      
+
       console.warn(
         '[PROMPT] ⚠️ Installation ID provided but no GitHub token found.\n' +
-        '[PROMPT] Containers cannot generate tokens. Token must be provided by worker.\n' +
-        '[PROMPT] The worker should call LumiLink API to get a token and pass it via:\n' +
-        '[PROMPT]   - options.githubToken, or\n' +
-        '[PROMPT]   - context.github.token, or\n' +
-        '[PROMPT]   - GITHUB_TOKEN environment variable'
+          '[PROMPT] Containers cannot generate tokens. Token must be provided by worker.\n' +
+          '[PROMPT] The worker should call LumiLink API to get a token and pass it via:\n' +
+          '[PROMPT]   - options.githubToken, or\n' +
+          '[PROMPT]   - context.github.token, or\n' +
+          '[PROMPT]   - GITHUB_TOKEN environment variable',
       );
     }
 
@@ -1241,12 +1351,12 @@ export class PromptProcessor {
     if (
       !merged.filesModified &&
       automation.metadata &&
-      Array.isArray((automation.metadata as any).filesChanged)
+      Array.isArray(automation.metadata['filesChanged'])
     ) {
-      merged.filesModified = (automation.metadata as any).filesChanged.slice(
+      merged.filesModified = (automation.metadata['filesChanged'] as string[]).slice(
         0,
         50,
-      ); // eslint-disable-line @typescript-eslint/no-explicit-any
+      );
     }
     return merged;
   }
@@ -1315,10 +1425,14 @@ export class PromptProcessor {
     return candidates[0];
   }
 
-  private parseRepository(
-    value: unknown,
-  ):
-    | { owner: string; name: string; defaultBranch?: string; cloneUrl?: string; workingBranch?: string }
+  private parseRepository(value: unknown):
+    | {
+        owner: string;
+        name: string;
+        defaultBranch?: string;
+        cloneUrl?: string;
+        workingBranch?: string;
+      }
     | undefined {
     if (!value) return undefined;
     if (typeof value === 'string') {
@@ -1347,7 +1461,11 @@ export class PromptProcessor {
         const fromUrl = this.parseRepositoryFromUrl(urlString);
         if (fromUrl) {
           // Merge parsed URL data with any branch info from the object
-          const defaultBranch = this.findString([obj.defaultBranch, obj.branch, obj.baseBranch]);
+          const defaultBranch = this.findString([
+            obj.defaultBranch,
+            obj.branch,
+            obj.baseBranch,
+          ]);
           const workingBranch = this.findString([obj.workingBranch]);
           return {
             ...fromUrl,
@@ -1432,10 +1550,10 @@ export class PromptProcessor {
 
   private getNested(obj: unknown, path: Array<string | number>): unknown {
     if (!obj || typeof obj !== 'object') return undefined;
-    let current: any = obj; // eslint-disable-line @typescript-eslint/no-explicit-any
+    let current: unknown = obj;
     for (const key of path) {
-      if (current == null) return undefined;
-      current = current[key];
+      if (current == null || typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[key];
     }
     return current;
   }
@@ -1486,51 +1604,58 @@ export class PromptProcessor {
     apiKey?: string,
   ): Promise<string | undefined> {
     try {
-        let derivedFilesChanged: string[] | undefined;
-        let diffStat = '';
-        let diffSnippet = '';
+      let derivedFilesChanged: string[] | undefined;
+      let diffStat = '';
+      let diffSnippet = '';
 
-        if (this.deps.gitService && workspacePath) {
-          try {
-            derivedFilesChanged = await this.deps.gitService.listChangedFiles(
-              workspacePath,
-            );
-          } catch {
-            // ignore
-          }
-
-          try {
-            const stat = await this.deps.gitService.runGit(workspacePath, [
-              'diff',
-              '--stat',
-            ]);
-            if (stat.code === 0 && stat.stdout) diffStat = stat.stdout.trim().slice(0, 1500);
-          } catch {
-            // ignore
-          }
-
-          try {
-            // Keep snippet small to avoid token bloat.
-            const diff = await this.deps.gitService.runGit(workspacePath, [
-              'diff',
-              '--unified=0',
-            ]);
-            if (diff.code === 0 && diff.stdout) diffSnippet = diff.stdout.trim().slice(0, 3500);
-          } catch {
-            // ignore
-          }
+      if (this.deps.gitService && workspacePath) {
+        try {
+          derivedFilesChanged =
+            await this.deps.gitService.listChangedFiles(workspacePath);
+        } catch {
+          // ignore
         }
 
-        const fileContext = derivedFilesChanged && derivedFilesChanged.length > 0
-            ? `\nFiles changed:\n${derivedFilesChanged.slice(0, 12).map(f => `- ${f}`).join('\n')}${derivedFilesChanged.length > 12 ? '\n...and more' : ''}`
-            : '';
+        try {
+          const stat = await this.deps.gitService.runGit(workspacePath, [
+            'diff',
+            '--stat',
+          ]);
+          if (stat.code === 0 && stat.stdout)
+            diffStat = stat.stdout.trim().slice(0, 1500);
+        } catch {
+          // ignore
+        }
 
-        const changeContext = [
-          diffStat ? `\nGit diff --stat:\n${diffStat}` : '',
-          diffSnippet ? `\nGit diff snippet (truncated):\n${diffSnippet}` : '',
-        ].join('');
+        try {
+          // Keep snippet small to avoid token bloat.
+          const diff = await this.deps.gitService.runGit(workspacePath, [
+            'diff',
+            '--unified=0',
+          ]);
+          if (diff.code === 0 && diff.stdout)
+            diffSnippet = diff.stdout.trim().slice(0, 3500);
+        } catch {
+          // ignore
+        }
+      }
 
-        const generationPrompt = `
+      const fileContext =
+        derivedFilesChanged && derivedFilesChanged.length > 0
+          ? `\nFiles changed:\n${derivedFilesChanged
+              .slice(0, 12)
+              .map((f) => `- ${f}`)
+              .join(
+                '\n',
+              )}${derivedFilesChanged.length > 12 ? '\n...and more' : ''}`
+          : '';
+
+      const changeContext = [
+        diffStat ? `\nGit diff --stat:\n${diffStat}` : '',
+        diffSnippet ? `\nGit diff snippet (truncated):\n${diffSnippet}` : '',
+      ].join('');
+
+      const generationPrompt = `
 You are an AI assistant finalizing a coding task.
       Based on the user's original request and the actual code changes (git diff context), generate a concise, professional Git commit message.
 
@@ -1548,31 +1673,30 @@ Rules:
       5. Do NOT include step-by-step narration like "Now I'll" / "Let me".
 `.trim();
 
-        const result = await this.deps.claudeClient.runPrompt(
-            generationPrompt,
-            {
-                sessionId,
-                apiKey, // Pass API key for LLM call
-                // Use a cheaper/faster model if possible, or same model
-                // Minimal context needed
-            }
-        );
+      const result = await this.deps.claudeClient.runPrompt(generationPrompt, {
+        sessionId,
+        apiKey, // Pass API key for LLM call
+        // Use a cheaper/faster model if possible, or same model
+        // Minimal context needed
+      });
 
-        const raw = result.fullText.trim();
-        const firstLine = raw.split(/\r?\n/)[0] ?? '';
-        const cleaned = firstLine
-          .replace(/^["']|["']$/g, '')
-          .replace(/\s+/g, ' ')
-          // Strip common streaming narration prefixes
-          .replace(/^(?:now\s+)?(?:i(?:\s+will|\'ll|\s+understand|\s+need\s+to|\s+see|\s+can\s+see|\s+am\s+going\s+to)|let(?:\s+me|\'s)|next\b|first\b|looking\s+at|based\s+on|this\s+is)\s*/i, '')
-          .trim();
+      const raw = result.fullText.trim();
+      const firstLine = raw.split(/\r?\n/)[0] ?? '';
+      const cleaned = firstLine
+        .replace(/^["']|["']$/g, '')
+        .replace(/\s+/g, ' ')
+        // Strip common streaming narration prefixes
+        .replace(
+          /^(?:now\s+)?(?:i(?:\s+will|\'ll|\s+understand|\s+need\s+to|\s+see|\s+can\s+see|\s+am\s+going\s+to)|let(?:\s+me|\'s)|next\b|first\b|looking\s+at|based\s+on|this\s+is)\s*/i,
+          '',
+        )
+        .trim();
 
-        if (!cleaned) return undefined;
-        return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned;
-
+      if (!cleaned) return undefined;
+      return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned;
     } catch (error) {
-        console.warn(`[PROMPT] Failed to generate auto-commit message: ${error}`);
-        return undefined;
+      console.warn(`[PROMPT] Failed to generate auto-commit message: ${error}`);
+      return undefined;
     }
   }
 }

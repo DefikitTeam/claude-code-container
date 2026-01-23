@@ -90,15 +90,14 @@ export class CloudflareApiAdapter {
       });
 
       if (!response.ok) {
-        const error: any = await response.json();
+        const error = (await response.json()) as { errors?: { message: string }[] };
         return {
           success: false,
           errors: [error.errors?.[0]?.message || `HTTP ${response.status}`],
         };
       }
 
-      const data = (await response.json()) as any;
-
+      const data = (await response.json()) as { result?: { id: string } };
       return {
         success: true,
         id: data.result?.id,
@@ -137,7 +136,7 @@ export class CloudflareApiAdapter {
         return { deployed: false };
       }
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as { result: { main_module: string; created_on: string } };
 
       return {
         deployed: true,
@@ -219,9 +218,9 @@ export class CloudflareApiAdapter {
         return null;
       }
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as { result?: { title: string; id: string }[] };
       const namespace = data.result?.find(
-        (ns: any) => ns.title === namespaceName,
+        (ns) => ns.title === namespaceName,
       );
 
       return namespace?.id || null;

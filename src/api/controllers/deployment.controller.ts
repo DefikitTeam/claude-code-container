@@ -27,7 +27,7 @@ export class DeploymentController {
       const result = await this.deployWorkerUseCase.execute(deploymentData);
 
       return createdResponse(c, result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -43,7 +43,7 @@ export class DeploymentController {
       const result = await this.getStatusUseCase.execute({ deploymentId });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -65,7 +65,7 @@ export class DeploymentController {
       });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -79,7 +79,7 @@ export class DeploymentController {
       });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }

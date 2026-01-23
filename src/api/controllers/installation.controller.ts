@@ -19,7 +19,7 @@ export class InstallationController {
       };
 
       return successResponse(c, installation, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -41,7 +41,7 @@ export class InstallationController {
       };
 
       return successResponse(c, installation, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }

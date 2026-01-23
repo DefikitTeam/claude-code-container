@@ -2,18 +2,29 @@ import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { Hono } from 'hono';
 import { UserController } from '../../api/controllers/user.controller';
 import { createUserRoutes } from '../../api/routes/user.routes';
-import { attachRequestContext } from '../../api/middleware/validation.middleware';
-import { InMemoryUserRepository } from '../../infrastructure/repositories/in-memory-user.repository';
+import type { ApiResponse } from '../../shared/types/common.types';
 import { RegisterUserUseCase } from '../../core/use-cases/user/register-user.use-case';
 import { GetUserUseCase } from '../../core/use-cases/user/get-user.use-case';
 import { UpdateUserUseCase } from '../../core/use-cases/user/update-user.use-case';
 import { DeleteUserUseCase } from '../../core/use-cases/user/delete-user.use-case';
+import { attachRequestContext } from '../../api/middleware/validation.middleware';
 import { registerErrorMiddleware } from '../../api/middleware/error.middleware';
+import { UserEntity } from '../../core/entities/user.entity';
+import { IUserRepository } from '../../core/interfaces/repositories/user.repository';
 
-const MOCK_INSTALLATION_ID = '123456';
 const MOCK_USER_ID = 'user-123';
+const MOCK_INSTALLATION_ID = 'inst-123';
 
-describe('API: User Routes', () => {
+class InMemoryUserRepository implements IUserRepository {
+  private users = new Map<string, UserEntity>();
+  async save(user: UserEntity) { this.users.set(user.userId, user); }
+  async findById(id: string) { return this.users.get(id) || null; }
+  async findByInstallationId(id: string) { return Array.from(this.users.values()).filter(u => u.installationId === id); }
+  async delete(id: string) { this.users.delete(id); }
+  async listByInstallation(id: string) { return this.findByInstallationId(id); }
+}
+
+describe('User Routes', () => {
   let app: Hono;
 
   beforeEach(() => {
@@ -42,12 +53,10 @@ describe('API: User Routes', () => {
     };
 
     const cryptoService = {
-      encrypt: vi
-        .fn()
-        .mockResolvedValue({
-          encryptedData: new Uint8Array([1, 2, 3]),
-          iv: new Uint8Array([4, 5, 6]),
-        }),
+      encrypt: vi.fn().mockResolvedValue({
+        encryptedData: new Uint8Array([1, 2, 3]),
+        iv: new Uint8Array([4, 5, 6]),
+      }),
       decrypt: vi.fn().mockResolvedValue('decrypted-key'),
       hash: vi.fn().mockResolvedValue('hash'),
       verifyWebhookSignature: vi.fn().mockResolvedValue(true),
@@ -94,10 +103,10 @@ describe('API: User Routes', () => {
     });
 
     expect(registerResponse.status).toBe(201);
-    const registerJson = await registerResponse.json();
+    const registerJson = await registerResponse.json<ApiResponse<{ userId: string; installationId: string }>>();
     expect(registerJson.success).toBe(true);
-    expect(registerJson.data.userId).toBe(MOCK_USER_ID);
-    expect(registerJson.data.installationId).toBe(MOCK_INSTALLATION_ID);
+    expect(registerJson.data!.userId).toBe(MOCK_USER_ID);
+    expect(registerJson.data!.installationId).toBe(MOCK_INSTALLATION_ID);
 
     const getResponse = await app.request(`/api/users/${MOCK_USER_ID}`, {
       method: 'GET',
@@ -108,9 +117,9 @@ describe('API: User Routes', () => {
     });
 
     expect(getResponse.status).toBe(200);
-    const getJson = await getResponse.json();
-    expect(getJson.data.userId).toBe(MOCK_USER_ID);
-    expect(getJson.data.repositoryAccess.length).toBeGreaterThanOrEqual(0);
+    const getJson = await getResponse.json<ApiResponse<{ userId: string; repositoryAccess: any[] }>>();
+    expect(getJson.data!.userId).toBe(MOCK_USER_ID);
+    expect(getJson.data!.repositoryAccess.length).toBeGreaterThanOrEqual(0);
 
     const updateResponse = await app.request(`/api/users/${MOCK_USER_ID}`, {
       method: 'PUT',
@@ -124,9 +133,9 @@ describe('API: User Routes', () => {
     });
 
     expect(updateResponse.status).toBe(200);
-    const updateJson = await updateResponse.json();
-    expect(updateJson.data.userId).toBe(MOCK_USER_ID);
-    expect(updateJson.data.message).toContain('updated');
+    const updateJson = await updateResponse.json<ApiResponse<{ userId: string; message: string }>>();
+    expect(updateJson.data!.userId).toBe(MOCK_USER_ID);
+    expect(updateJson.data!.message).toContain('updated');
 
     const deleteResponse = await app.request(`/api/users/${MOCK_USER_ID}`, {
       method: 'DELETE',
@@ -136,9 +145,9 @@ describe('API: User Routes', () => {
     });
 
     expect(deleteResponse.status).toBe(200);
-    const deleteJson = await deleteResponse.json();
-    expect(deleteJson.data.userId).toBe(MOCK_USER_ID);
-    expect(deleteJson.data.message).toContain('deleted');
+    const deleteJson = await deleteResponse.json<ApiResponse<{ userId: string; message: string }>>();
+    expect(deleteJson.data!.userId).toBe(MOCK_USER_ID);
+    expect(deleteJson.data!.message).toContain('deleted');
 
     const getAfterDelete = await app.request(`/api/users/${MOCK_USER_ID}`, {
       method: 'GET',

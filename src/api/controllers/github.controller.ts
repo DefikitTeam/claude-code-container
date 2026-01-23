@@ -31,7 +31,7 @@ export class GitHubController {
       });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -45,7 +45,7 @@ export class GitHubController {
       });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -72,7 +72,7 @@ export class GitHubController {
       });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -86,7 +86,7 @@ export class GitHubController {
       const pullRequest = await this.createPullRequestUseCase.execute(prData);
 
       return successResponse(c, { pullRequest }, 201);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }

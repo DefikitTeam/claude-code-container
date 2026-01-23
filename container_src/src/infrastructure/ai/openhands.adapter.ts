@@ -30,6 +30,15 @@ export interface OpenHandsAdapterConfig {
   disabled?: boolean;
 }
 
+interface OpenHandsEvent {
+  id: string;
+  type: string;
+  source: string;
+  message?: string;
+  result?: { state: string };
+  error?: string;
+}
+
 /**
  * Defaults used when creating an OpenHandsAdapterConfig. These are conservative
  * values chosen to be safe for most environments. Callers may override any
@@ -323,7 +332,7 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         });
 
         // OpenHands event: oh_event
-        socket.on('oh_event', (event: any) => {
+        socket.on('oh_event', (event: OpenHandsEvent) => {
           logger.debug('Received oh_event', {
             sessionId,
             eventId: event.id,
@@ -449,8 +458,8 @@ export class OpenHandsAdapter implements ClaudeAdapter {
 
       // Extract repository information from context if available
       const repository =
-        (runOptions as any)?.repository ??
-        (context as any)?.repository ??
+        ((runOptions as unknown as Record<string, unknown>)?.repository as string) ??
+        ((context as unknown as Record<string, unknown>)?.repository as string) ??
         process.env.OPENHANDS_REPOSITORY;
 
       logger.info('starting OpenHands conversation', {
@@ -572,7 +581,7 @@ export class OpenHandsAdapter implements ClaudeAdapter {
       }
 
       // Generate or extract sessionId for Socket.IO connection management
-      const sessionId = (runOptions as any)?.sessionId || conversation.id;
+      const sessionId = (runOptions as { sessionId?: string })?.sessionId || conversation.id;
 
       // Run conversation via Socket.IO streaming
       const result = await this.runViaSocketIO(
@@ -601,11 +610,11 @@ export class OpenHandsAdapter implements ClaudeAdapter {
         callbacks.onError?.(err);
         throw err;
       }
-    } catch (topLevelErr: any) {
+    } catch (topLevelErr: unknown) {
       logger.error('[OpenHandsAdapter] UNCAUGHT ERROR in run():', {
-        message: String(topLevelErr?.message ?? topLevelErr),
-        name: topLevelErr?.name,
-        stack: topLevelErr?.stack?.split('\n').slice(0, 3).join('\n'),
+        message: String((topLevelErr as Record<string, unknown>)?.message ?? topLevelErr),
+        name: (topLevelErr as Error)?.name,
+        stack: (topLevelErr as Error)?.stack?.split('\n').slice(0, 3).join('\n'),
       });
       throw topLevelErr;
     }

@@ -48,7 +48,7 @@ export class RegisterUserUseCase {
     //   throw new NotFoundError('Installation', dto.installationId, 'GitHub installation not found or inactive');
     // }
 
-    let repositoryAccess = dto.repositoryAccess || [];
+    const repositoryAccess = dto.repositoryAccess || [];
 
     // TODO: Fetch repositories from GitHub when token management is enabled
     // if (repositoryAccess.length === 0) {

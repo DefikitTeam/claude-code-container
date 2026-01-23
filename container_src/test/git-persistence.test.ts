@@ -42,10 +42,12 @@ describe('GitService persistence support', () => {
       defaultBranch: 'main',
     });
 
-    expect(runGitMock).toHaveBeenCalledWith(
-      repoPath,
-      ['pull', '--ff-only', 'origin', 'main'],
-    );
+    expect(runGitMock).toHaveBeenCalledWith(repoPath, [
+      'pull',
+      '--ff-only',
+      'origin',
+      'main',
+    ]);
     expect(runGitMock).not.toHaveBeenCalledWith(
       expect.any(String),
       expect.arrayContaining(['clone']),

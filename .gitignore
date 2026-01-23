@@ -13,6 +13,8 @@
 .gemini/
 .gemini-clipboard/
 
+container_src/.acp-sessions
+
 .idea/
 
 .claude/

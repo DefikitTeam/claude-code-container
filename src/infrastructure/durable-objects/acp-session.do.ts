@@ -30,11 +30,11 @@ export interface AcpSession {
 
   // Coding Mode Configuration
   codingModeEnabled?: boolean;
-  selectedRepository?: string;  // "owner/repo"
-  selectedBranch?: string;      // target branch (e.g., "main")
+  selectedRepository?: string; // "owner/repo"
+  selectedBranch?: string; // target branch (e.g., "main")
 
   // Persistent Branch Tracking
-  workingBranch?: string;       // "feature/chat-abc123-1735488000000"
+  workingBranch?: string; // "feature/chat-abc123-1735488000000"
   branchStatus?: 'active' | 'pr_created' | 'merged' | 'deleted';
   branchCreatedAt?: number;
   lastCommitSha?: string;
@@ -313,10 +313,7 @@ export class AcpSessionDO extends DurableObject {
   /**
    * Add messages to session history
    */
-  async addMessages(
-    sessionId: string,
-    messages: ChatMessage[],
-  ): Promise<void> {
+  async addMessages(sessionId: string, messages: ChatMessage[]): Promise<void> {
     try {
       const session = await this.getSession(sessionId);
       if (!session) {
@@ -508,7 +505,10 @@ export class AcpSessionDO extends DurableObject {
       }
     }
 
-    if (request.method === 'PATCH' && url.pathname === '/session/commit-tracking') {
+    if (
+      request.method === 'PATCH' &&
+      url.pathname === '/session/commit-tracking'
+    ) {
       try {
         const { sessionId, commitSha } = await request.json<{
           sessionId: string;
@@ -530,12 +530,17 @@ export class AcpSessionDO extends DurableObject {
 
     if (request.method === 'PATCH' && url.pathname === '/session/pr-tracking') {
       try {
-        const { sessionId, pullRequestNumber, pullRequestUrl } = await request.json<{
-          sessionId: string;
-          pullRequestNumber: number;
-          pullRequestUrl: string;
-        }>();
-        await this.updatePRTracking(sessionId, pullRequestNumber, pullRequestUrl);
+        const { sessionId, pullRequestNumber, pullRequestUrl } =
+          await request.json<{
+            sessionId: string;
+            pullRequestNumber: number;
+            pullRequestUrl: string;
+          }>();
+        await this.updatePRTracking(
+          sessionId,
+          pullRequestNumber,
+          pullRequestUrl,
+        );
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (error) {
         return new Response(
@@ -558,10 +563,9 @@ export class AcpSessionDO extends DurableObject {
         }>();
         const session = await this.getSession(sessionId);
         if (!session) {
-          return new Response(
-            JSON.stringify({ error: 'Session not found' }),
-            { status: 404 },
-          );
+          return new Response(JSON.stringify({ error: 'Session not found' }), {
+            status: 404,
+          });
         }
         session.containerId = containerId;
         session.updatedAt = Date.now();

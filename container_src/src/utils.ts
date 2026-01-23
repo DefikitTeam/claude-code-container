@@ -68,7 +68,7 @@ export class Pushable<T> {
     this.closed = true;
     while (this.resolvers.length > 0) {
       const resolve = this.resolvers.shift()!;
-      resolve({ value: undefined as any, done: true });
+      resolve({ value: undefined as unknown, done: true });
     }
   }
 
@@ -92,7 +92,7 @@ export class Pushable<T> {
     if (this.items.length > 0) {
       return { value: this.items.shift()!, done: false };
     } else if (this.closed) {
-      return { value: undefined as any, done: true };
+      return { value: undefined as unknown, done: true };
     } else {
       return new Promise<IteratorResult<T>>((resolve) => {
         this.resolvers.push(resolve);
@@ -163,11 +163,11 @@ export class WorkerHttpClient {
     private apiKey?: string,
   ) {}
 
-  async sendJsonRpc(
+  async sendJsonRpc<T = unknown>(
     method: string,
-    params: any,
+    params: unknown,
     id: string | number,
-  ): Promise<any> {
+  ): Promise<T> {
     const request = {
       jsonrpc: '2.0',
       method,

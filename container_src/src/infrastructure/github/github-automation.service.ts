@@ -166,7 +166,10 @@ export class GitHubAutomationService implements IGitHubAutomationService {
         ? context
         : { ...context, allowEmptyCommit: allowEmptyCommit };
 
-    if (!effectiveContext.repository.owner || !effectiveContext.repository.name) {
+    if (
+      !effectiveContext.repository.owner ||
+      !effectiveContext.repository.name
+    ) {
       return this.buildErrorResult(
         start,
         logs,
@@ -228,7 +231,7 @@ export class GitHubAutomationService implements IGitHubAutomationService {
 
       if (!effectiveContext.dryRun) {
         await this.pushBranch(effectiveContext, prepared, logs);
-        
+
         // Skip PR and Issue comment if in commit-only mode
         if (decision.mode !== 'commit-only') {
           pullRequest = await this.openPullRequest(
@@ -249,7 +252,7 @@ export class GitHubAutomationService implements IGitHubAutomationService {
         } else {
           this.log(logs, 'automation.commitOnly', {
             message: 'Skipping PR creation (commit-only mode)',
-            branch: prepared.branchName
+            branch: prepared.branchName,
           });
         }
       } else {
@@ -473,11 +476,7 @@ export class GitHubAutomationService implements IGitHubAutomationService {
       'git-config-user-email-failed',
     );
 
-    await this.runGitChecked(
-      prepared.path,
-      ['add', '--all'],
-      'git-add-failed',
-    );
+    await this.runGitChecked(prepared.path, ['add', '--all'], 'git-add-failed');
 
     const hasChanges = await this.git.hasUncommittedChanges(prepared.path);
     if (!hasChanges && !context.allowEmptyCommit) {
@@ -952,7 +951,7 @@ function buildCommitMessage(
     const suffix = promptTitle ? `: ${sanitizeCommitSubject(promptTitle)}` : '';
     return `Fix issue #${issue.number}${suffix}`;
   }
-  
+
   // 3. Prefer promptTitle if explicitly provided (usually by user override)
   if (promptTitle) {
     return sanitizeCommitSubject(promptTitle);
@@ -987,30 +986,36 @@ function sanitizeCommitSubject(input: string): string {
 function deriveActionFromSummary(summary: string): string | undefined {
   // Try to find the first sentence or a bullet point that looks like an action
   const lines = summary.trim().split(/\r?\n/);
-  
-  for (const line of lines) {
-     const clean = line.replace(/^[-*]\s+/, '').trim();
-     if (!clean) continue;
-     
-     // If it starts with a verb-like structure (heuristically)
-     // Or just take the first meaningful line that isn't a header
-     if (clean.startsWith('#')) continue;
 
-     // Skip narration / planning lines commonly produced during streaming.
-     // Patterns: "Now I'll", "Now I will", "Now I understand", "Let me", "I'll", "I need to", 
-     // "First", "Next", "Let's", "Looking at", "Based on", "This is", "I see", "I can see"
-     if (/^(?:now\s+)?(?:i(?:\s+will|\'ll|\s+understand|\s+need\s+to|\s+see|\s+can\s+see|\s+am\s+going\s+to)|let(?:\s+me|\'s)|next\b|first\b|looking\s+at|based\s+on|this\s+is)/i.test(clean)) {
-       continue;
-     }
-     
-     // Heuristic: remove "I have " or "I "
-     const action = clean
-        .replace(/^(?:I(?:'ve| have))?\s+/i, '')
-        .replace(/^(?:I(?:'ll| will))?\s+/i, '')
-        .replace(/^(?:The system|We)\s+/i, '');
-        
-     // Capitalize first letter
-     return sanitizeCommitSubject(action.charAt(0).toUpperCase() + action.slice(1));
+  for (const line of lines) {
+    const clean = line.replace(/^[-*]\s+/, '').trim();
+    if (!clean) continue;
+
+    // If it starts with a verb-like structure (heuristically)
+    // Or just take the first meaningful line that isn't a header
+    if (clean.startsWith('#')) continue;
+
+    // Skip narration / planning lines commonly produced during streaming.
+    // Patterns: "Now I'll", "Now I will", "Now I understand", "Let me", "I'll", "I need to",
+    // "First", "Next", "Let's", "Looking at", "Based on", "This is", "I see", "I can see"
+    if (
+      /^(?:now\s+)?(?:i(?:\s+will|\'ll|\s+understand|\s+need\s+to|\s+see|\s+can\s+see|\s+am\s+going\s+to)|let(?:\s+me|\'s)|next\b|first\b|looking\s+at|based\s+on|this\s+is)/i.test(
+        clean,
+      )
+    ) {
+      continue;
+    }
+
+    // Heuristic: remove "I have " or "I "
+    const action = clean
+      .replace(/^(?:I(?:'ve| have))?\s+/i, '')
+      .replace(/^(?:I(?:'ll| will))?\s+/i, '')
+      .replace(/^(?:The system|We)\s+/i, '');
+
+    // Capitalize first letter
+    return sanitizeCommitSubject(
+      action.charAt(0).toUpperCase() + action.slice(1),
+    );
   }
   return undefined;
 }

@@ -54,7 +54,10 @@ describe('DaytonaContainerService', () => {
     });
 
     const service = new DaytonaContainerService(API_URL, API_KEY);
-    const result = await service.spawn({ configId: 'cfg-reuse', ...BASE_PARAMS });
+    const result = await service.spawn({
+      configId: 'cfg-reuse',
+      ...BASE_PARAMS,
+    });
 
     expect(result.containerId).toBe('daytona_ws-reuse');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -64,13 +67,10 @@ describe('DaytonaContainerService', () => {
     const fetchSpy = stubFetch(async (request) => {
       const url = new URL(request.url);
       if (request.method === 'GET' && url.pathname === '/sandbox') {
-        return new Response(
-          JSON.stringify([]),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       if (request.method === 'POST' && url.pathname === '/sandbox') {
@@ -119,13 +119,10 @@ describe('DaytonaContainerService', () => {
     stubFetch(async (request) => {
       const url = new URL(request.url);
       if (request.method === 'GET' && url.pathname === '/sandbox') {
-        return new Response(
-          JSON.stringify([]),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       return new Response('Internal failure', {
@@ -145,10 +142,16 @@ describe('DaytonaContainerService', () => {
   it('forwards exec commands to the Toolbox API endpoint', async () => {
     const fetchSpy = stubFetch(async (request) => {
       const url = new URL(request.url);
-      
+
       // Toolbox API endpoint: /toolbox/{sandboxId}/toolbox/process/execute
-      if (request.method === 'POST' && url.pathname === '/toolbox/ws-exec/toolbox/process/execute') {
-        const payload = (await request.json()) as { command: string; timeout: number };
+      if (
+        request.method === 'POST' &&
+        url.pathname === '/toolbox/ws-exec/toolbox/process/execute'
+      ) {
+        const payload = (await request.json()) as {
+          command: string;
+          timeout: number;
+        };
         // Verify command is wrapped with bash -c
         expect(payload.command).toContain('bash -c');
         expect(payload.command).toContain('echo hi');
@@ -180,13 +183,10 @@ describe('DaytonaContainerService', () => {
       expect(request.method).toBe('GET');
       expect(url.pathname).toBe('/sandbox/ws-logs/logs');
 
-      return new Response(
-        JSON.stringify({ logs: [] }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
+      return new Response(JSON.stringify({ logs: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     });
 
     const service = new DaytonaContainerService(API_URL, API_KEY);
@@ -240,9 +240,9 @@ describe('DaytonaContainerService', () => {
 
     const service = new DaytonaContainerService(API_URL, API_KEY);
 
-    await expect(
-      service.terminate('daytona_ws-error'),
-    ).rejects.toThrow('Daytona API DELETE');
+    await expect(service.terminate('daytona_ws-error')).rejects.toThrow(
+      'Daytona API DELETE',
+    );
   });
 
   it('getStatus maps running/ready/started to running', async () => {
@@ -318,17 +318,29 @@ describe('DaytonaContainerService', () => {
   it('throws ValidationError for containerId without daytona_ prefix', async () => {
     const service = new DaytonaContainerService(API_URL, API_KEY);
 
-    await expect(service.getLogs('invalid-id')).rejects.toThrow('Invalid Daytona containerId');
-    await expect(service.terminate('no-prefix')).rejects.toThrow('Invalid Daytona containerId');
-    await expect(service.getStatus('bad-format')).rejects.toThrow('Invalid Daytona containerId');
+    await expect(service.getLogs('invalid-id')).rejects.toThrow(
+      'Invalid Daytona containerId',
+    );
+    await expect(service.terminate('no-prefix')).rejects.toThrow(
+      'Invalid Daytona containerId',
+    );
+    await expect(service.getStatus('bad-format')).rejects.toThrow(
+      'Invalid Daytona containerId',
+    );
   });
 
   it('throws ValidationError for empty containerId', async () => {
     const service = new DaytonaContainerService(API_URL, API_KEY);
 
-    await expect(service.getLogs('')).rejects.toThrow('containerId is required');
-    await expect(service.terminate('')).rejects.toThrow('containerId is required');
-    await expect(service.getStatus('')).rejects.toThrow('containerId is required');
+    await expect(service.getLogs('')).rejects.toThrow(
+      'containerId is required',
+    );
+    await expect(service.terminate('')).rejects.toThrow(
+      'containerId is required',
+    );
+    await expect(service.getStatus('')).rejects.toThrow(
+      'containerId is required',
+    );
   });
 
   it('only reuses workspace matching the provided configId', async () => {
@@ -367,7 +379,10 @@ describe('DaytonaContainerService', () => {
         );
       }
 
-      if (request.method === 'GET' && url.pathname === '/sandbox/ws-new-correct') {
+      if (
+        request.method === 'GET' &&
+        url.pathname === '/sandbox/ws-new-correct'
+      ) {
         return new Response(
           JSON.stringify({
             id: 'ws-new-correct',
@@ -387,7 +402,10 @@ describe('DaytonaContainerService', () => {
 
     const service = new DaytonaContainerService(API_URL, API_KEY);
     // Request workspace for cfg-target, but only cfg-other exists
-    const result = await service.spawn({ configId: 'cfg-target', ...BASE_PARAMS });
+    const result = await service.spawn({
+      configId: 'cfg-target',
+      ...BASE_PARAMS,
+    });
 
     // Should create new workspace, not reuse existing one with different configId
     expect(result.containerId).toBe('daytona_ws-new-correct');

@@ -7,6 +7,7 @@ import {
   ContentBlock,
   AgentCapabilities,
   WorkspaceInfo,
+  AgentOrchestrationContext,
 } from './acp-messages.js';
 
 // ===== Session State Management =====
@@ -37,6 +38,7 @@ export interface ACPSession {
     priority?: 'low' | 'medium' | 'high' | 'critical';
     userRequest?: string;
     conversationId?: string;
+    orchestration?: AgentOrchestrationContext;
     [key: string]: unknown;
   };
 }

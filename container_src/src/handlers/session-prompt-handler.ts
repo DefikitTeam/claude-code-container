@@ -19,7 +19,7 @@ function validateContentBlocks(blocks: ContentBlock[]) {
 export async function sessionPromptHandler(
   params: SessionPromptRequest['params'],
   requestContext: RequestContext | unknown,
-  notificationSender?: (method: string, params: any) => void, // eslint-disable-line @typescript-eslint/no-explicit-any
+  notificationSender?: (method: string, params: unknown) => void,
 ): Promise<SessionPromptResponse['result']> {
   acpState.ensureInitialized();
   const { sessionStore, promptProcessor } = getRuntimeServices();
@@ -40,17 +40,28 @@ export async function sessionPromptHandler(
   const supplementalContext = rawParams.context as
     | Record<string, unknown>
     | undefined;
+  const orchestrationContext =
+    (supplementalContext &&
+    typeof supplementalContext === 'object' &&
+    'orchestration' in supplementalContext
+      ? (supplementalContext as { orchestration?: Record<string, unknown> })
+          .orchestration
+      : undefined) ?? undefined;
   const mergedAgentContext = combineAgentContexts(
     agentContextParam,
     supplementalContext,
+  );
+  const mergedAgentContextWithOrchestration = combineAgentContexts(
+    mergedAgentContext,
+    orchestrationContext ? { orchestration: orchestrationContext } : undefined,
   );
   const anthropicApiKey = rawParams.anthropicApiKey as string | undefined; // optional per worker bridge
   const apiKey =
     (anthropicApiKey as string | undefined) ||
     (typeof requestContext === 'object' &&
-    requestContext &&
+    requestContext !== null &&
     'metadata' in requestContext
-      ? (requestContext as RequestContext).metadata?.anthropicApiKey
+      ? ((requestContext as RequestContext).metadata?.anthropicApiKey as string | undefined)
       : undefined) ||
     process.env.ANTHROPIC_API_KEY ||
     process.env.OPENROUTER_API_KEY;
@@ -74,7 +85,9 @@ export async function sessionPromptHandler(
     hasAgentContext: !!agentContextParam,
     hasSupplementalContext: !!supplementalContext,
     agentContextKeys: agentContextParam ? Object.keys(agentContextParam) : [],
-    supplementalContextKeys: supplementalContext ? Object.keys(supplementalContext) : [],
+    supplementalContextKeys: supplementalContext
+      ? Object.keys(supplementalContext)
+      : [],
   });
 
   let session = acpState.getSession(sessionId);
@@ -108,51 +121,78 @@ export async function sessionPromptHandler(
   const operationId = `prompt-${Date.now()}`;
   // Track operation in state (for future enhanced cancellation)
   acpState.startOperation(sessionId, operationId);
-  if (mergedAgentContext) {
+  if (mergedAgentContextWithOrchestration) {
     session.agentContext = combineAgentContexts(
       session.agentContext,
-      mergedAgentContext,
+      mergedAgentContextWithOrchestration,
     );
-    
+
     // Hydrate history if provided in context (replaces "amnesia" with "memory")
-    const incomingHistory = mergedAgentContext.messageHistory as ContentBlock[][] | undefined;
-    
-    console.error(`[SESSION-PROMPT-TRACE] mergedAgentContext keys: ${Object.keys(mergedAgentContext)}`);
-    console.error(`[SESSION-PROMPT-TRACE] incomingHistory present: ${!!incomingHistory}, isArray: ${Array.isArray(incomingHistory)}, length: ${incomingHistory?.length}`);
-    console.error(`[SESSION-PROMPT-TRACE] current session history length: ${session.messageHistory.length}`);
+    const incomingHistory =
+      mergedAgentContextWithOrchestration.messageHistory as
+        | ContentBlock[][]
+        | undefined;
+
+    console.error(
+      `[SESSION-PROMPT-TRACE] mergedAgentContext keys: ${Object.keys(mergedAgentContextWithOrchestration)}`,
+    );
+    console.error(
+      `[SESSION-PROMPT-TRACE] incomingHistory present: ${!!incomingHistory}, isArray: ${Array.isArray(incomingHistory)}, length: ${incomingHistory?.length}`,
+    );
+    console.error(
+      `[SESSION-PROMPT-TRACE] current session history length: ${session.messageHistory.length}`,
+    );
 
     if (incomingHistory) {
-      console.error(`[SESSION-PROMPT-DEBUG] incomingHistory type: ${typeof incomingHistory}`);
-      console.error(`[SESSION-PROMPT-DEBUG] incomingHistory isArray: ${Array.isArray(incomingHistory)}`);
+      console.error(
+        `[SESSION-PROMPT-DEBUG] incomingHistory type: ${typeof incomingHistory}`,
+      );
+      console.error(
+        `[SESSION-PROMPT-DEBUG] incomingHistory isArray: ${Array.isArray(incomingHistory)}`,
+      );
       if (Array.isArray(incomingHistory)) {
-         console.error(`[SESSION-PROMPT-DEBUG] incomingHistory length: ${incomingHistory.length}`);
+        console.error(
+          `[SESSION-PROMPT-DEBUG] incomingHistory length: ${incomingHistory.length}`,
+        );
       } else {
-         console.error(`[SESSION-PROMPT-DEBUG] incomingHistory JSON: ${JSON.stringify(incomingHistory).substring(0, 200)}`);
-         // Attempt to parse if string
-         if (typeof incomingHistory === 'string') {
-            try {
-               const parsed = JSON.parse(incomingHistory);
-               if (Array.isArray(parsed)) {
-                  console.error(`[SESSION-PROMPT-DEBUG] incomingHistory was stringified JSON array, parsing...`);
-                  (session as any).messageHistory = parsed;
-               }
-            } catch (e) {
-               console.error(`[SESSION-PROMPT-DEBUG] Failed to parse string history: ${e}`);
+        console.error(
+          `[SESSION-PROMPT-DEBUG] incomingHistory JSON: ${JSON.stringify(incomingHistory).substring(0, 200)}`,
+        );
+        // Attempt to parse if string
+        if (typeof incomingHistory === 'string') {
+          try {
+            const parsed = JSON.parse(incomingHistory);
+            if (Array.isArray(parsed)) {
+              console.error(
+                `[SESSION-PROMPT-DEBUG] incomingHistory was stringified JSON array, parsing...`,
+              );
+              session.messageHistory = parsed as ContentBlock[][];
             }
-         }
+          } catch (e) {
+            console.error(
+              `[SESSION-PROMPT-DEBUG] Failed to parse string history: ${e}`,
+            );
+          }
+        }
       }
     }
 
     if (incomingHistory && Array.isArray(incomingHistory)) {
-       // Force update history
-       (session as any).messageHistory = incomingHistory;
-       console.error(`[SESSION-PROMPT] Hydrated session ${sessionId} with ${incomingHistory.length} history items from request.`);
-       
-       // DEBUG: Log the first item to understand structure (Array vs Object)
-       if (incomingHistory.length > 0) {
-         console.error(`[SESSION-PROMPT-DEBUG] First history item: ${JSON.stringify(incomingHistory[0]).substring(0, 500)}`);
-         console.error(`[SESSION-PROMPT-DEBUG] First item type: ${typeof incomingHistory[0]}, isArray: ${Array.isArray(incomingHistory[0])}`);
-       }
+      // Force update history
+      session.messageHistory = incomingHistory;
+      console.error(
+        `[SESSION-PROMPT] Hydrated session ${sessionId} with ${incomingHistory.length} history items from request.`,
+      );
+
+      // DEBUG: Log the first item to understand structure (Array vs Object)
+      if (incomingHistory.length > 0) {
+        console.error(
+          `[SESSION-PROMPT-DEBUG] First history item: ${JSON.stringify(incomingHistory[0]).substring(0, 500)}`,
+        );
+        console.error(
+          `[SESSION-PROMPT-DEBUG] First item type: ${typeof incomingHistory[0]}, isArray: ${Array.isArray(incomingHistory[0])}`,
+        );
+      }
     }
   }
 
@@ -161,7 +201,7 @@ export async function sessionPromptHandler(
       sessionId,
       content,
       contextFiles,
-      agentContext: mergedAgentContext ?? session.agentContext,
+      agentContext: mergedAgentContextWithOrchestration ?? session.agentContext,
       apiKey,
       notificationSender,
       historyAlreadyAppended: false,

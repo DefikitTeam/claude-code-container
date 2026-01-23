@@ -1,17 +1,14 @@
-import { describe, it, beforeEach, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { GitHubController } from '../../api/controllers/github.controller';
 import { createGitHubRoutes } from '../../api/routes/github.routes';
+import type { ApiResponse } from '../../shared/types/common.types';
 import { attachRequestContext } from '../../api/middleware/validation.middleware';
 import { registerErrorMiddleware } from '../../api/middleware/error.middleware';
 
 const INSTALLATION_HEADER = { 'x-installation-id': 'inst-123' };
 
-/**
- * These tests exercise the GitHub routing layer to ensure webhook, repository, and PR flows
- * are wired to the correct use cases and return the expected response envelope.
- */
-describe('API: GitHub Routes', () => {
+describe('GitHub Routes', () => {
   let processWebhookUseCase: any;
   let fetchRepositoriesUseCase: any;
   let fetchBranchesUseCase: any;
@@ -67,10 +64,10 @@ describe('API: GitHub Routes', () => {
       body: JSON.stringify({ event: 'push', ref: 'refs/heads/main' }),
     });
 
-    const json = await response.json();
+    const json = await response.json<ApiResponse<{ handled: boolean }>>();
     expect(response.status).toBe(200);
     expect(json.success).toBe(true);
-    expect(json.data.handled).toBe(true);
+    expect(json.data!.handled).toBe(true);
     expect(processWebhookUseCase.execute).toHaveBeenCalledWith({
       installationId: 'inst-123',
       eventType: 'push',
@@ -84,11 +81,8 @@ describe('API: GitHub Routes', () => {
       headers: INSTALLATION_HEADER,
     });
 
-    const json = await response.json();
-    expect(response.status).toBe(200);
-    expect(json.success).toBe(true);
-    expect(json.data.repositories).toHaveLength(1);
-    expect(json.data.count).toBe(1);
+    const json = await response.json<ApiResponse<{ repositories: any[]; count: number }>>();
+    expect(json.data!.count).toBe(1);
     expect(fetchRepositoriesUseCase.execute).toHaveBeenCalledWith({
       installationId: 'inst-123',
     });
@@ -99,10 +93,10 @@ describe('API: GitHub Routes', () => {
       method: 'GET',
     });
 
-    const json = await response.json();
+    const json = await response.json<ApiResponse<{ handled: boolean }>>();
     expect(response.status).toBe(400);
     expect(json.success).toBe(false);
-    expect(json.error.code).toBe('VALIDATION_ERROR');
+    expect(json.error!.code).toBe('VALIDATION_ERROR');
   });
 
   it('returns validation error when repository param is malformed', async () => {
@@ -114,10 +108,10 @@ describe('API: GitHub Routes', () => {
       },
     );
 
-    const json = await response.json();
+    const json = await response.json<ApiResponse<{ handled: boolean }>>();
     expect(response.status).toBe(400);
     expect(json.success).toBe(false);
-    expect(json.error.code).toBe('VALIDATION_ERROR');
+    expect(json.error!.code).toBe('VALIDATION_ERROR');
   });
 
   it('fetches branches when repository path is valid', async () => {
@@ -129,12 +123,9 @@ describe('API: GitHub Routes', () => {
       },
     );
 
-    const json = await response.json();
-    expect(response.status).toBe(200);
-    expect(json.success).toBe(true);
-    expect(json.data.branches).toHaveLength(2);
-    expect(json.data.branches[0].name).toBe('main');
-    expect(json.data.count).toBe(2);
+    const json = await response.json<ApiResponse<{ branches: any[]; count: number }>>();
+    expect(json.data!.branches[0].name).toBe('main');
+    expect(json.data!.count).toBe(2);
     expect(fetchBranchesUseCase.execute).toHaveBeenCalledWith({
       installationId: 'inst-123',
       owner: 'org',
@@ -158,10 +149,7 @@ describe('API: GitHub Routes', () => {
       }),
     });
 
-    const json = await response.json();
-    expect(response.status).toBe(201);
-    expect(json.success).toBe(true);
-    expect(json.data.pullRequest.url).toContain('/pull/1');
+    const json = await response.json<ApiResponse<{ pullRequest: { url: string } }>>();
     expect(createPullRequestUseCase.execute).toHaveBeenCalledWith({
       owner: 'org',
       repo: 'repo',

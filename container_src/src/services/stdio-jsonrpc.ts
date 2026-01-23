@@ -14,13 +14,13 @@ import {
 
 export interface JSONRPCHandler {
   method: string;
-  handler: (params: any, context: RequestContext) => Promise<any>;
+  handler: (params: unknown, context: RequestContext) => Promise<unknown>;
 }
 
 export interface RequestContext {
   requestId: string | number | null;
   timestamp: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class StdioJSONRPCServer extends EventEmitter {
@@ -120,8 +120,8 @@ export class StdioJSONRPCServer extends EventEmitter {
       if (!this.isValidJSONRPC(message)) {
         // Try to preserve the id from the message if available
         const messageId =
-          message && typeof message === 'object' && message.id !== undefined
-            ? message.id
+          message && typeof message === 'object' && (message as Record<string, unknown>).id !== undefined
+            ? (message as Record<string, unknown>).id as string | number | null
             : null;
         const error = this.createErrorResponse(
           messageId,
@@ -133,9 +133,9 @@ export class StdioJSONRPCServer extends EventEmitter {
       }
 
       const context: RequestContext = {
-        requestId: message.id || null,
+        requestId: ((message as Record<string, unknown>).id as string | number | null) || null, // safe because checked in isValidJSONRPC
         timestamp: Date.now(),
-        metadata: { method: message.method },
+        metadata: { method: (message as Record<string, unknown>).method },
       };
 
       // Handle notifications (no response expected)
@@ -193,18 +193,18 @@ export class StdioJSONRPCServer extends EventEmitter {
       this.emit('request:completed', { method, params, id, result, context });
     } catch (handlerError) {
       // Extract error details from thrown Error object
-      let errorCode = ACP_ERROR_CODES.INTERNAL_ERROR;
+      let errorCode: number = ACP_ERROR_CODES.INTERNAL_ERROR;
       let errorMessage = 'Unknown error';
-      let errorData: any = undefined;
+      let errorData: unknown = undefined;
 
       if (handlerError instanceof Error) {
         errorMessage = handlerError.message;
         // Check if it's a custom ACP error with code and data
-        if ((handlerError as any).code !== undefined) {
-          errorCode = (handlerError as any).code;
+        if (((handlerError as unknown) as { code?: number }).code !== undefined) {
+          errorCode = ((handlerError as unknown) as { code: number }).code;
         }
-        if ((handlerError as any).data !== undefined) {
-          errorData = (handlerError as any).data;
+        if (((handlerError as unknown) as { data?: unknown }).data !== undefined) {
+          errorData = ((handlerError as unknown) as { data: unknown }).data;
         }
       } else if (typeof handlerError === 'string') {
         errorMessage = handlerError;
@@ -271,11 +271,11 @@ export class StdioJSONRPCServer extends EventEmitter {
   /**
    * Send a notification to the client
    */
-  sendNotification(method: string, params: any): void {
+  sendNotification(method: string, params: unknown): void {
     const notification: JSONRPCNotification = {
       jsonrpc: '2.0',
       method,
-      params,
+      params: params as Record<string, unknown>,
     };
     this.sendResponse(notification);
   }
@@ -283,24 +283,28 @@ export class StdioJSONRPCServer extends EventEmitter {
   /**
    * Validate JSON-RPC message format
    */
-  private isValidJSONRPC(message: any): boolean {
+  private isValidJSONRPC(message: unknown): boolean {
     return (
       typeof message === 'object' &&
       message !== null &&
-      message.jsonrpc === '2.0' &&
-      typeof message.method === 'string' &&
-      (message.id === undefined ||
-        typeof message.id === 'string' ||
-        typeof message.id === 'number' ||
-        message.id === null)
+      (message as Record<string, unknown>).jsonrpc === '2.0' &&
+      typeof (message as Record<string, unknown>).method === 'string' &&
+      ((message as Record<string, unknown>).id === undefined ||
+        typeof (message as Record<string, unknown>).id === 'string' ||
+        typeof (message as Record<string, unknown>).id === 'number' ||
+        (message as Record<string, unknown>).id === null)
     );
   }
 
   /**
    * Check if message is a notification (no id field)
    */
-  private isNotification(message: any): boolean {
-    return message.id === undefined;
+  private isNotification(message: unknown): boolean {
+    return (
+      typeof message === 'object' &&
+      message !== null &&
+      (message as Record<string, unknown>).id === undefined
+    );
   }
 
   /**
@@ -310,12 +314,12 @@ export class StdioJSONRPCServer extends EventEmitter {
     id: string | number | null,
     code: number,
     message: string,
-    data?: any,
+    data?: unknown,
   ): JSONRPCResponse {
     const error: JSONRPCError = {
       code,
       message,
-      ...(data && { data }),
+      ...(data !== undefined ? { data } : {}),
     };
 
     return {

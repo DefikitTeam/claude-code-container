@@ -40,8 +40,8 @@ export async function initializeHandler(
 
   // (Optional) annotate with clientCapabilities echo in development
   if (process.env.NODE_ENV === 'development') {
-    (response as any).clientCapabilities = clientCapabilities; // eslint-disable-line @typescript-eslint/no-explicit-any
-    (response as any).clientInfo = acpState.getClientInfo();
+    (response as Record<string, unknown>).clientCapabilities = clientCapabilities;  
+    (response as Record<string, unknown>).clientInfo = acpState.getClientInfo();
   }
   return response;
 }

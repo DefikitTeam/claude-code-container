@@ -39,11 +39,12 @@ async function runGit(
   try {
     const result = await execFileAsync('git', args, { cwd });
     return { stdout: result.stdout, stderr: result.stderr, code: 0 };
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const err = e as { stdout?: string; stderr?: string; code?: number };
     return {
-      stdout: e.stdout || '',
-      stderr: e.stderr || '',
-      code: e.code || 1,
+      stdout: err.stdout || '',
+      stderr: err.stderr || '',
+      code: err.code || 1,
     };
   }
 }
@@ -88,16 +89,16 @@ export async function diagnoseWorkspace(
     try {
       const stats = await fs.stat(workspacePath);
       result.checks.workspacePermissions = `mode: ${stats.mode.toString(8)}, uid: ${stats.uid}, gid: ${stats.gid}`;
-    } catch (e: any) {
-      result.errors.push(`Cannot stat workspace: ${e.message}`);
+    } catch (e: unknown) {
+      result.errors.push(`Cannot stat workspace: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // 3. List all files in workspace
     try {
       const files = await fs.readdir(workspacePath);
       result.checks.filesInWorkspace = files;
-    } catch (e: any) {
-      result.errors.push(`Cannot read workspace directory: ${e.message}`);
+    } catch (e: unknown) {
+      result.errors.push(`Cannot read workspace directory: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // 4. Check if it's a git repo
@@ -124,16 +125,16 @@ export async function diagnoseWorkspace(
       if (!result.checks.gitConfigValid) {
         result.errors.push('Git user.name or user.email not configured');
       }
-    } catch (e: any) {
-      result.errors.push(`Git config check failed: ${e.message}`);
+    } catch (e: unknown) {
+      result.errors.push(`Git config check failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // 6. Check remote
     try {
       const remoteResult = await runGit(workspacePath, ['remote', '-v']);
       result.checks.hasRemote = remoteResult.stdout.trim().length > 0;
-    } catch (e: any) {
-      result.errors.push(`Remote check failed: ${e.message}`);
+    } catch (e: unknown) {
+      result.errors.push(`Remote check failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // 7. Get current branch
@@ -143,8 +144,8 @@ export async function diagnoseWorkspace(
         '--show-current',
       ]);
       result.checks.currentBranch = branchResult.stdout.trim() || null;
-    } catch (e: any) {
-      result.errors.push(`Branch check failed: ${e.message}`);
+    } catch (e: unknown) {
+      result.errors.push(`Branch check failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // 8. Check if target files exist
@@ -164,8 +165,8 @@ export async function diagnoseWorkspace(
     try {
       const statusResult = await runGit(workspacePath, ['status']);
       result.checks.gitStatus = statusResult.stdout;
-    } catch (e: any) {
-      result.errors.push(`Git status failed: ${e.message}`);
+    } catch (e: unknown) {
+      result.errors.push(`Git status failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // 10. Get git status --porcelain
@@ -192,8 +193,8 @@ export async function diagnoseWorkspace(
           result.checks.modifiedFiles.push(file);
         }
       }
-    } catch (e: any) {
-      result.errors.push(`Git status --porcelain failed: ${e.message}`);
+    } catch (e: unknown) {
+      result.errors.push(`Git status --porcelain failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // 11. Check .gitignore
@@ -219,13 +220,13 @@ export async function diagnoseWorkspace(
               `File is ignored by .gitignore: ${file} (${checkIgnoreResult.stdout.trim()})`,
             );
           }
-        } catch (e: any) {
+        } catch (e: unknown) {
           // File not ignored (exit code 1 is expected)
         }
       }
     }
-  } catch (e: any) {
-    result.errors.push(`Unexpected error: ${e.message}`);
+  } catch (e: unknown) {
+    result.errors.push(`Unexpected error: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return result;

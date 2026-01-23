@@ -12,13 +12,13 @@ export * from './session-load-handler.js';
 export * from './session-prompt-handler.js';
 export * from './cancel-handler.js';
 
-if (!(globalThis as any).__ACP_HANDLERS_SHIM_WARNED__) {
-  // eslint-disable-line @typescript-eslint/no-explicit-any
-  // eslint-disable-next-line no-console
+if (!(globalThis as unknown as { __ACP_HANDLERS_SHIM_WARNED__: boolean }).__ACP_HANDLERS_SHIM_WARNED__) {
+   
+   
   console.warn(
     '[DEPRECATION] `acp-handlers.ts` is a shim. Import specific handlers directly.',
   );
-  (globalThis as any).__ACP_HANDLERS_SHIM_WARNED__ = true; // eslint-disable-line @typescript-eslint/no-explicit-any
+  (globalThis as unknown as { __ACP_HANDLERS_SHIM_WARNED__: boolean }).__ACP_HANDLERS_SHIM_WARNED__ = true;  
 }
 
 export default undefined;

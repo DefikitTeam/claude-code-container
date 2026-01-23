@@ -55,7 +55,9 @@ export function createHttpServer(): http.Server {
   });
 }
 
-export async function runHttpServer(argv: any = {}): Promise<void> {
+export async function runHttpServer(
+  argv: Record<string, unknown> = {},
+): Promise<void> {
   const port = Number(argv.port) || DEFAULT_PORT;
   const server = createHttpServer();
 

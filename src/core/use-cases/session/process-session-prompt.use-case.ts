@@ -1,5 +1,6 @@
 import { IContainerService } from '../../interfaces/services/container.service';
 import { ValidationError } from '../../../shared/errors/validation.error';
+import type { AcpSession } from '../../../infrastructure/durable-objects/acp-session.do';
 
 export interface ProcessSessionPromptDto {
   sessionId: string;
@@ -17,6 +18,10 @@ export interface ProcessSessionPromptResult {
   filesChanged: Array<{ path: string; status: string }>;
   workingBranch: string;
   totalCommits: number;
+  pullRequestUrl?: string;
+  pullRequestNumber?: number | null;
+  summary?: string;
+  status?: string;
 }
 
 /**
@@ -56,7 +61,7 @@ export class ProcessSessionPromptUseCase {
       throw new Error('Session not found');
     }
 
-    const session = await sessionResponse.json<any>();
+    const session = await sessionResponse.json<AcpSession>();
     console.log(
       `[ProcessSessionPrompt] Session loaded. CodingMode: ${session.codingModeEnabled}`,
     );
@@ -124,53 +129,64 @@ export class ProcessSessionPromptUseCase {
     // This ensures the branch exists on remote so the Container's 'ensureRepo' logic
     // can successfully fetch and checkout the branch, instead of falling back to 'main'
     // and causing "dirty workspace" errors when files are created.
-    if (session.workingBranch && (session.totalCommits === 0 || !session.totalCommits)) {
+    if (
+      session.workingBranch &&
+      (session.totalCommits === 0 || !session.totalCommits)
+    ) {
       try {
-        console.log(`[ProcessSessionPrompt] Attempting to create remote branch ${session.workingBranch}`);
+        console.log(
+          `[ProcessSessionPrompt] Attempting to create remote branch ${session.workingBranch}`,
+        );
         const baseBranch = session.selectedBranch || 'main';
-        
+
         // 1. Get SHA of base branch
         const baseRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${baseBranch}`;
         const baseRefResp = await fetch(baseRefUrl, {
-            headers: { 
-                'Authorization': `Bearer ${dto.githubToken}`,
-                'User-Agent': 'LumiLink-Worker',
-                'Accept': 'application/vnd.github.v3+json'
-            }
+          headers: {
+            Authorization: `Bearer ${dto.githubToken}`,
+            'User-Agent': 'LumiLink-Worker',
+            Accept: 'application/vnd.github.v3+json',
+          },
         });
-        
+
         if (baseRefResp.ok) {
-            const baseRefData = await baseRefResp.json<any>();
-            const sha = baseRefData.object.sha;
-            
-            // 2. Create new ref
-            const createRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/refs`;
-            const createResp = await fetch(createRefUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${dto.githubToken}`,
-                    'User-Agent': 'LumiLink-Worker',
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/vnd.github.v3+json'
-                },
-                body: JSON.stringify({
-                    ref: `refs/heads/${session.workingBranch}`,
-                    sha: sha
-                })
-            });
-            
-            if (createResp.ok || createResp.status === 422) { 
-                // 422 usually means already exists, which is fine
-                console.log(`[ProcessSessionPrompt] Remote branch ${session.workingBranch} ensured (SHA: ${sha})`);
-            } else {
-                const errText = await createResp.text();
-                console.warn(`[ProcessSessionPrompt] Failed to create remote branch: ${createResp.status} - ${errText}`);
-            }
+          const baseRefData = await baseRefResp.json<any>();
+          const sha = baseRefData.object.sha;
+
+          // 2. Create new ref
+          const createRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/refs`;
+          const createResp = await fetch(createRefUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${dto.githubToken}`,
+              'User-Agent': 'LumiLink-Worker',
+              'Content-Type': 'application/json',
+              Accept: 'application/vnd.github.v3+json',
+            },
+            body: JSON.stringify({
+              ref: `refs/heads/${session.workingBranch}`,
+              sha: sha,
+            }),
+          });
+
+          if (createResp.ok || createResp.status === 422) {
+            // 422 usually means already exists, which is fine
+            console.log(
+              `[ProcessSessionPrompt] Remote branch ${session.workingBranch} ensured (SHA: ${sha})`,
+            );
+          } else {
+            const errText = await createResp.text();
+            console.warn(
+              `[ProcessSessionPrompt] Failed to create remote branch: ${createResp.status} - ${errText}`,
+            );
+          }
         } else {
-             console.warn(`[ProcessSessionPrompt] Failed to get base branch SHA: ${baseRefResp.status}`);
+          console.warn(
+            `[ProcessSessionPrompt] Failed to get base branch SHA: ${baseRefResp.status}`,
+          );
         }
       } catch (e) {
-        console.warn("[ProcessSessionPrompt] Remote branch creation failed", e);
+        console.warn('[ProcessSessionPrompt] Remote branch creation failed', e);
       }
     }
 

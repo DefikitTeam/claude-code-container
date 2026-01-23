@@ -98,8 +98,8 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
               try {
                 await git.applyPatch(ws, patch);
                 return { success: true };
-              } catch (error: any) {
-                return { success: false, error: error.message };
+              } catch (error: unknown) {
+                return { success: false, error: error instanceof Error ? error.message : String(error) };
               }
             },
           }),
@@ -218,7 +218,9 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
 
       // 10. Optional: Log OpenRouter-specific metadata (cost tracking)
       if (providerMetadata?.openrouter) {
-        const metadata = providerMetadata.openrouter as any;
+        const metadata = providerMetadata.openrouter as {
+          usage?: { cost?: number; totalTokens?: number };
+        };
         console.log('[VercelOpenRouterAdapter] Usage:', {
           cost: metadata.usage?.cost,
           totalTokens: metadata.usage?.totalTokens,

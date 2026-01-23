@@ -1,33 +1,48 @@
 # Local API Flow Testing (curl & Postman Friendly)
 
-Use this guide to exercise the **clean-architecture Worker** (`src-new/`) locally and walk through realistic flows including user registration, container management, ACP protocol, and GitHub webhook processing.
+Use this guide to exercise the **clean-architecture Worker** (`src-new/`)
+locally and walk through realistic flows including user registration, container
+management, ACP protocol, and GitHub webhook processing.
 
 ## 🎉 **Recent Critical Fixes (Oct 29, 2025)**
 
-**Complete fix for "No workspace changes detected" issue!** All three components now working together:
+**Complete fix for "No workspace changes detected" issue!** All three components
+now working together:
 
-1. ✅ **GitHub App Auto-Authentication**: Automatic installation token generation from App ID + Private Key
-2. ✅ **File System Tools**: Claude can read/write files using Vercel AI SDK tool calling
-3. ✅ **Auto-Construct Clone URL**: Just provide `"owner/repo"` - system builds HTTPS URL with auth automatically!
+1. ✅ **GitHub App Auto-Authentication**: Automatic installation token
+   generation from App ID + Private Key
+2. ✅ **File System Tools**: Claude can read/write files using Vercel AI SDK
+   tool calling
+3. ✅ **Auto-Construct Clone URL**: Just provide `"owner/repo"` - system builds
+   HTTPS URL with auth automatically!
 
-**Result**: Simplest API format ever - just provide `installationId` and `"owner/repo"`, get full PR automation!
+**Result**: Simplest API format ever - just provide `installationId` and
+`"owner/repo"`, get full PR automation!
 
-See [`COMPLETE-FIX-SUMMARY.md`](../COMPLETE-FIX-SUMMARY.md) for detailed technical explanation.
+See [`COMPLETE-FIX-SUMMARY.md`](../COMPLETE-FIX-SUMMARY.md) for detailed
+technical explanation.
 
 ## ✅ **Clean Architecture Status**
 
-The new `src-new/` implementation has **100% feature parity** with the old `src/` code:
-- ✅ **Real Containers**: Uses `@cloudflare/containers` with actual container execution
+The new `src-new/` implementation has **100% feature parity** with the old
+`src/` code:
+
+- ✅ **Real Containers**: Uses `@cloudflare/containers` with actual container
+  execution
 - ✅ **ACP Bridge**: Full JSON-RPC 2.0 protocol support
-- ✅ **Multi-tenant GitHub**: Real JWT + Installation Token authentication with **auto-token generation**
-- ✅ **Webhook Processing**: Complete GitHub event handling with container routing
+- ✅ **Multi-tenant GitHub**: Real JWT + Installation Token authentication with
+  **auto-token generation**
+- ✅ **Webhook Processing**: Complete GitHub event handling with container
+  routing
 - ✅ **Container Registry Auth**: Cloudflare deployment authentication
-- ✅ **File System Tools**: Comprehensive file operations for Claude (readFile, writeFile, executeBash, etc.)
+- ✅ **File System Tools**: Comprehensive file operations for Claude (readFile,
+  writeFile, executeBash, etc.)
 - ✅ **Auto Clone URL**: Automatic HTTPS clone URL construction from owner/name
 
 ## 1. Prep the runtime
 
 **Prerequisites:**
+
 - Node.js 22+ and npm installed (container requires Node 22+)
 - Wrangler CLI (`npm install -g wrangler`)
 - Docker Desktop running (required for container builds)
@@ -35,11 +50,13 @@ The new `src-new/` implementation has **100% feature parity** with the old `src/
 - Real Anthropic API key
 
 **Install dependencies:**
+
 ```bash
 npm install && (cd container_src && npm install)
 ```
 
 **Create `.dev.vars` file in project root:**
+
 ```bash
 # .dev.vars - Local development environment variables
 ENCRYPTION_KEY="your-32-character-encryption-key-here-12345678"
@@ -51,6 +68,7 @@ ANTHROPIC_API_KEY="sk-ant-api03-your-real-key-here"
 ```
 
 **🚨 CRITICAL: Build the container image BEFORE starting the worker:**
+
 ```bash
 # Build the container_src application
 npm run build:container
@@ -60,23 +78,29 @@ npm run build:container
 ```
 
 **Start the Worker:**
+
 ```bash
 npm run dev
 ```
+
 The worker will start on `http://127.0.0.1:8787`
 
-> ⚠️ **Common Issue**: If you see "connection refused: container port not found" errors, you forgot to run `npm run build:container` first!
+> ⚠️ **Common Issue**: If you see "connection refused: container port not found"
+> errors, you forgot to run `npm run build:container` first!
 
-> 💡 **Tip**: Postman users can create a collection pointing at `http://127.0.0.1:8787`; the same headers/bodies below apply.
+> 💡 **Tip**: Postman users can create a collection pointing at
+> `http://127.0.0.1:8787`; the same headers/bodies below apply.
 
 ## 2. Health Check (Optional)
 
 Verify the worker is running:
+
 ```bash
 curl http://127.0.0.1:8787/health
 ```
 
 **Expected Response:**
+
 ```json
 {
   "status": "healthy",
@@ -88,7 +112,8 @@ curl http://127.0.0.1:8787/health
 
 ## 3. Register a User
 
-Every API call expects the installation ID header. Create a user record using **your real GitHub App installation ID and Anthropic API key**:
+Every API call expects the installation ID header. Create a user record using
+**your real GitHub App installation ID and Anthropic API key**:
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/users/register \
@@ -102,12 +127,15 @@ curl -X POST http://127.0.0.1:8787/api/users/register \
 ```
 
 > ⚠️ **Replace with your real credentials:**
+>
 > - `85955072` → Your GitHub App installation ID
 > - `sk-ant-api03-YOUR_REAL_KEY_HERE` → Your Anthropic API key
 
-> 💡 **Note**: `userId` is **optional**. If not provided, the system auto-generates one as `user-{installationId}-{timestamp}`
+> 💡 **Note**: `userId` is **optional**. If not provided, the system
+> auto-generates one as `user-{installationId}-{timestamp}`
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -123,6 +151,7 @@ curl -X POST http://127.0.0.1:8787/api/users/register \
 ```
 
 **What happens:**
+
 - Worker validates the installation ID with GitHub (real API call)
 - User config stored in `UserConfigDO` (Durable Object)
 - Anthropic API key encrypted with AES-256-GCM
@@ -146,15 +175,16 @@ curl -X POST http://127.0.0.1:8787/api/containers/spawn \
         "configId": "cfg-local-demo",
         "containerImage": "node:18",
         "environmentVariables": { "NODE_ENV": "development" },
-        "resourceLimits": { 
-          "cpuMillis": 500, 
-          "memoryMb": 256, 
-          "timeoutSeconds": 120 
+        "resourceLimits": {
+          "cpuMillis": 500,
+          "memoryMb": 256,
+          "timeoutSeconds": 120
         }
       }'
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -167,12 +197,14 @@ curl -X POST http://127.0.0.1:8787/api/containers/spawn \
 ```
 
 **✅ Container Implementation:**
+
 - Uses **real Cloudflare Workers Container** (`@cloudflare/containers`)
 - `ContainerDO` extends `Container<any>` from the package
 - Container runs the `container_src/` application with Node.js
 - Full lifecycle management (fetch, onStop, onError)
 
-**📋 Copy the `containerId`** from the response; you'll use it for prompts, logs, and teardown.
+**📋 Copy the `containerId`** from the response; you'll use it for prompts,
+logs, and teardown.
 
 ## 5. Run a Prompt Inside the Container
 
@@ -191,6 +223,7 @@ curl -X POST http://127.0.0.1:8787/api/containers/$CONTAINER_ID/prompt \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -206,6 +239,7 @@ curl -X POST http://127.0.0.1:8787/api/containers/$CONTAINER_ID/prompt \
 ```
 
 **✅ Real Execution:**
+
 - Request routed to **real container** running `container_src/` application
 - Command executed inside isolated container environment
 - Actual exit codes, stdout, and stderr returned
@@ -213,11 +247,11 @@ curl -X POST http://127.0.0.1:8787/api/containers/$CONTAINER_ID/prompt \
 
 **❌ Common Errors:**
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `"Not Found"` | Invalid containerId | Double-check the containerId from step 4 |
-| `503 Service Unavailable` | Container provisioning in progress | Wait a few seconds and retry |
-| `401 Unauthorized` | Missing/invalid headers | Verify X-Installation-ID and X-User-ID headers |
+| Error                     | Cause                              | Solution                                       |
+| ------------------------- | ---------------------------------- | ---------------------------------------------- |
+| `"Not Found"`             | Invalid containerId                | Double-check the containerId from step 4       |
+| `503 Service Unavailable` | Container provisioning in progress | Wait a few seconds and retry                   |
+| `401 Unauthorized`        | Missing/invalid headers            | Verify X-Installation-ID and X-User-ID headers |
 
 ## 6. Inspect Logs (Optional)
 
@@ -231,6 +265,7 @@ curl http://127.0.0.1:8787/api/containers/$CONTAINER_ID/logs
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -258,6 +293,7 @@ curl -X DELETE http://127.0.0.1:8787/api/containers/$CONTAINER_ID
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -274,11 +310,17 @@ curl -X DELETE http://127.0.0.1:8787/api/containers/$CONTAINER_ID
 
 ## 🤖 ACP Protocol Testing (NEW!)
 
-The clean architecture includes full **Agent Communication Protocol (ACP) v0.3.1** support with JSON-RPC 2.0.
+The clean architecture includes full **Agent Communication Protocol (ACP)
+v0.3.1** support with JSON-RPC 2.0.
 
-**🔒 IMPORTANT:** All ACP endpoints require `userId` in the request body for multi-tenant security.
+**🔒 IMPORTANT:** All ACP endpoints require `userId` in the request body for
+multi-tenant security.
 
-**✅ GitHub Integration:** As of October 29, 2025, GitHub automation is fully supported! The worker automatically generates GitHub installation tokens and passes them to the container. No additional setup needed - just make sure you registered with a valid `installationId`. See [`docs/GITHUB_TOKEN_FIX.md`](./GITHUB_TOKEN_FIX.md) for details.
+**✅ GitHub Integration:** As of October 29, 2025, GitHub automation is fully
+supported! The worker automatically generates GitHub installation tokens and
+passes them to the container. No additional setup needed - just make sure you
+registered with a valid `installationId`. See
+[`docs/GITHUB_TOKEN_FIX.md`](./GITHUB_TOKEN_FIX.md) for details.
 
 ### Initialize ACP Session
 
@@ -296,6 +338,7 @@ curl -X POST http://127.0.0.1:8787/acp/initialize \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -310,7 +353,8 @@ curl -X POST http://127.0.0.1:8787/acp/initialize \
 
 ### Create New Session
 
-**🔒 Security Note:** The worker fetches your encrypted API key from storage using `userId`.
+**🔒 Security Note:** The worker fetches your encrypted API key from storage
+using `userId`.
 
 ```bash
 # Use the userId from step 3
@@ -327,6 +371,7 @@ curl -X POST http://127.0.0.1:8787/acp/session/new \
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -345,13 +390,20 @@ curl -X POST http://127.0.0.1:8787/acp/session/new \
 
 ### Send Prompt to Session
 
-**🔒 Security Note:** All ACP endpoints require `userId`. The worker automatically fetches your encrypted API key. **DO NOT send `anthropicApiKey` in the request body.**
+**🔒 Security Note:** All ACP endpoints require `userId`. The worker
+automatically fetches your encrypted API key. **DO NOT send `anthropicApiKey` in
+the request body.**
 
-**✅ Automatic GitHub Automation:** When you register a user with an `installationId`, the system automatically:
-1. **Generates GitHub installation token** from your GitHub App credentials (App ID + Private Key)
-2. **Auto-constructs clone URL** from repository owner/name (no need to provide full URL!)
+**✅ Automatic GitHub Automation:** When you register a user with an
+`installationId`, the system automatically:
+
+1. **Generates GitHub installation token** from your GitHub App credentials (App
+   ID + Private Key)
+2. **Auto-constructs clone URL** from repository owner/name (no need to provide
+   full URL!)
 3. **Clones repository** to workspace before Claude runs
-4. **Provides file system tools** to Claude (readFile, writeFile, executeBash, etc.)
+4. **Provides file system tools** to Claude (readFile, writeFile, executeBash,
+   etc.)
 5. **Detects changes** made by Claude
 6. **Creates Pull Request** with all file modifications
 
@@ -500,6 +552,7 @@ curl -X POST http://127.0.0.1:8787/acp/session/prompt \
 ```
 
 **Expected Response (Success):**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -527,6 +580,7 @@ curl -X POST http://127.0.0.1:8787/acp/session/prompt \
 ```
 
 **Expected Console Logs (Worker Terminal):**
+
 ```
 [PROMPT][session-xxx] resolvedRepo: {"owner":"YourUsername","name":"test-repo","cloneUrl":"missing"}
 [PROMPT][session-xxx] token: present gitService: true
@@ -548,6 +602,7 @@ Tool result: { success: true, path: "styles.css", size: 28 }
 ```
 
 **What Just Happened:**
+
 1. ✅ System parsed `"owner/repo"` to `{ owner, name }`
 2. ✅ Generated installation token from GitHub App credentials
 3. ✅ Auto-constructed clone URL with authentication
@@ -564,6 +619,7 @@ Tool result: { success: true, path: "styles.css", size: 28 }
 **🎉 Success! Check your repository for the new Pull Request!**
 
 **Error if userId missing:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -595,6 +651,7 @@ curl -X POST http://127.0.0.1:8787/acp/session/load \
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -630,6 +687,7 @@ curl -X POST http://127.0.0.1:8787/acp/cancel \
 ```
 
 **Response:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -650,6 +708,7 @@ curl http://127.0.0.1:8787/acp/status
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -708,6 +767,7 @@ curl -X POST http://127.0.0.1:8787/api/github/webhooks \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -727,6 +787,7 @@ curl -X POST http://127.0.0.1:8787/api/github/webhooks \
 ```
 
 **What happens:**
+
 1. Webhook validated and installation checked
 2. User config loaded for the installation
 3. Container spawned for issue processing
@@ -743,6 +804,7 @@ curl -X GET http://127.0.0.1:8787/api/github/repositories \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -774,6 +836,7 @@ curl -X GET http://127.0.0.1:8787/api/github/repositories/owner%2Fmy-repo/branch
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -814,6 +877,7 @@ curl -X POST http://127.0.0.1:8787/api/github/pull-requests \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -835,13 +899,14 @@ curl -X POST http://127.0.0.1:8787/api/github/pull-requests \
 
 ## 📋 Header Cheat Sheet
 
-| Header | Required | Routes | Purpose |
-|--------|----------|--------|---------|
-| `X-Installation-ID` | ✅ | `/api/users/*`, `/api/containers/spawn`, `/api/github/*` | Multi-tenant routing - resolves correct Durable Object |
-| `X-User-ID` | ✅ | `/api/containers/spawn` | Links container operations to registered user |
-| `Content-Type: application/json` | ✅ | All POST/PUT requests | Enables validation middleware and JSON parsing |
+| Header                           | Required | Routes                                                   | Purpose                                                |
+| -------------------------------- | -------- | -------------------------------------------------------- | ------------------------------------------------------ |
+| `X-Installation-ID`              | ✅       | `/api/users/*`, `/api/containers/spawn`, `/api/github/*` | Multi-tenant routing - resolves correct Durable Object |
+| `X-User-ID`                      | ✅       | `/api/containers/spawn`                                  | Links container operations to registered user          |
+| `Content-Type: application/json` | ✅       | All POST/PUT requests                                    | Enables validation middleware and JSON parsing         |
 
-**ACP Endpoints Note:** ACP routes (`/acp/*`) do NOT use headers. Instead, include `userId` directly in the **request body** for multi-tenant security.
+**ACP Endpoints Note:** ACP routes (`/acp/*`) do NOT use headers. Instead,
+include `userId` directly in the **request body** for multi-tenant security.
 
 ---
 
@@ -859,6 +924,7 @@ curl -X GET http://127.0.0.1:8787/api/users/$USER_ID \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -893,6 +959,7 @@ curl -X PUT http://127.0.0.1:8787/api/users/$USER_ID \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -919,6 +986,7 @@ curl -X DELETE http://127.0.0.1:8787/api/users/$USER_ID \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -958,17 +1026,20 @@ Use this checklist to verify your local setup is working correctly:
 ## 🐛 Troubleshooting
 
 ### Worker won't start
+
 - ✅ Check `.dev.vars` file exists with all required variables
 - ✅ Verify Node.js 22+ is installed: `node --version`
 - ✅ Ensure Docker Desktop is running (required for containers)
 - ✅ Try `npm run dev -- --log-level debug`
 
 ### "Connection refused: container port not found" error
+
 **This is the most common error!**
 
 **Cause**: The container image hasn't been built yet
 
 **Solution**:
+
 ```bash
 # Stop the worker (Ctrl+C)
 # Build the container
@@ -977,9 +1048,12 @@ npm run build:container
 npm run dev
 ```
 
-**Why this happens**: Wrangler needs the Dockerfile to be built into a container image before it can spawn containers. The build process compiles the TypeScript in `container_src/` and creates the Docker image.
+**Why this happens**: Wrangler needs the Dockerfile to be built into a container
+image before it can spawn containers. The build process compiles the TypeScript
+in `container_src/` and creates the Docker image.
 
 ### Registration fails with 404 or validation errors
+
 - ✅ Verify your GitHub App installation ID is correct
 - ✅ Check GitHub App has repository access
 - ✅ Ensure GitHub App credentials are valid in `.dev.vars`
@@ -987,41 +1061,48 @@ npm run dev
 - ✅ Check `installationId` matches header value
 
 ### Container spawn fails
+
 - ✅ User must be registered first (step 3)
 - ✅ Check `X-Installation-ID` and `X-User-ID` headers match registered user
 - ✅ Verify container image was built: `npm run build:container`
 - ✅ Check Docker Desktop is running
 
 ### ACP requests return "userId is required" error
+
 - ✅ Ensure `userId` is included in request **body** (not headers!)
 - ✅ Verify the userId exists (check registration response)
 - ✅ Confirm user has Anthropic API key configured
 
 ### ACP requests return "User not found" error
+
 - ✅ Register user first via `/api/users/register`
 - ✅ Double-check the `userId` matches registration response
 - ✅ Verify user wasn't deleted
 
 ### ACP container returns "Parse error" or 500
+
 - ✅ Ensure container is running (check logs: `wrangler tail`)
-- ✅ Verify `ANTHROPIC_API_KEY` is set in `.dev.vars` OR user has API key registered
+- ✅ Verify `ANTHROPIC_API_KEY` is set in `.dev.vars` OR user has API key
+  registered
 - ✅ Check container build completed successfully
 - ✅ Review container logs for startup errors
 
 ### "No workspace changes detected" error
 
-**This error occurs when files are NOT being written or git repository is not being cloned.**
+**This error occurs when files are NOT being written or git repository is not
+being cloned.**
 
 **Check these in order:**
 
-1. **Is repository being cloned?**
-   Look for these logs:
+1. **Is repository being cloned?** Look for these logs:
+
    ```
    [PROMPT][session-xxx] auto-constructed cloneUrl from owner/name
    [PROMPT][session-xxx] ensured repo present at workspace ✅
    ```
 
-   ❌ **If you see**: `[PROMPT][session-xxx] WARNING: Repository was not cloned before Claude run`
+   ❌ **If you see**:
+   `[PROMPT][session-xxx] WARNING: Repository was not cloned before Claude run`
 
    **Causes**:
    - Missing `installationId` in request
@@ -1033,8 +1114,8 @@ npm run dev
    - Check `.dev.vars` has `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`
    - Verify repository format: `"owner/repo"` or `{ owner: "x", name: "y" }`
 
-2. **Are file tools enabled?**
-   Look for these logs:
+2. **Are file tools enabled?** Look for these logs:
+
    ```
    [VercelOpenRouterAdapter] Streaming with tools enabled
    Tool call: writeFile { path: "..." }
@@ -1044,13 +1125,14 @@ npm run dev
    ❌ **If missing**: File tools not working
 
    **Solution**: Rebuild container (file tools were added recently):
+
    ```bash
    npm run build:container
    npm run dev
    ```
 
-3. **Is git detecting changes?**
-   Look for this log:
+3. **Is git detecting changes?** Look for this log:
+
    ```
    [GIT-DIAG][session-xxx] hasUncommitted=true files=["..."] ✅
    ```
@@ -1062,7 +1144,8 @@ npm run dev
    - Repository clone failed silently
    - Git workspace not initialized
 
-   **Solution**: Check full logs from beginning of request, look for clone errors
+   **Solution**: Check full logs from beginning of request, look for clone
+   errors
 
 ### Files written but PR not created
 
@@ -1071,18 +1154,21 @@ npm run dev
 **Debug Steps**:
 
 1. Check if repository was cloned:
+
    ```bash
    # Look for this in logs:
    [PROMPT][session-xxx] ensured repo present at workspace ✅
    ```
 
 2. Check if git detected changes:
+
    ```bash
    # Look for this in logs:
    [GIT-DIAG][session-xxx] hasUncommitted=true files=["..."] ✅
    ```
 
 3. Check GitHub automation status:
+
    ```bash
    # Look for this in logs:
    [GITHUB-AUTO][session-xxx] success: PR #123 created ✅
@@ -1093,14 +1179,15 @@ npm run dev
 
 **Common Causes & Solutions**:
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| Files written, but `hasUncommitted=false` | Repository not cloned before Claude ran | Check logs for "auto-constructed cloneUrl" message |
-| Repository not cloned | Missing `cloneUrl` and auto-construct failed | Provide `installationId` in request |
-| Token generation failed | GitHub App credentials not configured | Add `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` to `.dev.vars` |
-| Clone failed with auth error | Installation token expired or invalid | Check GitHub App installation is still active |
+| Symptom                                   | Cause                                        | Solution                                                        |
+| ----------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- |
+| Files written, but `hasUncommitted=false` | Repository not cloned before Claude ran      | Check logs for "auto-constructed cloneUrl" message              |
+| Repository not cloned                     | Missing `cloneUrl` and auto-construct failed | Provide `installationId` in request                             |
+| Token generation failed                   | GitHub App credentials not configured        | Add `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` to `.dev.vars` |
+| Clone failed with auth error              | Installation token expired or invalid        | Check GitHub App installation is still active                   |
 
 **Full Log Example (Success)**:
+
 ```
 [PROMPT][session-xxx] resolvedRepo: {"owner":"x","name":"y","cloneUrl":"missing"}
 [PROMPT][session-xxx] token: present ✅
@@ -1115,15 +1202,19 @@ Tool call: writeFile ✅
 ### Claude CLI permission error: "cannot be used with root/sudo privileges"
 
 **Error Message:**
+
 ```
 --dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons
 ```
 
 **⚠️ NOTE**: This error should **NO LONGER OCCUR** in the current architecture!
 
-**Why**: The architecture has been cleaned up to use **Vercel AI SDK + OpenRouter** instead of the legacy Claude CLI. The CLI is no longer installed in the container.
+**Why**: The architecture has been cleaned up to use **Vercel AI SDK +
+OpenRouter** instead of the legacy Claude CLI. The CLI is no longer installed in
+the container.
 
-**If you still see this error**, it means you're using an old container image. Rebuild:
+**If you still see this error**, it means you're using an old container image.
+Rebuild:
 
 ```bash
 # Stop the worker (Ctrl+C)
@@ -1134,6 +1225,7 @@ npm run dev
 ```
 
 **Architecture Overview:**
+
 ```
 Current (Clean):
   VercelOpenRouterAdapter → Vercel AI SDK → OpenRouter/Anthropic API
@@ -1144,9 +1236,11 @@ Old (Removed):
   ❌ SDKClientAdapter → @anthropic-ai/claude-code SDK
 ```
 
-**Verification**: After rebuilding, ACP session prompts should work without ANY permission errors.
+**Verification**: After rebuilding, ACP session prompts should work without ANY
+permission errors.
 
 ### GitHub webhook processing fails
+
 - ✅ Include `event` field in request body (e.g., `"event": "issues"`)
 - ✅ Verify `X-Installation-ID` header matches registered installation
 - ✅ Check webhook payload structure matches GitHub's format
@@ -1156,7 +1250,8 @@ Old (Removed):
 
 ## 🚀 **Quick Start - Copy & Paste Ready**
 
-**For the impatient! Here's the simplest end-to-end test with all recent fixes:**
+**For the impatient! Here's the simplest end-to-end test with all recent
+fixes:**
 
 ```bash
 # 1. Set your values
@@ -1211,6 +1306,7 @@ curl -X POST http://127.0.0.1:8787/acp/session/prompt \
 ```
 
 **What to expect:**
+
 - ✅ Repository cloned automatically from owner/repo
 - ✅ Installation token generated from GitHub App credentials
 - ✅ Claude modifies files using file system tools
@@ -1218,6 +1314,7 @@ curl -X POST http://127.0.0.1:8787/acp/session/prompt \
 - ✅ Pull Request created with all changes
 
 **Check logs for:**
+
 ```
 [PROMPT][session-xxx] auto-constructed cloneUrl ✅
 [PROMPT][session-xxx] ensured repo present at workspace ✅
@@ -1230,15 +1327,19 @@ Tool call: writeFile ✅
 
 Happy testing! 🚀
 
-**Need help?** Check the logs in your terminal running `npm run dev` for detailed error messages.
+**Need help?** Check the logs in your terminal running `npm run dev` for
+detailed error messages.
 
-**Full documentation**: See [`COMPLETE-FIX-SUMMARY.md`](../COMPLETE-FIX-SUMMARY.md) for complete technical details of all fixes.
+**Full documentation**: See
+[`COMPLETE-FIX-SUMMARY.md`](../COMPLETE-FIX-SUMMARY.md) for complete technical
+details of all fixes.
 
 ---
 
 ## 🔁 Stream Broker (POC) — Local Development
 
-This project provides a simple mock Stream Broker you can run locally to test real-time streaming and WebSocket subscriptions.
+This project provides a simple mock Stream Broker you can run locally to test
+real-time streaming and WebSocket subscriptions.
 
 Start the mock broker (dev mode):
 
@@ -1250,10 +1351,14 @@ PORT=3003 STREAM_BROKER_KEY=dev-key npm start
 ```
 
 The broker exposes:
-- POST /api/streams/sessions/:sessionId/events — Accepts event envelopes and broadcasts to WS subscribers
-- GET /api/streams/sessions/:sessionId/snapshot — Returns the latest snapshot for a session
+
+- POST /api/streams/sessions/:sessionId/events — Accepts event envelopes and
+  broadcasts to WS subscribers
+- GET /api/streams/sessions/:sessionId/snapshot — Returns the latest snapshot
+  for a session
 - GET /api/streams/sessions/:sessionId/logs — Returns audit logs for a session
-- WS /ws/sessions/:sessionId — WebSocket subscription to receive streaming events in realtime
+- WS /ws/sessions/:sessionId — WebSocket subscription to receive streaming
+  events in realtime
 - UI demo: `http://localhost:3003/subscriber`
 
 Example `curl` to post an event:
@@ -1277,8 +1382,10 @@ Connect a subscriber via the demo page or the WS path:
 
 How to integrate with the container for local dev:
 
-1. Build the container application as usual: `npm run build:container` (from repo root)
-2. Start the mock broker (`PORT=3003 STREAM_BROKER_KEY=dev-key npm start` from within `test/mocks/stream-broker`)
+1. Build the container application as usual: `npm run build:container` (from
+   repo root)
+2. Start the mock broker (`PORT=3003 STREAM_BROKER_KEY=dev-key npm start` from
+   within `test/mocks/stream-broker`)
 3. Start the worker with env vars to enable posting from the container:
 
 ```bash
@@ -1286,10 +1393,18 @@ STREAM_BROKER_URL=http://localhost:3003 STREAM_BROKER_KEY=dev-key STREAM_BROKER_
 ```
 
 Notes:
-- `STREAM_BROKER_ENABLED` is a feature flag that explicitly enables broker posting. When not set, the container will enable posting when `STREAM_BROKER_URL` is present. Set to `0`/`false` to explicitly disable posting in dev or test environments.
-- For safety, the container will not post events if `STREAM_BROKER_ENABLED` is `0`, even when `params.stream` is set to `true`.
+
+- `STREAM_BROKER_ENABLED` is a feature flag that explicitly enables broker
+  posting. When not set, the container will enable posting when
+  `STREAM_BROKER_URL` is present. Set to `0`/`false` to explicitly disable
+  posting in dev or test environments.
+- For safety, the container will not post events if `STREAM_BROKER_ENABLED` is
+  `0`, even when `params.stream` is set to `true`.
 
 Notes:
-- In production, the worker will issue ephemeral `streamToken` values for container posts; the mock broker accepts a configured `STREAM_BROKER_KEY` only for local development.
-- The container posts are fire-and-forget and non-blocking when the broker is unreachable — the container continues operation.
 
+- In production, the worker will issue ephemeral `streamToken` values for
+  container posts; the mock broker accepts a configured `STREAM_BROKER_KEY` only
+  for local development.
+- The container posts are fire-and-forget and non-blocking when the broker is
+  unreachable — the container continues operation.

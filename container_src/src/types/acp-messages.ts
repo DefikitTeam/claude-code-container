@@ -83,6 +83,49 @@ export interface Progress {
   message?: string;
 }
 
+export type AgentRole =
+  | 'orchestrator'
+  | 'planner'
+  | 'researcher'
+  | 'coder'
+  | 'tester'
+  | 'reviewer'
+  | 'database'
+  | 'generic';
+
+export interface AgentStep {
+  id: string;
+  order: number;
+  role: AgentRole;
+  subTask: string;
+  expectedOutput: string;
+  dependencies?: string[];
+  inputs?: Record<string, unknown>;
+}
+
+export interface AgentPlan {
+  id: string;
+  goal: string;
+  steps: AgentStep[];
+  createdAt: string;
+  model?: string;
+  notes?: string;
+}
+
+export interface AgentOrchestrationContext {
+  planId?: string;
+  stepId?: string;
+  requestingAgent?: AgentRole;
+  subTask?: string;
+  expectedOutput?: string;
+  plan?: AgentPlan;
+}
+
+export interface ACPContext {
+  orchestration?: AgentOrchestrationContext;
+  [key: string]: unknown;
+}
+
 // ===== Initialize Method Types =====
 
 export interface InitializeRequest extends JSONRPCRequest {
@@ -170,6 +213,7 @@ export interface SessionPromptRequest extends JSONRPCRequest {
       userRequest?: string;
       [key: string]: unknown;
     };
+    context?: ACPContext;
   };
 }
 
@@ -194,6 +238,10 @@ export interface SessionPromptResponse extends JSONRPCResponse {
       metadata?: Record<string, unknown>;
       tool_calls?: any[];
     }>;
+    meta?: {
+      orchestration?: AgentOrchestrationContext;
+      [key: string]: unknown;
+    };
     [key: string]: unknown;
   };
 }
@@ -208,6 +256,7 @@ export interface SessionUpdateNotification extends JSONRPCNotification {
     status: 'thinking' | 'working' | 'completed' | 'error';
     progress?: Progress;
     targetAgent?: string;
+    orchestration?: AgentOrchestrationContext;
   };
 }
 

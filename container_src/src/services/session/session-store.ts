@@ -45,8 +45,9 @@ export class SessionStore implements ISessionStore {
       const data = await fs.readFile(file, { encoding: 'utf8' });
       const session: ACPSession = JSON.parse(data);
       return session;
-    } catch (e: any) {
-      if (e.code === 'ENOENT') return undefined;
+    } catch (e: unknown) {
+      const err = e as { code?: string };
+      if (err.code === 'ENOENT') return undefined;
       // propagate other IO errors
       throw e;
     }
@@ -61,7 +62,7 @@ export class SessionStore implements ISessionStore {
       const sessionData = JSON.stringify(session, null, 2);
 
       await fs.writeFile(sessionFile, sessionData, 'utf-8');
-    } catch (e: any) {
+    } catch (e: unknown) {
       // propagate IO errors
       throw e;
     }
@@ -74,8 +75,9 @@ export class SessionStore implements ISessionStore {
       return entries
         .filter((n) => n.endsWith('.json'))
         .map((n) => n.replace(/\.json$/, ''));
-    } catch (e: any) {
-      if (e.code === 'ENOENT') return [];
+    } catch (e: unknown) {
+      const err = e as { code?: string };
+      if (err.code === 'ENOENT') return [];
       throw e;
     }
   }
@@ -84,8 +86,9 @@ export class SessionStore implements ISessionStore {
     try {
       await fs.access(file);
       return true;
-    } catch (e: any) {
-      if (e.code === 'ENOENT') return false;
+    } catch (e: unknown) {
+      const err = e as { code?: string };
+      if (err.code === 'ENOENT') return false;
       throw e;
     }
   }
@@ -94,8 +97,9 @@ export class SessionStore implements ISessionStore {
     const file = this.sessionFilePath(sessionId);
     try {
       await fs.unlink(file);
-    } catch (e: any) {
-      if (e.code === 'ENOENT') return;
+    } catch (e: unknown) {
+      const err = e as { code?: string };
+      if (err.code === 'ENOENT') return;
       throw e;
     }
   }

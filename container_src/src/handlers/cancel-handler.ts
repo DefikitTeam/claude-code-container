@@ -38,7 +38,7 @@ export async function cancelHandler(
       code: -32602,
     });
   }
-  const { sessionId, operationId } = params as any; // tolerant to absence of operationId
+  const { sessionId, operationId } = params as { sessionId: string; operationId?: string }; // tolerant to absence of operationId
   const session = acpState.getSession(sessionId);
   if (!session) {
     throw Object.assign(new Error(`Session not found: ${sessionId}`), {

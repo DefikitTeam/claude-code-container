@@ -54,7 +54,7 @@ type Session = {
   input: Pushable<SDKUserMessage>;
   cancelled: boolean;
   permissionMode: PermissionMode;
-  pendingHistory: any[];
+  pendingHistory: Record<string, unknown>[];
   historyReplayed: boolean;
 };
 
@@ -111,9 +111,9 @@ export class LightweightClaudeAcpAgent implements Agent {
     const options: Options = {
       cwd: params.cwd,
       permissionPromptToolName: 'permission',
-      stderr: (err) => console.error(err),
-      executable: process.execPath as any,
-    };
+      stderr: (err: unknown) => console.error(err),
+      executable: process.execPath,
+    } as any;
 
     const q = query({
       prompt: input,
@@ -125,7 +125,7 @@ export class LightweightClaudeAcpAgent implements Agent {
       input: input,
       cancelled: false,
       permissionMode: 'default',
-      pendingHistory: (params as any).opts?.history || [],
+      pendingHistory: ((params as unknown as Record<string, unknown>).opts as { history: Record<string, unknown>[] })?.history || [],
       historyReplayed: false,
     };
 
@@ -170,23 +170,26 @@ export class LightweightClaudeAcpAgent implements Agent {
 
     // Rehydration Logic (Phase 2)
     if (!session.historyReplayed) {
-        const historyObj = session.pendingHistory || [];
-        // Tail-only strategy: safeguard against massive history (max 30 turns)
-        const effectiveHistory = historyObj.length > 30 
-            ? historyObj.slice(historyObj.length - 30) 
-            : historyObj;
+      const historyObj = session.pendingHistory || [];
+      // Tail-only strategy: safeguard against massive history (max 30 turns)
+      const effectiveHistory =
+        historyObj.length > 30
+          ? historyObj.slice(historyObj.length - 30)
+          : historyObj;
 
-        if (effectiveHistory.length > 0) {
-            console.error(`[Rehydration] Replaying ${effectiveHistory.length} messages...`);
-            for (const msg of effectiveHistory) {
-                const sdkMsg = this.toSDKMessage(msg, params.sessionId);
-                if (sdkMsg) {
-                     input.push(sdkMsg as SDKUserMessage); // Type cast as input stream accepts SDKUserMessage (which covers common structure) or extended types
-                }
-            }
-            console.error(`[Rehydration] Complete.`);
+      if (effectiveHistory.length > 0) {
+        console.error(
+          `[Rehydration] Replaying ${effectiveHistory.length} messages...`,
+        );
+        for (const msg of effectiveHistory) {
+          const sdkMsg = this.toSDKMessage(msg, params.sessionId);
+          if (sdkMsg) {
+            input.push(sdkMsg as SDKUserMessage); // Type cast as input stream accepts SDKUserMessage (which covers common structure) or extended types
+          }
         }
-        session.historyReplayed = true;
+        console.error(`[Rehydration] Complete.`);
+      }
+      session.historyReplayed = true;
     }
 
     // Convert ACP prompt to Claude format
@@ -246,7 +249,7 @@ export class LightweightClaudeAcpAgent implements Agent {
               params.sessionId,
             );
             for (const notification of notifications) {
-              await this.client.sessionUpdate(notification);
+              await this.client.sessionUpdate(notification as any);
             }
             break;
           }
@@ -360,12 +363,12 @@ export class LightweightClaudeAcpAgent implements Agent {
   private toAcpNotifications(
     message: SDKAssistantMessage | SDKUserMessage,
     sessionId: string,
-  ): any[] {
+  ): Record<string, unknown>[] {
     const chunks = message.message.content as any[];
     const notifications = [];
 
     for (const chunk of chunks) {
-      let update: any = null;
+      let update: Record<string, unknown> | null = null;
 
       switch (chunk.type) {
         case 'text':
@@ -399,24 +402,35 @@ export class LightweightClaudeAcpAgent implements Agent {
     return notifications;
   }
 
-  private toSDKMessage(msg: any, sessionId: string): SDKUserMessage | SDKAssistantMessage | null {
+  private toSDKMessage(
+    msg: Record<string, unknown>,
+    sessionId: string,
+  ): SDKUserMessage | SDKAssistantMessage | null {
     // Basic role mapping and sanitization
     // We strictly filter tool_use to prevent re-execution, retaining only text context.
 
     if (msg.role === 'user') {
       // sanitize content
-      const content = Array.isArray(msg.content) 
-        ? msg.content 
-        : [{ type: 'text', text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }];
+      const content = Array.isArray(msg.content)
+        ? msg.content
+        : [
+            {
+              type: 'text',
+              text:
+                typeof msg.content === 'string'
+                  ? msg.content
+                  : JSON.stringify(msg.content),
+            },
+          ];
 
       return {
         type: 'user',
         message: {
           role: 'user',
-          content: content.map((c: any) => ({
-             type: 'text',
-             text: c.text || JSON.stringify(c) 
-          }))
+          content: content.map((c: Record<string, unknown>) => ({
+            type: 'text',
+            text: c.text || JSON.stringify(c),
+          })),
         },
         session_id: sessionId,
       } as SDKUserMessage;
@@ -424,22 +438,32 @@ export class LightweightClaudeAcpAgent implements Agent {
 
     if (msg.role === 'assistant') {
       const content = Array.isArray(msg.content)
-         ? msg.content
-         : [{ type: 'text', text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }];
-      
+        ? msg.content
+        : [
+            {
+              type: 'text',
+              text:
+                typeof msg.content === 'string'
+                  ? msg.content
+                  : JSON.stringify(msg.content),
+            },
+          ];
+
       // Filter out tool uses, keep thoughts and text
-      const sanitizedContent = content.filter((c: any) => c.type === 'text' || c.type === 'thinking');
-      
+      const sanitizedContent = content.filter(
+        (c: Record<string, unknown>) => c.type === 'text' || c.type === 'thinking',
+      );
+
       if (sanitizedContent.length === 0) return null; // Skip if only tool calls
 
       return {
         type: 'assistant',
         message: {
-            role: 'assistant',
-            content: sanitizedContent
+          role: 'assistant',
+          content: sanitizedContent,
         },
-        session_id: sessionId
-      } as unknown as SDKAssistantMessage; // cast due to type strictness maybe
+        session_id: sessionId,
+      } as SDKAssistantMessage; 
     }
 
     return null;

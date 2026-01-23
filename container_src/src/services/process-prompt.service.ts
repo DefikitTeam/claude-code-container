@@ -48,13 +48,18 @@ export class ProcessPromptService {
   }
 
   async execute(request: ProcessPromptRequest): Promise<ProcessPromptResult> {
-    const { sessionId, repository, prompt, githubToken, workspacePath } = request;
+    const { sessionId, repository, prompt, githubToken, workspacePath } =
+      request;
     const repoDir = workspacePath || '/workspace/repo';
 
-    logWithContext('PROCESS-PROMPT', `Processing prompt on branch: ${repository.workingBranch}`, {
-      sessionId,
-      workingBranch: repository.workingBranch,
-    });
+    logWithContext(
+      'PROCESS-PROMPT',
+      `Processing prompt on branch: ${repository.workingBranch}`,
+      {
+        sessionId,
+        workingBranch: repository.workingBranch,
+      },
+    );
 
     try {
       // 1. Clone or ensure repository exists
@@ -85,7 +90,11 @@ export class ProcessPromptService {
       // 5. Get changed files
       const filesChanged = await this.git.listChangedFiles(repoDir);
       if (filesChanged.length === 0) {
-        logWithContext('PROCESS-PROMPT', 'No changes detected, skipping commit', { sessionId });
+        logWithContext(
+          'PROCESS-PROMPT',
+          'No changes detected, skipping commit',
+          { sessionId },
+        );
         throw new Error('No changes detected after prompt execution');
       }
 
@@ -109,10 +118,14 @@ export class ProcessPromptService {
       // 10. Get detailed files changed with status
       const filesWithStatus = await this.getFilesChangedWithStatus(repoDir);
 
-      logWithContext('PROCESS-PROMPT', `Committed ${commitSha.substring(0, 7)} with ${filesWithStatus.length} file(s)`, {
-        sessionId,
-        commitSha,
-      });
+      logWithContext(
+        'PROCESS-PROMPT',
+        `Committed ${commitSha.substring(0, 7)} with ${filesWithStatus.length} file(s)`,
+        {
+          sessionId,
+          commitSha,
+        },
+      );
 
       // 11. Push to remote
       await this.pushToRemote(repoDir, repository, githubToken);
@@ -140,7 +153,7 @@ export class ProcessPromptService {
   private async ensureRepository(
     repoDir: string,
     repository: ProcessPromptRequest['repository'],
-    githubToken: string
+    githubToken: string,
   ): Promise<void> {
     const cloneUrl = this.buildAuthenticatedUrl(repository.url, githubToken);
 
@@ -162,11 +175,14 @@ export class ProcessPromptService {
 
   private async checkoutWorkingBranch(
     repoDir: string,
-    repository: ProcessPromptRequest['repository']
+    repository: ProcessPromptRequest['repository'],
   ): Promise<void> {
     try {
       // Try to fetch and checkout existing branch
-      logWithContext('PROCESS-PROMPT', `Fetching branch ${repository.workingBranch}`);
+      logWithContext(
+        'PROCESS-PROMPT',
+        `Fetching branch ${repository.workingBranch}`,
+      );
 
       const fetchResult = await this.git.runGit(repoDir, [
         'fetch',
@@ -176,7 +192,10 @@ export class ProcessPromptService {
 
       if (fetchResult.code === 0) {
         await this.git.checkoutBranch(repoDir, repository.workingBranch);
-        logWithContext('PROCESS-PROMPT', `Checked out existing branch: ${repository.workingBranch}`);
+        logWithContext(
+          'PROCESS-PROMPT',
+          `Checked out existing branch: ${repository.workingBranch}`,
+        );
       } else {
         // Branch doesn't exist on remote, create from base branch
         await this.createWorkingBranch(repoDir, repository);
@@ -189,31 +208,48 @@ export class ProcessPromptService {
 
   private async createWorkingBranch(
     repoDir: string,
-    repository: ProcessPromptRequest['repository']
+    repository: ProcessPromptRequest['repository'],
   ): Promise<void> {
-    logWithContext('PROCESS-PROMPT', `Creating new branch ${repository.workingBranch} from ${repository.baseBranch}`);
+    logWithContext(
+      'PROCESS-PROMPT',
+      `Creating new branch ${repository.workingBranch} from ${repository.baseBranch}`,
+    );
 
     // Ensure we're on base branch first
     await this.git.checkoutBranch(repoDir, repository.baseBranch);
 
     // Create new working branch
-    await this.git.createBranch(repoDir, repository.workingBranch, repository.baseBranch);
+    await this.git.createBranch(
+      repoDir,
+      repository.workingBranch,
+      repository.baseBranch,
+    );
     await this.git.checkoutBranch(repoDir, repository.workingBranch);
 
-    logWithContext('PROCESS-PROMPT', `Created new branch: ${repository.workingBranch}`);
+    logWithContext(
+      'PROCESS-PROMPT',
+      `Created new branch: ${repository.workingBranch}`,
+    );
   }
 
-  private generateCommitMessage(prompt: string, filesChanged: string[]): string {
+  private generateCommitMessage(
+    prompt: string,
+    filesChanged: string[],
+  ): string {
     // Detect commit type from changes
     const hasTests = filesChanged.some(
-      (f) => f.includes('.test.') || f.includes('__tests__')
+      (f) => f.includes('.test.') || f.includes('__tests__'),
     );
     const hasStyles = filesChanged.some(
-      (f) => f.endsWith('.css') || f.endsWith('.scss') || f.endsWith('.sass')
+      (f) => f.endsWith('.css') || f.endsWith('.scss') || f.endsWith('.sass'),
     );
     const isRefactor = prompt.toLowerCase().includes('refactor');
-    const isFix = prompt.toLowerCase().includes('fix') || prompt.toLowerCase().includes('bug');
-    const isDocs = filesChanged.some((f) => f.endsWith('.md') || f.includes('docs/'));
+    const isFix =
+      prompt.toLowerCase().includes('fix') ||
+      prompt.toLowerCase().includes('bug');
+    const isDocs = filesChanged.some(
+      (f) => f.endsWith('.md') || f.includes('docs/'),
+    );
 
     let type = 'feat';
     if (hasTests) type = 'test';
@@ -223,7 +259,9 @@ export class ProcessPromptService {
     else if (isFix) type = 'fix';
 
     // Extract scope (optional)
-    const scopeMatch = prompt.match(/\b(auth|ui|api|db|admin|user|component|service)\b/i);
+    const scopeMatch = prompt.match(
+      /\b(auth|ui|api|db|admin|user|component|service)\b/i,
+    );
     const scope = scopeMatch ? scopeMatch[1].toLowerCase() : null;
 
     // Generate summary (max 50 chars)
@@ -250,7 +288,7 @@ export class ProcessPromptService {
   }
 
   private async getFilesChangedWithStatus(
-    repoDir: string
+    repoDir: string,
   ): Promise<Array<{ path: string; status: string }>> {
     const result = await this.git.runGit(repoDir, [
       'diff',
@@ -270,7 +308,8 @@ export class ProcessPromptService {
         const [status, filePath] = line.split('\t');
         return {
           path: filePath,
-          status: status === 'A' ? 'added' : status === 'M' ? 'modified' : 'deleted',
+          status:
+            status === 'A' ? 'added' : status === 'M' ? 'modified' : 'deleted',
         };
       });
   }
@@ -278,13 +317,21 @@ export class ProcessPromptService {
   private async pushToRemote(
     repoDir: string,
     repository: ProcessPromptRequest['repository'],
-    githubToken: string
+    githubToken: string,
   ): Promise<void> {
     logWithContext('PROCESS-PROMPT', `Pushing to ${repository.workingBranch}`);
 
     // Set remote URL with authentication
-    const authenticatedUrl = this.buildAuthenticatedUrl(repository.url, githubToken);
-    await this.git.runGit(repoDir, ['remote', 'set-url', 'origin', authenticatedUrl]);
+    const authenticatedUrl = this.buildAuthenticatedUrl(
+      repository.url,
+      githubToken,
+    );
+    await this.git.runGit(repoDir, [
+      'remote',
+      'set-url',
+      'origin',
+      authenticatedUrl,
+    ]);
 
     // Push with --force-with-lease for safety
     const pushResult = await this.git.runGit(repoDir, [

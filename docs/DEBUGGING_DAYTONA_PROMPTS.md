@@ -2,12 +2,15 @@
 
 ## 🚨 Problem Summary
 
-When sending prompts to the Daytona sandbox via the ACP bridge, commands fail with:
+When sending prompts to the Daytona sandbox via the ACP bridge, commands fail
+with:
+
 - **Exit code: -1** (abnormal termination)
 - **No output** (empty stdout/stderr)
 - **No error messages** (silent failure)
 
-This prevents the sandbox from processing user prompts, making the entire system non-functional.
+This prevents the sandbox from processing user prompts, making the entire system
+non-functional.
 
 ## 🔍 Root Cause Analysis
 
@@ -15,20 +18,24 @@ This prevents the sandbox from processing user prompts, making the entire system
 
 **Location:** `src/infrastructure/services/acp-bridge.service.ts:665-932`
 
-The `executeViaToolbox()` method constructs an extremely complex inline Node.js script:
+The `executeViaToolbox()` method constructs an extremely complex inline Node.js
+script:
 
 ```typescript
 const inlineNodeScript = `
 const https = require('https');
 const b64 = process.env.ACP_PAYLOAD;
 // ... 80+ lines of inline JavaScript ...
-`.trim().replace(/\n/g, ' ');
+`
+  .trim()
+  .replace(/\n/g, ' ');
 
 const innerCommand = `export ACP_PAYLOAD='${acpPayloadBase64}' && node -e "${inlineNodeScript.replace(/"/g, '\\"')}"`;
 const command = `bash -c '${innerCommand.replace(/'/g, "'\\''")}'`;
 ```
 
 **Problems:**
+
 1. **3000+ character command** - Shell has limits on command length
 2. **Triple-nested escaping** - bash -c wrapping export wrapping node -e
 3. **Quote escaping hell** - `'"\\"'` becomes impossible to debug
@@ -38,6 +45,7 @@ const command = `bash -c '${innerCommand.replace(/'/g, "'\\''")}'`;
 ### Issue 2: Missing Dependencies
 
 The inline script assumes:
+
 - Node.js is available ✅ (likely present)
 - `https` module works ✅ (built-in)
 - No `openai` package needed ✅ (using native https)
@@ -47,10 +55,13 @@ The inline script assumes:
 ### Issue 3: No Error Visibility
 
 When exit code is -1:
+
 ```typescript
-const result = await response.json() as { exitCode: number; result: string };
+const result = (await response.json()) as { exitCode: number; result: string };
 console.log(`[ACP-BRIDGE] Toolbox execute result: exitCode=${result.exitCode}`);
-console.log(`[ACP-BRIDGE] Toolbox result length: ${result.result?.length || 0}`);
+console.log(
+  `[ACP-BRIDGE] Toolbox result length: ${result.result?.length || 0}`,
+);
 ```
 
 The `result.result` field is empty, so there's no stderr/stdout to debug.
@@ -67,6 +78,7 @@ chmod +x scripts/read-daytona-logs.sh
 ```
 
 This will:
+
 - Check sandbox status
 - Fetch logs from `/sandbox/{id}/logs`
 - Fetch toolbox logs
@@ -82,6 +94,7 @@ chmod +x scripts/test-sandbox-environment.sh
 ```
 
 This tests:
+
 - ✅ Basic commands (echo, pwd, ls)
 - ✅ Node.js availability and version
 - ✅ npm availability
@@ -92,6 +105,7 @@ This tests:
 - ✅ Complex bash -c commands
 
 **Expected outcomes:**
+
 - If tests 1-3 pass but 4+ fail → Node.js issue
 - If tests 1-10 pass but 11-13 fail → Shell escaping issue
 - If all tests fail → Toolbox API connectivity issue
@@ -242,6 +256,7 @@ private async executeViaToolbox(
 ```
 
 **Benefits:**
+
 - ✅ Simple, standard curl command
 - ✅ Minimal escaping needed
 - ✅ Base64 handles payload encoding
@@ -272,6 +287,7 @@ const command = `${writeCommand} && ${curlCommand} && ${readCommand}`;
 ```
 
 **Benefits:**
+
 - ✅ No command length limits
 - ✅ No escaping hell
 - ✅ Easy to debug (can cat the files)
@@ -299,11 +315,13 @@ echo "$PAYLOAD_B64" | base64 -d | curl -s -X POST \
 ```
 
 Then in TypeScript:
+
 ```typescript
 const command = `/opt/acp-handler.sh '${payloadBase64}' '${apiKey}' '${model}'`;
 ```
 
 **Benefits:**
+
 - ✅ Simplest execution command
 - ✅ Script can be debugged independently
 - ✅ Versioning possible
@@ -390,11 +408,13 @@ Expected: Exit code 0, OpenRouter JSON response with chat completion
 ## 📝 Next Steps
 
 1. **Run diagnostics NOW** to understand sandbox environment:
+
    ```bash
    ./scripts/test-sandbox-environment.sh 83792513-cd9e-428f-99c0-63c63bc7739c
    ```
 
 2. **Check logs** for any error messages:
+
    ```bash
    ./scripts/read-daytona-logs.sh 83792513-cd9e-428f-99c0-63c63bc7739c
    ```
@@ -407,8 +427,10 @@ Expected: Exit code 0, OpenRouter JSON response with chat completion
 ## 🔗 Related Files
 
 - **Main issue:** `src/infrastructure/services/acp-bridge.service.ts:665-932`
-- **Daytona service:** `src/infrastructure/services/daytona-container.service.ts:122-181`
-- **Test scripts:** `scripts/test-sandbox-environment.sh`, `scripts/read-daytona-logs.sh`
+- **Daytona service:**
+  `src/infrastructure/services/daytona-container.service.ts:122-181`
+- **Test scripts:** `scripts/test-sandbox-environment.sh`,
+  `scripts/read-daytona-logs.sh`
 
 ## 📚 References
 

@@ -78,7 +78,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
     callbacks.onStart?.({ startTime });
 
     let fullText = '';
-    let inputTokens = this.estimateTokens(prompt);
+    const inputTokens = this.estimateTokens(prompt);
     let outputTokens = 0;
 
     const bridgeCallbacks: ClaudeCallbacks = {
@@ -102,7 +102,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
         `[ClaudeRuntimeSelector] Available adapters: ${candidates
           .map((a) => {
             // Prefer a human-friendly adapterId when present for clearer diagnostics
-            const id = (a as any).adapterId ?? null;
+            const id = 'adapterId' in a ? (a as { adapterId: string }).adapterId : null;
             return id ? `${a.name}(${id})` : a.name;
           })
           .join(', ')}`,
@@ -118,7 +118,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       let lastError: unknown = null;
       for (const adapter of candidates) {
         try {
-          const adapterId = (adapter as any).adapterId ?? null;
+          const adapterId = 'adapterId' in adapter ? (adapter as { adapterId: string }).adapterId : null;
           console.error(
             `[ClaudeRuntimeSelector] Using adapter: ${adapter.name}${adapterId ? ` (${adapterId})` : ''}`,
           );
@@ -250,8 +250,9 @@ export class ClaudeRuntimeSelector implements IClaudeService {
 
     if (!apiKey) {
       const diagnostics = await this.diagnostics();
-      const error = new Error('anthropic_api_key_missing');
-      (error as any).detail = { diagnostics };
+      const error = Object.assign(new Error('anthropic_api_key_missing'), {
+        detail: { diagnostics },
+      });
       throw error;
     }
 
@@ -305,7 +306,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       hasOpenRouterKeyEnv: Boolean(process.env.OPENROUTER_API_KEY),
       adapters: this.adapters.map((a) => ({
         name: a.name,
-        id: (a as any).adapterId ?? null,
+        id: 'adapterId' in a ? (a as { adapterId: string }).adapterId : null,
       })),
       hasOpenHandsKey: Boolean(process.env.OPENHANDS_API_KEY),
     };

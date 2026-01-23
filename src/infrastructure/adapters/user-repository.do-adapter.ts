@@ -17,11 +17,11 @@ interface FetchOptions {
 }
 
 export class UserRepositoryDurableObjectAdapter implements IUserRepository {
-  private readonly namespace: DurableObjectNamespace;
+  private readonly namespace: DurableObjectNamespace<any>;
   private readonly stubName: string;
 
   constructor(
-    namespace: DurableObjectNamespace,
+    namespace: DurableObjectNamespace<any>,
     stubName: string = DEFAULT_USER_CONFIG_STUB,
   ) {
     this.namespace = namespace;
@@ -98,11 +98,11 @@ export class UserRepositoryDurableObjectAdapter implements IUserRepository {
       : [];
   }
 
-  private async fetch<T extends unknown>(
+  private async fetch<T>(
     options: FetchOptions,
   ): Promise<T | null> {
     const id = this.namespace.idFromName(this.stubName);
-    const stub = this.namespace.get(id);
+    const stub = (this.namespace as any).get(id);
 
     const url = new URL(`https://user-config${options.path}`);
     if (options.query) {

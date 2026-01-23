@@ -6,43 +6,34 @@ import { requireJsonBody } from '../middleware/validation.middleware';
 /**
  * Session routes for persistent branch code mode
  */
-export function createSessionRoutes(controller: SessionController): Hono {
-  const router = new Hono();
+import { Env } from '../../index';
+
+export function createSessionRoutes(controller: SessionController): Hono<{ Bindings: Env }> {
+  const router = new Hono<{ Bindings: Env }>();
 
   router.use('*', requireInstallationHeaders());
 
   // Enable coding mode on a session
-  router.post(
-    '/:sessionId/coding-mode',
-    requireJsonBody(),
-    (c) => controller.enableCodingMode(c),
+  router.post('/:sessionId/coding-mode', requireJsonBody(), (c) =>
+    controller.enableCodingMode(c as any),
   );
 
   // Process a prompt (creates a commit)
-  router.post(
-    '/:sessionId/prompt',
-    requireJsonBody(),
-    (c) => controller.processPrompt(c),
+  router.post('/:sessionId/prompt', requireJsonBody(), (c) =>
+    controller.processPrompt(c as any),
   );
 
   // Create a PR from the working branch
-  router.post(
-    '/:sessionId/pull-request',
-    requireJsonBody(),
-    (c) => controller.createPullRequest(c),
+  router.post('/:sessionId/pull-request', requireJsonBody(), (c) =>
+    controller.createPullRequest(c as any),
   );
 
   // Get session status and branch info
-  router.get(
-    '/:sessionId/status',
-    (c) => controller.getSessionStatus(c),
-  );
+  router.get('/:sessionId/status', (c) => controller.getSessionStatus(c as any));
 
   // Update PR tracking (called by Lumi BE after creating PR)
-  router.patch(
-    '/:sessionId/pr-tracking',
-    requireJsonBody(),
-    (c) => controller.updatePRTracking(c),
+  router.patch('/:sessionId/pr-tracking', requireJsonBody(), (c) =>
+    controller.updatePRTracking(c as any),
   );
 
   return router;

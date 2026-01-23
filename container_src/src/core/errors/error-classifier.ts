@@ -50,17 +50,18 @@ export class ErrorClassifier {
   classify(err: unknown): ClassifiedError {
     // Attempt to mimic existing classifyClaudeError behavior from acp-handlers.ts
     try {
-      const raw = (err as any)?.message
-        ? String((err as any).message)
+      const errObj = (typeof err === 'object' && err !== null) ? (err as { message?: unknown; stderrTail?: unknown }) : {};
+      const raw = errObj.message
+        ? String(errObj.message)
         : String(err ?? '');
       const rawLower = raw.toLowerCase();
-      const stderrTail: string = (err as any)?.stderrTail || '';
+      const stderrTail: string = typeof errObj.stderrTail === 'string' ? errObj.stderrTail : '';
       const combined = rawLower + '\n' + stderrTail.toLowerCase();
 
       if (combined.includes('api key') || combined.includes('authentication')) {
         return {
           code: ClassifiedErrorCode.AuthError,
-          message: (err as any)?.message || String(err),
+          message: raw,
           isRetryable: false,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'auth' },
@@ -69,7 +70,7 @@ export class ErrorClassifier {
       if (combined.includes('not found') && combined.includes('claude')) {
         return {
           code: ClassifiedErrorCode.CliMissing,
-          message: (err as any)?.message || String(err),
+          message: raw,
           isRetryable: false,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'claude_not_found' },
@@ -78,7 +79,7 @@ export class ErrorClassifier {
       if (combined.includes('not a git repository')) {
         return {
           code: ClassifiedErrorCode.WorkspaceMissing,
-          message: (err as any)?.message || String(err),
+          message: raw,
           isRetryable: false,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'not_a_git_repo' },
@@ -90,7 +91,7 @@ export class ErrorClassifier {
       ) {
         return {
           code: ClassifiedErrorCode.FsPermission,
-          message: (err as any)?.message || String(err),
+          message: raw,
           isRetryable: false,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'fs_permission' },
@@ -102,7 +103,7 @@ export class ErrorClassifier {
       ) {
         return {
           code: ClassifiedErrorCode.GitPullFailed,
-          message: (err as any)?.message || String(err),
+          message: raw,
           isRetryable: true,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'git_pull_failed' },
@@ -114,7 +115,7 @@ export class ErrorClassifier {
       ) {
         return {
           code: ClassifiedErrorCode.InternalCliFailure,
-          message: (err as any)?.message || String(err),
+          message: raw,
           isRetryable: false,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'internal_error' },
@@ -123,7 +124,7 @@ export class ErrorClassifier {
       if (rawLower.includes('cancelled') || rawLower.includes('canceled')) {
         return {
           code: ClassifiedErrorCode.Cancelled,
-          message: (err as any)?.message || String(err),
+          message: raw,
           isRetryable: false,
           original: this.includeOriginal ? err : undefined,
           meta: { matched: 'cancelled' },
@@ -132,7 +133,7 @@ export class ErrorClassifier {
 
       return {
         code: ClassifiedErrorCode.Unknown,
-        message: (err as any)?.message || String(err),
+        message: raw,
         isRetryable: false,
         original: this.includeOriginal ? err : undefined,
         meta: { matched: 'fallback' },

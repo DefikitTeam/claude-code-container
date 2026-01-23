@@ -37,11 +37,15 @@ export class HTTPAPIClientAdapter implements ClaudeAdapter {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      const error = new Error(`anthropic_http_error_${response.status}`);
-      (error as any).detail = {
-        status: response.status,
-        body: errorBody,
-      };
+      const error = Object.assign(
+        new Error(`anthropic_http_error_${response.status}`),
+        {
+          detail: {
+            status: response.status,
+            body: errorBody,
+          },
+        },
+      );
       throw error;
     }
 
@@ -116,27 +120,29 @@ export class HTTPAPIClientAdapter implements ClaudeAdapter {
     return { fullText };
   }
 
-  private extractText(message: any): string {
-    if (!message) {
-      return '';
+  private extractText(message: unknown): string {
+    if (!message || typeof message !== 'object') {
+      return typeof message === 'string' ? message : '';
+    }
+
+    const msg = message as {
+      type?: string;
+      delta?: { text?: string };
+      content_block?: { text?: string };
+    };
+
+    if (
+      msg.type === 'content_block_delta' &&
+      typeof msg.delta?.text === 'string'
+    ) {
+      return msg.delta.text;
     }
 
     if (
-      message.type === 'content_block_delta' &&
-      typeof message.delta?.text === 'string'
+      msg.type === 'content_block_start' &&
+      typeof msg.content_block?.text === 'string'
     ) {
-      return message.delta.text;
-    }
-
-    if (
-      message.type === 'content_block_start' &&
-      typeof message.content_block?.text === 'string'
-    ) {
-      return message.content_block.text;
-    }
-
-    if (typeof message === 'string') {
-      return message;
+      return msg.content_block.text;
     }
 
     return '';

@@ -54,7 +54,7 @@ const AUTOMATION_KEY = 'automation';
 function clone<T>(value: T): T {
   const structured = (globalThis as any).structuredClone as
     | (<U>(input: U) => U)
-    | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+    | undefined;  
   if (typeof structured === 'function') {
     return structured(value);
   }

@@ -4,6 +4,8 @@
  * Ported from src/container-registry-auth.ts
  */
 
+import { UserConfig, Env } from '../../shared/types/index';
+import { ITokenService } from '../../core/interfaces/services/token.service';
 export interface DeploymentAuth {
   registryToken: string;
   registryUrl: string;
@@ -37,12 +39,12 @@ export interface ContainerRegistryAuth {
  * Container Registry Authentication Service Interface
  */
 export interface IContainerRegistryAuthService {
-  getDeploymentAuth(userConfig: any): Promise<ContainerAuthResult>;
-  refreshAuth(userConfig: any): Promise<ContainerAuthResult>;
-  preValidateAuth(userConfig: any): Promise<ContainerAuthResult>;
+  getDeploymentAuth(userConfig: UserConfig): Promise<ContainerAuthResult>;
+  refreshAuth(userConfig: UserConfig): Promise<ContainerAuthResult>;
+  preValidateAuth(userConfig: UserConfig): Promise<ContainerAuthResult>;
   handleDeploymentAuthFailure(
-    userConfig: any,
-    error: any,
+    userConfig: UserConfig,
+    error: unknown,
   ): Promise<ContainerAuthResult>;
 }
 
@@ -53,14 +55,14 @@ export class ContainerRegistryAuthService
   implements IContainerRegistryAuthService
 {
   constructor(
-    private readonly env: any,
-    private readonly tokenService: any,
+    private readonly env: Env,
+    private readonly tokenService: ITokenService,
   ) {}
 
   /**
    * Get authentication for container deployment to Cloudflare
    */
-  async getDeploymentAuth(userConfig: any): Promise<ContainerAuthResult> {
+  async getDeploymentAuth(userConfig: UserConfig): Promise<ContainerAuthResult> {
     try {
       console.log(`🔐 Getting deployment auth for user ${userConfig.userId}`);
 
@@ -122,7 +124,7 @@ export class ContainerRegistryAuthService
    * Get container registry auth token (simulated for now)
    */
   private async getContainerRegistryAuth(
-    userConfig: any,
+    userConfig: UserConfig,
   ): Promise<ContainerRegistryAuth | null> {
     try {
       // In a real implementation, this would call Cloudflare API to get registry token
@@ -204,22 +206,23 @@ export class ContainerRegistryAuthService
   /**
    * Categorize error for appropriate handling
    */
-  private categorizeError(error: any): ContainerAuthError {
-    if (error?.message?.toLowerCase().includes('network')) {
+  private categorizeError(error: unknown): ContainerAuthError {
+    const err = error as { message?: string; status?: number };
+    if (err?.message?.toLowerCase().includes('network')) {
       return ContainerAuthError.NETWORK_ERROR;
     }
 
-    if (error?.status === 401 || error?.status === 403) {
+    if (err?.status === 401 || err?.status === 403) {
       return ContainerAuthError.REGISTRY_ACCESS_DENIED;
     }
 
-    if (error?.message?.toLowerCase().includes('cloudflare')) {
+    if (err?.message?.toLowerCase().includes('cloudflare')) {
       return ContainerAuthError.CLOUDFLARE_API_ERROR;
     }
 
     if (
-      error?.message?.toLowerCase().includes('token') ||
-      error?.message?.toLowerCase().includes('auth')
+      err?.message?.toLowerCase().includes('token') ||
+      err?.message?.toLowerCase().includes('auth')
     ) {
       return ContainerAuthError.TOKEN_GENERATION_FAILED;
     }
@@ -230,7 +233,7 @@ export class ContainerRegistryAuthService
   /**
    * Determine if an error is retryable
    */
-  private isRetryableError(error: any): boolean {
+  private isRetryableError(error: unknown): boolean {
     const retryableErrors = [
       ContainerAuthError.NETWORK_ERROR,
       ContainerAuthError.TOKEN_GENERATION_FAILED,
@@ -244,7 +247,7 @@ export class ContainerRegistryAuthService
   /**
    * Refresh authentication for a user
    */
-  async refreshAuth(userConfig: any): Promise<ContainerAuthResult> {
+  async refreshAuth(userConfig: UserConfig): Promise<ContainerAuthResult> {
     try {
       console.log(`🔄 Refreshing container auth for user ${userConfig.userId}`);
 
@@ -265,7 +268,7 @@ export class ContainerRegistryAuthService
   /**
    * Pre-validate authentication before deployment
    */
-  async preValidateAuth(userConfig: any): Promise<ContainerAuthResult> {
+  async preValidateAuth(userConfig: UserConfig): Promise<ContainerAuthResult> {
     console.log(
       `🔍 Pre-validating container auth for user ${userConfig.userId}`,
     );
@@ -299,8 +302,8 @@ export class ContainerRegistryAuthService
    * Handle authentication failure during deployment
    */
   async handleDeploymentAuthFailure(
-    userConfig: any,
-    error: any,
+    userConfig: UserConfig,
+    error: unknown,
   ): Promise<ContainerAuthResult> {
     console.log(
       `🚨 Handling deployment auth failure for user ${userConfig.userId}:`,

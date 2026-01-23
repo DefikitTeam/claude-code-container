@@ -10,11 +10,11 @@ vi.mock('@zed-industries/agent-client-protocol', () => ({
 }));
 
 vi.mock('../src/utils.js', async (importOriginal) => {
-    const actual = await importOriginal();
-    return {
-        ...actual as any,
-        // we keep Pushable real to test stream contents
-    };
+  const actual = await importOriginal();
+  return {
+    ...(actual as any),
+    // we keep Pushable real to test stream contents
+  };
 });
 
 describe('SDK State Hydration', () => {
@@ -64,17 +64,18 @@ describe('SDK State Hydration', () => {
 
     // Spy on input push
     const inputSpy = vi.spyOn(session.input, 'push');
-    
+
     // Mock query.next to return a result so prompt() exits cleanly
     session.query = {
-        next: vi.fn()
-            .mockResolvedValueOnce({ 
-                done: false, 
-                value: { type: 'result', subtype: 'success', result: 'done' } 
-            })
-            .mockResolvedValue({ done: true, value: undefined }),
-        interrupt: vi.fn(),
-        setPermissionMode: vi.fn(),
+      next: vi
+        .fn()
+        .mockResolvedValueOnce({
+          done: false,
+          value: { type: 'result', subtype: 'success', result: 'done' },
+        })
+        .mockResolvedValue({ done: true, value: undefined }),
+      interrupt: vi.fn(),
+      setPermissionMode: vi.fn(),
     } as any;
 
     await agent.prompt({
@@ -83,13 +84,13 @@ describe('SDK State Hydration', () => {
     } as any);
 
     expect(session.historyReplayed).toBe(true);
-    
-    // Verify pushed messages: 
+
+    // Verify pushed messages:
     // 1. User 'Hello'
     // 2. Assistant 'Hi there'
     // 3. New User 'New prompt'
     expect(inputSpy).toHaveBeenCalledTimes(3);
-    
+
     const calls = inputSpy.mock.calls;
     expect(calls[0][0].message.content[0].text).toBe('Hello');
     expect(calls[1][0].message.content[0].text).toBe('Hi there');
@@ -98,12 +99,12 @@ describe('SDK State Hydration', () => {
 
   it('sanitizes tool use from history', async () => {
     const history = [
-      { 
-          role: 'assistant', 
-          content: [
-              { type: 'text', text: 'Thinking about tools...' },
-              { type: 'tool_use', name: 'writeFile', input: {} } // Should be stripped
-          ] 
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Thinking about tools...' },
+          { type: 'tool_use', name: 'writeFile', input: {} }, // Should be stripped
+        ],
       },
     ];
 
@@ -118,14 +119,15 @@ describe('SDK State Hydration', () => {
     const inputSpy = vi.spyOn(session.input, 'push');
 
     session.query = {
-        next: vi.fn()
-            .mockResolvedValueOnce({ 
-                done: false, 
-                value: { type: 'result', subtype: 'success', result: 'done' } 
-            })
-            .mockResolvedValue({ done: true, value: undefined }),
-        interrupt: vi.fn(),
-        setPermissionMode: vi.fn(),
+      next: vi
+        .fn()
+        .mockResolvedValueOnce({
+          done: false,
+          value: { type: 'result', subtype: 'success', result: 'done' },
+        })
+        .mockResolvedValue({ done: true, value: undefined }),
+      interrupt: vi.fn(),
+      setPermissionMode: vi.fn(),
     } as any;
 
     await agent.prompt({
@@ -141,7 +143,9 @@ describe('SDK State Hydration', () => {
     // Content should only have the text part
     expect(assistantMsg.message.content).toHaveLength(1);
     expect(assistantMsg.message.content[0].type).toBe('text');
-    expect(assistantMsg.message.content[0].text).toBe('Thinking about tools...');
+    expect(assistantMsg.message.content[0].text).toBe(
+      'Thinking about tools...',
+    );
   });
 
   it('applies tail-only strategy for long history', async () => {
@@ -149,77 +153,87 @@ describe('SDK State Hydration', () => {
     const history = createMockHistory(40);
 
     const sessionRes = await agent.newSession({
-        cwd: '/tmp',
-        agentId: 'test-agent',
-        opts: { history },
-      } as any);
-  
-      const sessionId = sessionRes.sessionId;
-      const session = agent.sessions[sessionId];
-      const inputSpy = vi.spyOn(session.input, 'push');
-  
-      session.query = {
-          next: vi.fn()
-            .mockResolvedValueOnce({ 
-                done: false, 
-                value: { type: 'result', subtype: 'success', result: 'done' } 
-            })
-            .mockResolvedValue({ done: true, value: undefined }),
-          interrupt: vi.fn(),
-          setPermissionMode: vi.fn(),
-      } as any;
-  
-      await agent.prompt({
-        sessionId,
-        prompt: [{ type: 'text', text: 'next' }],
-      } as any);
+      cwd: '/tmp',
+      agentId: 'test-agent',
+      opts: { history },
+    } as any);
 
-      // Expect 30 replayed messages + 1 new prompt = 31
-      expect(inputSpy).toHaveBeenCalledTimes(31);
-      
-      // Verify the first replayed message is actually the 11th message (index 10) from original history (0-39)
-      // Since we take last 30, it starts from index 10.
-      // Message 10 text should be "Message 10"
-      expect(inputSpy.mock.calls[0][0].message.content[0].text).toBe('Message 10');
+    const sessionId = sessionRes.sessionId;
+    const session = agent.sessions[sessionId];
+    const inputSpy = vi.spyOn(session.input, 'push');
+
+    session.query = {
+      next: vi
+        .fn()
+        .mockResolvedValueOnce({
+          done: false,
+          value: { type: 'result', subtype: 'success', result: 'done' },
+        })
+        .mockResolvedValue({ done: true, value: undefined }),
+      interrupt: vi.fn(),
+      setPermissionMode: vi.fn(),
+    } as any;
+
+    await agent.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: 'next' }],
+    } as any);
+
+    // Expect 30 replayed messages + 1 new prompt = 31
+    expect(inputSpy).toHaveBeenCalledTimes(31);
+
+    // Verify the first replayed message is actually the 11th message (index 10) from original history (0-39)
+    // Since we take last 30, it starts from index 10.
+    // Message 10 text should be "Message 10"
+    expect(inputSpy.mock.calls[0][0].message.content[0].text).toBe(
+      'Message 10',
+    );
   });
 
   it('skips rehydration on subsequent prompts', async () => {
     const history = createMockHistory(2);
     const sessionRes = await agent.newSession({
-        cwd: '/tmp',
-        agentId: 'test-agent',
-        opts: { history },
-      } as any);
-    
+      cwd: '/tmp',
+      agentId: 'test-agent',
+      opts: { history },
+    } as any);
+
     const sessionId = sessionRes.sessionId;
     const session = agent.sessions[sessionId];
-    
+
     session.query = {
-        next: vi.fn()
-            // First prompt interactions
-            .mockResolvedValueOnce({ 
-                done: false, 
-                value: { type: 'result', subtype: 'success', result: 'done' } 
-            })
-            // Second prompt interactions
-            .mockResolvedValueOnce({ 
-                done: false, 
-                value: { type: 'result', subtype: 'success', result: 'done' } 
-            }),
-        interrupt: vi.fn(),
-        setPermissionMode: vi.fn(),
+      next: vi
+        .fn()
+        // First prompt interactions
+        .mockResolvedValueOnce({
+          done: false,
+          value: { type: 'result', subtype: 'success', result: 'done' },
+        })
+        // Second prompt interactions
+        .mockResolvedValueOnce({
+          done: false,
+          value: { type: 'result', subtype: 'success', result: 'done' },
+        }),
+      interrupt: vi.fn(),
+      setPermissionMode: vi.fn(),
     } as any;
 
     // First prompt -> Rehydrate
-    await agent.prompt({ sessionId, prompt: [{ type: 'text', text: '1' }] } as any);
+    await agent.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: '1' }],
+    } as any);
     expect(session.historyReplayed).toBe(true);
 
     const inputSpy = vi.spyOn(session.input, 'push');
     inputSpy.mockClear();
 
     // Second prompt -> No rehydration
-    await agent.prompt({ sessionId, prompt: [{ type: 'text', text: '2' }] } as any);
-    
+    await agent.prompt({
+      sessionId,
+      prompt: [{ type: 'text', text: '2' }],
+    } as any);
+
     // Should ONLY push the new prompt (1 call)
     expect(inputSpy).toHaveBeenCalledTimes(1);
     expect(inputSpy.mock.calls[0][0].message.content[0].text).toBe('2');

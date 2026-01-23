@@ -94,10 +94,10 @@ Example: readFile({ path: "src/components/Button.tsx" })`,
           content,
           size: stats.size,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     },
@@ -171,14 +171,14 @@ Example workflow for modifying a file:
           path: filePath,
           size: Buffer.byteLength(content, 'utf-8'),
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[FILE-TOOLS][writeFile] Error writing file:', {
           fullPath: resolvePath(filePath),
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
         return {
           success: false,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     },
@@ -259,10 +259,10 @@ Example:
             count: files.length,
           };
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     },
@@ -322,12 +322,12 @@ Note: Commands must start with one of the allowed commands for security.`,
           stdout: stdout.trim(),
           stderr: stderr.trim(),
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
-          stderr: error.stderr || '',
-          stdout: error.stdout || '',
+          error: error instanceof Error ? error.message : String(error),
+          stderr: (error as { stderr?: string }).stderr || '',
+          stdout: (error as { stdout?: string }).stdout || '',
         };
       }
     },
@@ -372,10 +372,10 @@ Note: Commands must start with one of the allowed commands for security.`,
             type: 'file',
           };
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     },
@@ -405,10 +405,10 @@ Note: Commands must start with one of the allowed commands for security.`,
           from,
           to,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     },
