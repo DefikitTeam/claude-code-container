@@ -3,9 +3,7 @@
   "name": "claude-code-containers",
   "main": "src/index.ts",
   "compatibility_date": "2025-05-23",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
   },
@@ -42,28 +40,19 @@
   },
   "migrations": [
     {
-      "new_sqlite_classes": [
-        "MyContainer",
-        "GitHubAppConfigDO"
-      ],
+      "new_sqlite_classes": ["MyContainer", "GitHubAppConfigDO"],
       "tag": "v1",
     },
     {
-      "new_sqlite_classes": [
-        "UserConfigDO"
-      ],
+      "new_sqlite_classes": ["UserConfigDO"],
       "tag": "v2",
     },
     {
-      "new_sqlite_classes": [
-        "ACPSessionDO"
-      ],
+      "new_sqlite_classes": ["ACPSessionDO"],
       "tag": "v3",
     },
     {
-      "new_sqlite_classes": [
-        "AsyncJobDO"
-      ],
+      "new_sqlite_classes": ["AsyncJobDO"],
       "tag": "v4",
     },
   ],
@@ -81,7 +70,7 @@
     "DAYTONA_API_URL": "https://api.daytona.io",
     // User-provided secrets (set via GitHub Actions secrets)
     "DAYTONA_API_KEY": "",
-    "DAYTONA_ORGANIZATION_ID": ""
+    "DAYTONA_ORGANIZATION_ID": "",
   },
   "env": {
     "production": {
@@ -92,7 +81,7 @@
         "CONTAINER_PROVIDER": "cloudflare",
         "DAYTONA_API_URL": "https://api.daytona.io",
         "DAYTONA_API_KEY": "",
-        "DAYTONA_ORGANIZATION_ID": ""
+        "DAYTONA_ORGANIZATION_ID": "",
       },
       "containers": [
         {
@@ -134,7 +123,7 @@
         "CONTAINER_PROVIDER": "cloudflare",
         "DAYTONA_API_URL": "https://api.daytona.io",
         "DAYTONA_API_KEY": "",
-        "DAYTONA_ORGANIZATION_ID": ""
+        "DAYTONA_ORGANIZATION_ID": "",
       },
       "containers": [
         {
@@ -176,7 +165,7 @@
         "CONTAINER_PROVIDER": "cloudflare",
         "DAYTONA_API_URL": "https://api.daytona.io",
         "DAYTONA_API_KEY": "",
-        "DAYTONA_ORGANIZATION_ID": ""
+        "DAYTONA_ORGANIZATION_ID": "",
       },
       "containers": [
         {

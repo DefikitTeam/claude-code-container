@@ -5,8 +5,8 @@ export interface EnableCodingModeDto {
   userId: string;
   installationId: string;
   selectedRepository: string; // Format: "owner/repo"
-  selectedBranch?: string;     // Default: "main"
-  workingBranch?: string;      // Optional custom branch name
+  selectedBranch?: string; // Default: "main"
+  workingBranch?: string; // Optional custom branch name
 }
 
 export interface EnableCodingModeResult {
@@ -28,7 +28,9 @@ export class EnableCodingModeUseCase {
   async execute(dto: EnableCodingModeDto): Promise<EnableCodingModeResult> {
     // Validate input
     if (!dto.sessionId || !dto.selectedRepository) {
-      throw new ValidationError('sessionId and selectedRepository are required');
+      throw new ValidationError(
+        'sessionId and selectedRepository are required',
+      );
     }
 
     // Validate repository format
@@ -42,7 +44,8 @@ export class EnableCodingModeUseCase {
     const selectedBranch = dto.selectedBranch || 'main';
 
     // Generate working branch name or use provided one
-    const workingBranch = dto.workingBranch || this.generateWorkingBranchName(dto.sessionId);
+    const workingBranch =
+      dto.workingBranch || this.generateWorkingBranchName(dto.sessionId);
 
     // Get session from Durable Object
     const sessionDO = this.env.ACP_SESSION.idFromName(dto.sessionId);
@@ -64,21 +67,21 @@ export class EnableCodingModeUseCase {
     // but if we are "resetting" (create-dual call), we usually want to force the new state.
     // However, create-dual only calls this once.
     if (session?.codingModeEnabled && session?.workingBranch) {
-        // If the session already has a working branch, and it's DIFFERENT from the requested one,
-        // we should probably update it.
-        // But for safety in this specific "Enable" use case, let's update it if provided.
-        if (dto.workingBranch && session.workingBranch !== dto.workingBranch) {
-             // Fall through to update logic
-        } else {
-            return {
-                success: true,
-                sessionId: dto.sessionId,
-                workingBranch: session.workingBranch,
-                selectedRepository: session.selectedRepository,
-                selectedBranch: session.selectedBranch,
-                codingModeEnabled: true,
-            };
-        }
+      // If the session already has a working branch, and it's DIFFERENT from the requested one,
+      // we should probably update it.
+      // But for safety in this specific "Enable" use case, let's update it if provided.
+      if (dto.workingBranch && session.workingBranch !== dto.workingBranch) {
+        // Fall through to update logic
+      } else {
+        return {
+          success: true,
+          sessionId: dto.sessionId,
+          workingBranch: session.workingBranch,
+          selectedRepository: session.selectedRepository,
+          selectedBranch: session.selectedBranch,
+          codingModeEnabled: true,
+        };
+      }
     }
 
     // If session doesn't exist, create it with coding mode enabled

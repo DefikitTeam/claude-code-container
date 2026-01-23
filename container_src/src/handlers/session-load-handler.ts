@@ -49,15 +49,16 @@ export async function sessionLoadHandler(
     hasUncommittedChanges: false,
   };
   // Ensure messageHistory is an array (handle malformed persisted sessions)
-  const history = Array.isArray(session.messageHistory) ? session.messageHistory : [];
-  
+  const history = Array.isArray(session.messageHistory)
+    ? session.messageHistory
+    : [];
+
   const result: SessionLoadResponse['result'] = {
     sessionInfo,
     workspaceInfo,
     historyAvailable: history.length > 0,
   };
-  if (includeHistory && history.length > 0)
-    (result as any).history = history; // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (includeHistory && history.length > 0) (result as Record<string, unknown>).history = history;
   return result;
 }
 

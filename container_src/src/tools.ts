@@ -6,7 +6,7 @@
 export interface ToolInfo {
   name: string;
   description: string;
-  input?: any;
+  input?: unknown;
 }
 
 export interface ToolUpdate {
@@ -18,8 +18,21 @@ export interface ToolUpdate {
 /**
  * Extract tool information from tool use
  */
+export interface ToolUse {
+  name: string;
+  input: unknown;
+}
+
+export interface ToolResult {
+  is_error?: boolean;
+  content?: string;
+}
+
+/**
+ * Extract tool information from tool use
+ */
 export function toolInfoFromToolUse(
-  toolUse: any,
+  toolUse: ToolUse,
   fileContentCache: Record<string, string>,
 ): ToolInfo {
   return {
@@ -33,8 +46,8 @@ export function toolInfoFromToolUse(
  * Generate tool update from tool result
  */
 export function toolUpdateFromToolResult(
-  toolResult: any,
-  toolUse: any,
+  toolResult: ToolResult,
+  toolUse: ToolUse,
 ): ToolUpdate {
   return {
     status: toolResult.is_error ? 'failed' : 'completed',
@@ -46,12 +59,23 @@ export function toolUpdateFromToolResult(
 /**
  * Generate plan entries from todo input
  */
-export function planEntries(input: any): any[] {
-  if (!input || !Array.isArray(input.todos)) {
+export function planEntries(input: unknown): {
+  id: number;
+  text: string;
+  completed: boolean;
+}[] {
+  const typedInput = input as {
+    todos?: Array<{
+      text?: string;
+      description?: string;
+      completed?: boolean;
+    }>;
+  };
+  if (!typedInput || !Array.isArray(typedInput.todos)) {
     return [];
   }
 
-  return input.todos.map((todo: any, index: number) => ({
+  return typedInput.todos.map((todo, index) => ({
     id: index,
     text: todo.text || todo.description || 'Todo item',
     completed: todo.completed || false,

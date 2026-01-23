@@ -78,11 +78,11 @@ import { AsyncJobDO } from './infrastructure/durable-objects/async-job.do';
 
 export interface Env {
   // Cloudflare bindings (must match wrangler.jsonc binding names)
-  USER_CONFIG: DurableObjectNamespace;
-  GITHUB_APP_CONFIG: DurableObjectNamespace;
-  MY_CONTAINER: DurableObjectNamespace;
-  ACP_SESSION: DurableObjectNamespace;
-  ASYNC_JOB: DurableObjectNamespace;
+  USER_CONFIG: DurableObjectNamespace<UserConfigDO>;
+  GITHUB_APP_CONFIG: DurableObjectNamespace<GitHubAppConfigDO>;
+  MY_CONTAINER: DurableObjectNamespace<any>;
+  ACP_SESSION: DurableObjectNamespace<AcpSessionDO>;
+  ASYNC_JOB: DurableObjectNamespace<AsyncJobDO>;
 
   // LumiLink Integration - Simple authentication with user JWT token
   LUMILINK_API_URL?: string; // LumiLink API base URL (e.g., http://localhost:8788 or https://api.lumilink.ai)
@@ -96,7 +96,15 @@ export interface Env {
 
   // User-specific credentials
   ENCRYPTION_KEY: string; // For encrypting user data (Anthropic API keys, etc.)
-  ANTHROPIC_API_KEY?: string; // Optional default Anthropic API key
+  // Environment variables
+  ENVIRONMENT: 'development' | 'production' | 'staging';
+  ANTHROPIC_API_KEY: string;
+  GITHUB_APP_ID?: string;
+  GITHUB_WEBHOOK_SECRET?: string;
+  ENABLE_DEEP_REASONING: string;
+  DEEP_REASONING_THRESHOLD: string;
+  PROCESSING_TIMEOUT: string;
+  CLAUDE_CODE_TIMEOUT: string;
   OPENROUTER_API_KEY?: string; // OpenRouter API key for ACP bridge operations
 }
 
@@ -165,7 +173,9 @@ async function setupDI(env: Env): Promise<Controllers> {
   const githubService = new GitHubServiceImpl(tokenService);
 
   const deploymentService = new DeploymentServiceImpl();
-  const userRepository = new UserRepositoryDurableObjectAdapter(env.USER_CONFIG);
+  const userRepository = new UserRepositoryDurableObjectAdapter(
+    env.USER_CONFIG,
+  );
   let containerService: IContainerService;
 
   if (env.CONTAINER_PROVIDER === 'daytona') {
@@ -308,7 +318,10 @@ async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
 
   registerErrorMiddleware(app as unknown as Hono);
 
-  app.route('/health', createHealthRoutes(env.CONTAINER_PROVIDER || 'cloudflare'));
+  app.route(
+    '/health',
+    createHealthRoutes(env.CONTAINER_PROVIDER || 'cloudflare'),
+  );
   app.route('/api/users', createUserRoutes(controllers.userController));
   app.route('/api/github', createGitHubRoutes(controllers.githubController));
   app.route(
@@ -323,8 +336,11 @@ async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
     '/api/installations',
     createInstallationRoutes(controllers.installationController),
   );
-  app.route('/api/sessions', createSessionRoutes(controllers.sessionController));
-  app.route('/acp', createACPRoutes(controllers.acpController));
+  app.route(
+    '/api/sessions',
+    createSessionRoutes(controllers.sessionController) as any,
+  );
+  app.route('/acp', createACPRoutes(controllers.acpController) as any);
 
   app.notFound((c) =>
     c.json(
@@ -341,7 +357,7 @@ async function ensureApp(env: Env): Promise<Hono<{ Bindings: Env }>> {
   );
 
   cachedApp = app;
-  return app;
+  return app as unknown as Hono<{ Bindings: Env }>;
 }
 
 export default {

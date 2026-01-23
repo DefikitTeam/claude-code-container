@@ -23,7 +23,11 @@ function createGitServiceMock(overrides: Partial<GitService> = {}): GitService {
       };
     }
     if (args[0] === 'ls-remote') {
-      return { stdout: 'deadbeefdeadbeef\trefs/heads/branch\n', stderr: '', code: 0 };
+      return {
+        stdout: 'deadbeefdeadbeef\trefs/heads/branch\n',
+        stderr: '',
+        code: 0,
+      };
     }
     return { stdout: '', stderr: '', code: 0 };
   });
@@ -33,7 +37,10 @@ function createGitServiceMock(overrides: Partial<GitService> = {}): GitService {
     runGit,
     createBranch: vi.fn(async () => {}),
     checkoutBranch: vi.fn(async () => {}),
-    hasUncommittedChanges: vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true),
+    hasUncommittedChanges: vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValue(true),
   };
 
   return { ...gitService, ...overrides } as GitService;
@@ -239,8 +246,10 @@ describe('GitHubAutomationService', () => {
     } as const;
 
     const result = await service.execute(context);
-    
-    expect(result.commit?.message).toBe('Refactor the login component to use hooks.');
+
+    expect(result.commit?.message).toBe(
+      'Refactor the login component to use hooks.',
+    );
   });
 
   it('uses summary for commit message when available', async () => {
@@ -258,7 +267,8 @@ describe('GitHubAutomationService', () => {
       prompt: {
         body: 'Do some work',
       },
-      summaryMarkdown: 'I have successfully implemented the registration page with new styles.',
+      summaryMarkdown:
+        'I have successfully implemented the registration page with new styles.',
       intent: {
         mode: 'commit-only',
       },
@@ -266,8 +276,10 @@ describe('GitHubAutomationService', () => {
     } as const;
 
     const result = await service.execute(context);
-    
-    expect(result.commit?.message).toBe('Successfully implemented the registration page with new styles.');
+
+    expect(result.commit?.message).toBe(
+      'Successfully implemented the registration page with new styles.',
+    );
   });
 
   it('cleans up "I have" prefixes from summary', async () => {
@@ -293,7 +305,7 @@ describe('GitHubAutomationService', () => {
     } as const;
 
     const result = await service.execute(context);
-    
+
     expect(result.commit?.message).toBe('Updated the API endpoints.');
   });
 

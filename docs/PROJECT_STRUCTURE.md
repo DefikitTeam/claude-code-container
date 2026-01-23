@@ -132,6 +132,7 @@ TOTAL: 68 files, 7,520 LOC
 ## 📈 5. METRICS & COMPARISON
 
 ### **Current (Monolithic)**
+
 - Files: 15
 - LOC: 7,276
 - Avg LOC/file: 485
@@ -139,6 +140,7 @@ TOTAL: 68 files, 7,520 LOC
 - Issues: God objects, tight coupling
 
 ### **Target (Clean Architecture)**
+
 - Files: 68
 - LOC: 7,520
 - Avg LOC/file: 111
@@ -146,6 +148,7 @@ TOTAL: 68 files, 7,520 LOC
 - Benefits: Clean separation, testable
 
 ### **Improvement**
+
 - **4.4x** more files (better organization)
 - **4.4x** smaller files (easier to read)
 - **2.7x** test coverage (better quality)
@@ -156,16 +159,19 @@ TOTAL: 68 files, 7,520 LOC
 ## 💰 6. COST-BENEFIT SUMMARY
 
 ### **Implementation**
+
 - **Time:** 6 weeks
 - **Cost:** $15k-$25k
 - **Risk:** Medium (incremental)
 
 ### **Savings vs DDD**
+
 - **Upfront:** $35k-$75k
 - **Annual:** $32k-$48k
 - **3-year TCO:** $130k-$220k
 
 ### **ROI**
+
 - **Break-even:** 3-4 weeks
 - **Long-term:** 3-5x productivity
 - **Team:** 1-2 weeks onboarding (vs 3-6 months for DDD)

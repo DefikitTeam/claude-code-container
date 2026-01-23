@@ -185,8 +185,6 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
     });
   });
 
-
-
   describe('backward compatibility - NO global key fallback', () => {
     it('should NOT fallback to env.ANTHROPIC_API_KEY if userId missing', async () => {
       // Set global API key
@@ -265,9 +263,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       expect(capturedBody.params.githubToken).toBe(
         'ghs_installation_token_111',
       );
-      expect(capturedBody.params.anthropicApiKey).toBe(
-        'test-openrouter-key',
-      );
+      expect(capturedBody.params.anthropicApiKey).toBe('test-openrouter-key');
       expect(capturedBody.params.context?.orchestration).toMatchObject({
         planId: 'plan-1',
         stepId: 'step-1',
@@ -364,9 +360,7 @@ describe('Security: ACP Multi-Tenant Authentication', () => {
       // Should continue without error (GitHub operations just won't work)
       expect(result.error).toBeUndefined();
       expect(capturedBody).toBeDefined();
-      expect(capturedBody.params.anthropicApiKey).toBe(
-        'test-openrouter-key',
-      );
+      expect(capturedBody.params.anthropicApiKey).toBe('test-openrouter-key');
     });
   });
 });

@@ -1,12 +1,17 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
 
 ## Project Overview
 
-This is an automated GitHub issue processing system built on Cloudflare Workers with containerized Claude Code execution. The system receives GitHub webhooks, spawns containers running Claude Code SDK, analyzes issues, generates code changes, and creates pull requests automatically.
+This is an automated GitHub issue processing system built on Cloudflare Workers
+with containerized Claude Code execution. The system receives GitHub webhooks,
+spawns containers running Claude Code SDK, analyzes issues, generates code
+changes, and creates pull requests automatically.
 
 **Key Technologies:**
+
 - TypeScript 5.8.3, Node.js 22+
 - Cloudflare Workers, Durable Objects, Containers
 - Hono web framework
@@ -16,6 +21,7 @@ This is an automated GitHub issue processing system built on Cloudflare Workers 
 ## Development Commands
 
 ### Local Development
+
 ```bash
 # Start local dev server (port 8788)
 pnpm dev
@@ -31,6 +37,7 @@ pnpm build:all
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 pnpm test
@@ -43,6 +50,7 @@ pnpm test -- --coverage
 ```
 
 ### Container Development
+
 ```bash
 # Work on container code in container_src/
 cd container_src
@@ -55,6 +63,7 @@ pnpm dev
 ```
 
 ### Deployment
+
 ```bash
 # Deploy to development
 wrangler deploy --env development
@@ -92,19 +101,21 @@ pnpm deploy:prod
 
 ### Key Components
 
-**Worker** (`src/index.ts`): Main entry point, DI setup, routing
-**Container** (`container_src/src/index.ts`): Claude Code SDK execution environment
-**Durable Objects** (`src/infrastructure/durable-objects/`):
-  - `UserConfigDO`: User settings and credentials (encrypted)
-  - `GitHubAppConfigDO`: GitHub App configuration (encrypted)
-  - `ACPSessionDO`: Agent Communication Protocol sessions
-  - `ContainerDO`: Container lifecycle management
-  - `AsyncJobDO`: Background job tracking
+**Worker** (`src/index.ts`): Main entry point, DI setup, routing **Container**
+(`container_src/src/index.ts`): Claude Code SDK execution environment **Durable
+Objects** (`src/infrastructure/durable-objects/`):
+
+- `UserConfigDO`: User settings and credentials (encrypted)
+- `GitHubAppConfigDO`: GitHub App configuration (encrypted)
+- `ACPSessionDO`: Agent Communication Protocol sessions
+- `ContainerDO`: Container lifecycle management
+- `AsyncJobDO`: Background job tracking
 
 **Container Providers** (`src/infrastructure/services/`):
-  - `CloudflareContainerService`: Uses Cloudflare Containers (default)
-  - `DaytonaContainerService`: Uses Daytona cloud development environments
-  - Abstracted via `IContainerService` interface
+
+- `CloudflareContainerService`: Uses Cloudflare Containers (default)
+- `DaytonaContainerService`: Uses Daytona cloud development environments
+- Abstracted via `IContainerService` interface
 
 ### Clean Architecture Pattern
 
@@ -162,6 +173,7 @@ ENCRYPTION_KEY=generate_with_openssl_rand_hex_32
 ### Container Provider Selection
 
 In `wrangler.jsonc`:
+
 ```json
 "vars": {
   "CONTAINER_PROVIDER": "cloudflare"  // or "daytona"
@@ -173,6 +185,7 @@ In `wrangler.jsonc`:
 ### Daytona-Specific Variables
 
 Only needed if `CONTAINER_PROVIDER=daytona`:
+
 ```env
 DAYTONA_API_KEY=your_daytona_key
 DAYTONA_ORGANIZATION_ID=your_org_id
@@ -181,12 +194,14 @@ DAYTONA_ORGANIZATION_ID=your_org_id
 ## Code Organization Rules
 
 ### File Placement
+
 - **Use cases**: `src/core/use-cases/{domain}/{action}.use-case.ts`
 - **Services**: `src/infrastructure/services/{name}.service.impl.ts`
 - **Controllers**: `src/api/controllers/{domain}.controller.ts`
 - **Tests**: Mirror source structure in `src/test/` or `test/`
 
 ### Naming Conventions
+
 - Use cases: `VerbNounUseCase` (e.g., `ProcessWebhookUseCase`)
 - Services: `NounServiceImpl` (e.g., `GitHubServiceImpl`)
 - Controllers: `NounController` (e.g., `UserController`)
@@ -196,18 +211,23 @@ DAYTONA_ORGANIZATION_ID=your_org_id
 ### Dependency Injection
 
 All dependencies are wired in `src/index.ts`:
+
 1. Instantiate services and repositories
 2. Inject into use cases
 3. Inject use cases into controllers
 4. Register routes with controllers
 
 Example:
+
 ```typescript
 // 1. Create service
 const githubService = new GitHubServiceImpl(tokenService);
 
 // 2. Create use case
-const processWebhookUseCase = new ProcessWebhookUseCase(githubService, containerService);
+const processWebhookUseCase = new ProcessWebhookUseCase(
+  githubService,
+  containerService,
+);
 
 // 3. Create controller
 const githubController = new GitHubController(processWebhookUseCase);
@@ -221,6 +241,7 @@ app.route('/webhook', createGitHubRoutes(githubController));
 ### Container Structure
 
 The container (`container_src/`) is a separate Node.js application that:
+
 - Runs HTTP server on port 8080
 - Integrates Claude Code SDK (`@anthropic-ai/claude-code`)
 - Handles git operations via `simple-git`
@@ -229,9 +250,9 @@ The container (`container_src/`) is a separate Node.js application that:
 
 ### Container Entry Points
 
-**Main**: `container_src/src/index.ts` - CLI entry with HTTP bridge mode
-**HTTP Server**: `container_src/src/http-server.ts` - Express-like server
-**ACP Agent**: `container_src/src/acp-agent.ts` - Streaming agent implementation
+**Main**: `container_src/src/index.ts` - CLI entry with HTTP bridge mode **HTTP
+Server**: `container_src/src/http-server.ts` - Express-like server **ACP
+Agent**: `container_src/src/acp-agent.ts` - Streaming agent implementation
 
 ### Container API Endpoints
 
@@ -330,32 +351,38 @@ const response = await stub.fetch('http://do/get');
 ## Critical Development Rules
 
 ### Security
+
 - **NEVER** commit API keys or secrets
 - **ALWAYS** encrypt sensitive data in Durable Objects (use `CryptoServiceImpl`)
 - **ALWAYS** validate webhook signatures from GitHub
 - **NEVER** log sensitive data (API keys, private keys, tokens)
 
 ### Container Provider
+
 - **DO NOT** switch `CONTAINER_PROVIDER` after deployment (causes context loss)
 - **TEST** provider changes thoroughly in development first
 - **DOCUMENT** any provider-specific behavior in code comments
 
 ### Error Handling
+
 - **NEVER** create fallback cases for graceful degradation unless specified
 - **ALWAYS** propagate errors to API layer for proper HTTP status codes
 - **LOG** errors with context for debugging
 
 ### TypeScript
+
 - **ALWAYS** run `pnpm cf-typegen` after modifying `wrangler.jsonc`
 - **USE** strict TypeScript settings (already configured)
 - **AVOID** `any` type - use `unknown` and narrow with type guards
 
 ### Testing
+
 - **WRITE** tests for new use cases and services
 - **MOCK** external dependencies (GitHub API, Anthropic API)
 - **TEST** error paths, not just happy paths
 
 ### Code Quality
+
 - **NO** debugging statements or commented code in commits
 - **NO** hardcoded values - use constants or environment variables
 - **FOLLOW** existing patterns in each layer (API, Core, Infrastructure)
@@ -363,6 +390,7 @@ const response = await stub.fetch('http://do/get');
 ## Troubleshooting
 
 ### Container Won't Start
+
 ```bash
 # Check Wrangler logs
 wrangler tail
@@ -375,6 +403,7 @@ pnpm list --depth=0
 ```
 
 ### GitHub Webhook Failing
+
 ```bash
 # Test webhook locally
 curl -X POST http://localhost:8788/webhook/github \
@@ -383,6 +412,7 @@ curl -X POST http://localhost:8788/webhook/github \
 ```
 
 ### Type Errors After Config Changes
+
 ```bash
 # Regenerate types
 pnpm cf-typegen
@@ -391,7 +421,10 @@ pnpm cf-typegen
 ```
 
 ### Durable Object Migration Issues
-Migrations are defined in `wrangler.jsonc`. New DO classes require new migration tags:
+
+Migrations are defined in `wrangler.jsonc`. New DO classes require new migration
+tags:
+
 ```json
 {
   "new_sqlite_classes": ["NewDO"],

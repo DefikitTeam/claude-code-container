@@ -1,5 +1,6 @@
 import { ValidationError } from '../../../shared/errors/validation.error';
 import { IGitHubService } from '../../interfaces/services/github.service';
+import type { AcpSession } from '../../../infrastructure/durable-objects/acp-session.do';
 
 export interface CreatePRFromSessionDto {
   sessionId: string;
@@ -47,7 +48,7 @@ export class CreatePRFromSessionUseCase {
       throw new Error('Session not found');
     }
 
-    const session = await sessionResponse.json<any>();
+    const session = await sessionResponse.json<AcpSession>();
 
     // Validate coding mode and working branch
     if (!session.codingModeEnabled || !session.workingBranch) {
@@ -63,11 +64,15 @@ export class CreatePRFromSessionUseCase {
     }
 
     if (!session.selectedRepository || !session.selectedBranch) {
-      throw new ValidationError('Session repository configuration is incomplete');
+      throw new ValidationError(
+        'Session repository configuration is incomplete',
+      );
     }
 
     if ((session.totalCommits || 0) === 0) {
-      throw new ValidationError('No commits found on working branch to create PR');
+      throw new ValidationError(
+        'No commits found on working branch to create PR',
+      );
     }
 
     // Extract repository owner and name
@@ -77,12 +82,13 @@ export class CreatePRFromSessionUseCase {
     }
 
     // Generate PR title and description
-    const title = dto.title || `AI Coding Session: ${session.totalCommits} changes`;
+    const title =
+      dto.title || `AI Coding Session: ${session.totalCommits} changes`;
     const description =
       dto.description ||
       this.generatePRDescription(
         session.workingBranch,
-        session.totalCommits,
+        session.totalCommits || 0,
         session.lastCommitSha,
       );
 
@@ -106,7 +112,7 @@ export class CreatePRFromSessionUseCase {
         body: JSON.stringify({
           sessionId: dto.sessionId,
           pullRequestNumber: pr.number,
-          pullRequestUrl: pr.html_url,
+          pullRequestUrl: pr.url,
         }),
       },
     );
@@ -118,10 +124,10 @@ export class CreatePRFromSessionUseCase {
     return {
       success: true,
       pullRequestNumber: pr.number,
-      pullRequestUrl: pr.html_url,
+      pullRequestUrl: pr.url,
       workingBranch: session.workingBranch,
       baseBranch: session.selectedBranch,
-      commitsCount: session.totalCommits,
+      commitsCount: session.totalCommits || 0,
     };
   }
 

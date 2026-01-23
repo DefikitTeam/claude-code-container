@@ -85,30 +85,38 @@ export class GitService implements IGitService {
         stderr: String(res.stderr || ''),
         code: 0,
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as {
+        code?: string | number;
+        message?: string;
+        syscall?: string;
+        path?: string;
+        stdout?: string;
+        stderr?: string;
+      };
       console.error(`[GitService] git error:`, {
-        code: e.code,
-        message: e.message,
+        code: err.code,
+        message: err.message,
         cwd,
         args,
-        syscall: e.syscall,
-        path: e.path,
+        syscall: err.syscall,
+        path: err.path,
       });
       // If git binary missing or other execution error
-      if (e.code === 'ENOENT') {
+      if (err.code === 'ENOENT') {
         // Check if it's git binary or cwd that's missing
         const errorDetail =
-          e.path === 'git'
+          err.path === 'git'
             ? 'git binary not found in PATH'
-            : `directory or file not found: ${e.path || cwd}`;
+            : `directory or file not found: ${err.path || cwd}`;
         console.error(`[GitService] ENOENT details: ${errorDetail}`);
         throw new Error('git-not-found');
       }
       // execFile throws on non-zero exit; capture stdout/stderr if present
       return {
-        stdout: String(e.stdout || ''),
-        stderr: String(e.stderr || ''),
-        code: typeof e.code === 'number' ? e.code : null,
+        stdout: String(err.stdout || ''),
+        stderr: String(err.stderr || ''),
+        code: typeof err.code === 'number' ? err.code : null,
       };
     }
   }

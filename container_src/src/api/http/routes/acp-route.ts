@@ -98,12 +98,12 @@ function getString(
 function getValue(
   source: Record<string, unknown> | undefined,
   path: string[],
-): any {
+): unknown {
   if (!source) return undefined;
-  let current: any = source;
+  let current: unknown = source;
   for (const key of path) {
     if (!current || typeof current !== 'object') return undefined;
-    current = current[key];
+    current = (current as Record<string, unknown>)[key];
   }
   return current;
 }

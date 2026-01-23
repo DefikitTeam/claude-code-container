@@ -222,32 +222,40 @@ describe('Integration: multi-registration quickstart flow', () => {
 
       // Mock LumiLink Token Provider
       if (urlStr.includes('api.lumilink.ai') || urlStr.includes('/token')) {
-        return Promise.resolve(new Response(JSON.stringify({
-          success: true,
-          data: {
-            token: 'mock-gh-token',
-            expiresAt: Date.now() + 3600000
-          }
-        })));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: true,
+              data: {
+                token: 'mock-gh-token',
+                expiresAt: Date.now() + 3600000,
+              },
+            }),
+          ),
+        );
       }
 
       // Mock GitHub Installation Repositories
       if (urlStr.includes('/installation/repositories')) {
-        return Promise.resolve(new Response(JSON.stringify({
-          repositories: [
-            {
-              id: 1,
-              name: 'repo-one',
-              full_name: 'org/repo-one',
-              private: false,
-              description: 'Test repo',
-              html_url: 'https://github.com/org/repo-one',
-              default_branch: 'main',
-              owner: { login: 'org' },
-              permissions: { admin: true },
-            }
-          ]
-        })));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              repositories: [
+                {
+                  id: 1,
+                  name: 'repo-one',
+                  full_name: 'org/repo-one',
+                  private: false,
+                  description: 'Test repo',
+                  html_url: 'https://github.com/org/repo-one',
+                  default_branch: 'main',
+                  owner: { login: 'org' },
+                  permissions: { admin: true },
+                },
+              ],
+            }),
+          ),
+        );
       }
 
       return Promise.resolve(new Response('Not found', { status: 404 }));
@@ -271,7 +279,8 @@ describe('Integration: multi-registration quickstart flow', () => {
       // Add LumiLink credentials to enable token service
       LUMILINK_API_URL: 'https://api.lumilink.ai',
       LUMILINK_JWT_TOKEN: 'mock-jwt-token',
-      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      ENCRYPTION_KEY:
+        '0000000000000000000000000000000000000000000000000000000000000000',
     } as Env;
   });
 
@@ -284,9 +293,9 @@ describe('Integration: multi-registration quickstart flow', () => {
     const firstRegistration = await app.fetch(
       new Request('http://localhost/api/users/register', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'x-installation-id': '123'
+          'x-installation-id': '123',
         },
         body: JSON.stringify({
           installationId: '123',
@@ -295,7 +304,7 @@ describe('Integration: multi-registration quickstart flow', () => {
         }),
       }),
       env,
-      { waitUntil: () => {} } as any
+      { waitUntil: () => {} } as any,
     );
 
     expect(firstRegistration.status).toBe(201);
@@ -311,9 +320,9 @@ describe('Integration: multi-registration quickstart flow', () => {
     const secondRegistration = await app.fetch(
       new Request('http://localhost/api/users/register', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'x-installation-id': '123' 
+          'x-installation-id': '123',
         },
         body: JSON.stringify({
           installationId: '123',
@@ -322,7 +331,7 @@ describe('Integration: multi-registration quickstart flow', () => {
         }),
       }),
       env,
-      { waitUntil: () => {} } as any
+      { waitUntil: () => {} } as any,
     );
 
     expect(secondRegistration.status).toBe(201);
@@ -332,11 +341,14 @@ describe('Integration: multi-registration quickstart flow', () => {
 
     // Attempt to list repositories without userId should return repositories (conflict check removed)
     const conflictResponse = await app.fetch(
-      new Request('http://localhost/api/github/repositories?installationId=123', {
-        headers: { 'x-installation-id': '123' }
-      }),
+      new Request(
+        'http://localhost/api/github/repositories?installationId=123',
+        {
+          headers: { 'x-installation-id': '123' },
+        },
+      ),
       env,
-      { waitUntil: () => {} } as any
+      { waitUntil: () => {} } as any,
     );
 
     expect(conflictResponse.status).toBe(200);
@@ -346,11 +358,14 @@ describe('Integration: multi-registration quickstart flow', () => {
 
     // Provide explicit userId to resolve repositories
     const repoResponse = await app.fetch(
-      new Request(`http://localhost/api/github/repositories?installationId=123&userId=${firstBody.data.userId}`, {
-        headers: { 'x-installation-id': '123' }
-      }),
+      new Request(
+        `http://localhost/api/github/repositories?installationId=123&userId=${firstBody.data.userId}`,
+        {
+          headers: { 'x-installation-id': '123' },
+        },
+      ),
       env,
-      { waitUntil: () => {} } as any
+      { waitUntil: () => {} } as any,
     );
 
     expect(repoResponse.status).toBe(200);
@@ -359,12 +374,12 @@ describe('Integration: multi-registration quickstart flow', () => {
 
     // Delete the second registration and ensure directory updates remain
     const deleteResponse = await app.fetch(
-      new Request(`http://localhost/api/users/${secondBody.data.userId}`, { 
+      new Request(`http://localhost/api/users/${secondBody.data.userId}`, {
         method: 'DELETE',
-        headers: { 'x-installation-id': '123' }
+        headers: { 'x-installation-id': '123' },
       }),
       env,
-      { waitUntil: () => {} } as any
+      { waitUntil: () => {} } as any,
     );
 
     if (deleteResponse.status !== 200) {
@@ -378,7 +393,7 @@ describe('Integration: multi-registration quickstart flow', () => {
     // We cannot verify remainingRegistrations from response.
     // We can verify by fetching again?
     // Or just accept success.
-    
+
     const deleteBody = await deleteResponse.json();
     expect(deleteBody.success).toBe(true);
   });

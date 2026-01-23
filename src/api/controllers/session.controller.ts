@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { Env } from '../../shared/types/index';
 import {
   EnableCodingModeUseCase,
   type EnableCodingModeResult,
@@ -15,6 +16,7 @@ import {
   createdResponse,
   successResponse,
 } from '../responses/success.response';
+import type { AcpSession } from '../../infrastructure/durable-objects/acp-session.do';
 
 interface EnableCodingModeRequestBody {
   selectedRepository: string;
@@ -32,6 +34,13 @@ interface CreatePRRequestBody {
   description?: string;
 }
 
+interface Variables {
+  installationId: string;
+  userId?: string;
+}
+
+type C = Context<{ Bindings: Env; Variables: Variables }>;
+
 export class SessionController {
   constructor(
     private readonly enableCodingModeUseCase: EnableCodingModeUseCase,
@@ -43,16 +52,13 @@ export class SessionController {
    * Enable coding mode on a session
    * POST /api/sessions/:sessionId/coding-mode
    */
-  async enableCodingMode(c: Context): Promise<Response> {
+  async enableCodingMode(c: C): Promise<Response> {
     const sessionId = c.req.param('sessionId');
     const userId = this.safeGet<string>(c, 'userId');
     const installationId = this.safeGet<string>(c, 'installationId');
 
     if (!userId || !installationId) {
-      return c.json(
-        { error: 'userId and installationId are required' },
-        400,
-      );
+      return c.json({ error: 'userId and installationId are required' }, 400);
     }
 
     const body = await this.parseJson<EnableCodingModeRequestBody>(c);
@@ -73,16 +79,13 @@ export class SessionController {
    * Process a prompt in coding mode (creates a commit)
    * POST /api/sessions/:sessionId/prompt
    */
-  async processPrompt(c: Context): Promise<Response> {
+  async processPrompt(c: C): Promise<Response> {
     const sessionId = c.req.param('sessionId');
     const userId = this.safeGet<string>(c, 'userId');
     const installationId = this.safeGet<string>(c, 'installationId');
 
     if (!userId || !installationId) {
-      return c.json(
-        { error: 'userId and installationId are required' },
-        400,
-      );
+      return c.json({ error: 'userId and installationId are required' }, 400);
     }
 
     const body = await this.parseJson<ProcessPromptRequestBody>(c);
@@ -102,16 +105,13 @@ export class SessionController {
    * Create a PR from the session's working branch
    * POST /api/sessions/:sessionId/pull-request
    */
-  async createPullRequest(c: Context): Promise<Response> {
+  async createPullRequest(c: C): Promise<Response> {
     const sessionId = c.req.param('sessionId');
     const userId = this.safeGet<string>(c, 'userId');
     const installationId = this.safeGet<string>(c, 'installationId');
 
     if (!userId || !installationId) {
-      return c.json(
-        { error: 'userId and installationId are required' },
-        400,
-      );
+      return c.json({ error: 'userId and installationId are required' }, 400);
     }
 
     const body = await this.parseJson<CreatePRRequestBody>(c);
@@ -131,16 +131,13 @@ export class SessionController {
    * Update PR tracking (called by Lumi BE after creating PR in GitHub)
    * PATCH /api/sessions/:sessionId/pr-tracking
    */
-  async updatePRTracking(c: Context): Promise<Response> {
+  async updatePRTracking(c: C): Promise<Response> {
     const sessionId = c.req.param('sessionId');
     const userId = this.safeGet<string>(c, 'userId');
     const installationId = this.safeGet<string>(c, 'installationId');
 
     if (!userId || !installationId) {
-      return c.json(
-        { error: 'userId and installationId are required' },
-        400,
-      );
+      return c.json({ error: 'userId and installationId are required' }, 400);
     }
 
     const body = await this.parseJson<{
@@ -149,21 +146,18 @@ export class SessionController {
     }>(c);
 
     // Update session in Durable Object
-    const env = c.env as Env;
+    const env = c.env;
     const sessionDO = env.ACP_SESSION.idFromName(sessionId);
     const sessionStub = env.ACP_SESSION.get(sessionDO);
-    const response = await sessionStub.fetch(
-      'http://do/session/pr-tracking',
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          pullRequestNumber: body.pullRequestNumber,
-          pullRequestUrl: body.pullRequestUrl,
-        }),
-      },
-    );
+    const response = await sessionStub.fetch('http://do/session/pr-tracking', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        pullRequestNumber: body.pullRequestNumber,
+        pullRequestUrl: body.pullRequestUrl,
+      }),
+    });
 
     if (!response.ok) {
       return c.json({ error: 'Failed to update PR tracking' }, 500);
@@ -176,20 +170,17 @@ export class SessionController {
    * Get session status and branch information
    * GET /api/sessions/:sessionId/status
    */
-  async getSessionStatus(c: Context): Promise<Response> {
+  async getSessionStatus(c: C): Promise<Response> {
     const sessionId = c.req.param('sessionId');
     const userId = this.safeGet<string>(c, 'userId');
     const installationId = this.safeGet<string>(c, 'installationId');
 
     if (!userId || !installationId) {
-      return c.json(
-        { error: 'userId and installationId are required' },
-        400,
-      );
+      return c.json({ error: 'userId and installationId are required' }, 400);
     }
 
     // Get session from Durable Object
-    const env = c.env as Env;
+    const env = c.env;
     const sessionDO = env.ACP_SESSION.idFromName(sessionId);
     const sessionStub = env.ACP_SESSION.get(sessionDO);
     const sessionResponse = await sessionStub.fetch(
@@ -200,7 +191,7 @@ export class SessionController {
       return c.json({ error: 'Session not found' }, 404);
     }
 
-    const session = await sessionResponse.json();
+    const session = await sessionResponse.json<AcpSession>();
 
     return successResponse(c, {
       sessionId: session.sessionId,
@@ -219,7 +210,7 @@ export class SessionController {
     });
   }
 
-  private async parseJson<T>(c: Context): Promise<T> {
+  private async parseJson<T>(c: C): Promise<T> {
     try {
       return (await c.req.json()) as T;
     } catch (error) {
@@ -227,7 +218,7 @@ export class SessionController {
     }
   }
 
-  private safeGet<T>(c: Context, key: string): T | undefined {
+  private safeGet<T>(c: C, key: keyof Variables): T | undefined {
     try {
       return c.get(key) as T | undefined;
     } catch {

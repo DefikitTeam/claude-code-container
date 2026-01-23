@@ -73,7 +73,7 @@ export class ConversationManager {
    * Error type that includes an HTTP status code and optional body for
    * better classification by callers.
    */
-  /* eslint-disable-next-line @typescript-eslint/no-extraneous-class */
+   
   static HTTPError = class HTTPError extends Error {
     status: number;
     body?: string;
@@ -145,7 +145,7 @@ export class ConversationManager {
     signal?: AbortSignal,
   ): Promise<ConversationStatusResponse> {
     const candidates = [this.baseUrl()];
-    let lastNetworkErr: any = null;
+    let lastNetworkErr: unknown = null;
     let res: Response | undefined;
     for (const base of candidates) {
       const url = `${base.replace(/\/$/, '')}/api/conversations`;
@@ -158,7 +158,7 @@ export class ConversationManager {
         });
         // if we got a response, stop trying alternatives
         break;
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Network-level failure (DNS/TCP/TLS) -> remember and try next candidate
         lastNetworkErr = err;
         // continue to next candidate
@@ -168,13 +168,13 @@ export class ConversationManager {
 
     if (!res) {
       const msg = String(
-        lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error',
+        (lastNetworkErr as Record<string, unknown>)?.message ?? lastNetworkErr ?? 'unknown network error',
       );
       const e = new Error(
         `[ConversationManager] network error when POST (all candidates tried): ${msg}`,
       );
       e.name = 'NetworkError';
-      (e as any).code = lastNetworkErr?.code ?? undefined;
+      (e as unknown as { code?: unknown }).code = (lastNetworkErr as Record<string, unknown>)?.code ?? undefined;
       throw e;
     }
 
@@ -192,20 +192,21 @@ export class ConversationManager {
     }
 
     try {
-      const json = JSON.parse(text) as ConversationStatusResponse | any;
+      const json = JSON.parse(text) as unknown;
 
       // Defensive normalization: some OpenHands deployments return different
       // shapes (conversation_id, conversationId, data:{ id }) instead of id.
       // Normalize to expected shape so callers can rely on `id`.
-      if (json) {
-        if (!json.id) {
-          if (json.conversation_id) json.id = String(json.conversation_id);
-          else if (json.conversationId) json.id = String(json.conversationId);
-          else if (json.data && json.data.id) json.id = String(json.data.id);
+      if (json && typeof json === 'object') {
+        const obj = json as { id?: string; conversation_id?: string; conversationId?: string; data?: { id?: string } };
+        if (!obj.id) {
+          if (obj.conversation_id) obj.id = String(obj.conversation_id);
+          else if (obj.conversationId) obj.id = String(obj.conversationId);
+          else if (obj.data && obj.data.id) obj.id = String(obj.data.id);
         }
       }
 
-      if (!json || !json.id) {
+      if (!json || typeof json !== 'object' || !('id' in json)) {
         // Provide a clearer error with the raw body for diagnostics
         throw new Error(
           `[ConversationManager.createConversation] missing id in response - raw: ${text}`,
@@ -229,7 +230,7 @@ export class ConversationManager {
     signal?: AbortSignal,
   ): Promise<ConversationStatusResponse> {
     const candidates = [this.baseUrl()];
-    let lastNetworkErr: any = null;
+    let lastNetworkErr: unknown = null;
     let res: Response | undefined;
     for (const base of candidates) {
       let url = `${base.replace(/\/$/, '')}/api/conversations/${encodeURIComponent(
@@ -245,7 +246,7 @@ export class ConversationManager {
           signal,
         });
         break;
-      } catch (err: any) {
+      } catch (err: unknown) {
         lastNetworkErr = err;
         continue;
       }
@@ -253,13 +254,13 @@ export class ConversationManager {
 
     if (!res) {
       const msg = String(
-        lastNetworkErr?.message ?? lastNetworkErr ?? 'unknown network error',
+        (lastNetworkErr as Record<string, unknown>)?.message ?? lastNetworkErr ?? 'unknown network error',
       );
       const e = new Error(
         `[ConversationManager] network error when GET (all candidates tried): ${msg}`,
       );
       e.name = 'NetworkError';
-      (e as any).code = lastNetworkErr?.code ?? undefined;
+      (e as unknown as { code?: unknown }).code = (lastNetworkErr as Record<string, unknown>)?.code ?? undefined;
       throw e;
     }
     const text = await res.text();
@@ -275,11 +276,12 @@ export class ConversationManager {
     }
 
     try {
-      const json = JSON.parse(text) as ConversationStatusResponse | any;
-      if (!json) throw new Error('empty response body');
+      const json = JSON.parse(text) as unknown;
+      if (!json || typeof json !== 'object') throw new Error('empty response body');
 
       // Normalize status field differences (in_progress vs running)
-      if (json.status === 'in_progress') json.status = 'running';
+      if ('status' in json && (json as { status: string }).status === 'in_progress')
+        (json as { status: string }).status = 'running';
 
       return json as ConversationStatusResponse;
     } catch (err) {

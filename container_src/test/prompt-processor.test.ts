@@ -29,7 +29,7 @@ function makeSession(overrides: Partial<ACPSession> = {}): ACPSession {
 }
 
 describe('PromptProcessor', () => {
-  let sessionStore: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  let sessionStore: any;  
   let workspaceService: any;
   let authService: any;
   let claudeClient: any;
@@ -58,7 +58,7 @@ describe('PromptProcessor', () => {
     authService = { ensureAuth: vi.fn(async () => {}) };
     claudeClient = {
       runPrompt: vi.fn(async (_prompt: string, _opts: any, callbacks: any) => {
-        // eslint-disable-line @typescript-eslint/no-explicit-any
+         
         callbacks.onStart?.({ startTime: Date.now() });
         callbacks.onDelta?.({ text: 'Hello', tokens: 2 });
         callbacks.onComplete?.({ fullText: 'Hello', durationMs: 10 });
@@ -137,7 +137,7 @@ describe('PromptProcessor', () => {
   it('classifies errors and returns structured diagnostics', async () => {
     claudeClient.runPrompt.mockImplementationOnce(async () => {
       const err = new Error('API key invalid');
-      (err as any).detail = { stderr: 'api key missing', exitCode: 1 }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      (err as any).detail = { stderr: 'api key missing', exitCode: 1 };  
       throw err;
     });
     const res = await processor.processPrompt({
@@ -147,7 +147,7 @@ describe('PromptProcessor', () => {
     expect(res.stopReason).toBe('error');
     // errorCode from PromptProcessor uses classified.code which is enum string value
     expect(res.errorCode).toBe(ClassifiedErrorCode.AuthError);
-    const diag = res.diagnostics as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const diag = res.diagnostics as any;  
     expect(typeof diag).toBe('object');
     // stderr may be undefined if not captured; allow either contains or undefined fallback
     if (diag && typeof diag.stderr === 'string') {
@@ -224,7 +224,7 @@ describe('PromptProcessor', () => {
     expect(contextArg.repository.owner).toBe('org');
     expect(contextArg.repository.name).toBe('repo');
     expect(res.githubAutomation).toEqual(automationResult);
-    expect((res as any).meta.githubAutomationVersion).toBe('1.0.0'); // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect((res as any).meta.githubAutomationVersion).toBe('1.0.0');  
     expect(res.githubOperations?.branchCreated).toBe(automationResult.branch);
   });
 
@@ -233,58 +233,66 @@ describe('PromptProcessor', () => {
     // 1. Task execution response
     // 2. Commit message generation response
     claudeClient.runPrompt
-      .mockResolvedValueOnce({ fullText: 'I fixed the bug.', tokens: { input: 10, output: 5 } })
-      .mockResolvedValueOnce({ fullText: 'Fix critical bug in login flow', tokens: { input: 50, output: 5 } });
+      .mockResolvedValueOnce({
+        fullText: 'I fixed the bug.',
+        tokens: { input: 10, output: 5 },
+      })
+      .mockResolvedValueOnce({
+        fullText: 'Fix critical bug in login flow',
+        tokens: { input: 50, output: 5 },
+      });
 
     // Mock file changes for context
     const automationResult = { status: 'success' } as GitHubAutomationResult;
     githubAutomationService.execute.mockResolvedValueOnce(automationResult);
-    
+
     // Setup metadata with files changed (needed to trigger explicit commit message gen)
-    const session = makeSession({ 
-        sessionId: 'sess-commit-gen',
-        sessionOptions: {
-            persistHistory: false,
-            enableGitOps: true,
-            contextFiles: []
-        }
+    const session = makeSession({
+      sessionId: 'sess-commit-gen',
+      sessionOptions: {
+        persistHistory: false,
+        enableGitOps: true,
+        contextFiles: [],
+      },
     });
     sessionStore.load.mockResolvedValue(session);
-    
+
     // We need to simulate the metadata having filesChanged which usually happens during tool use
     // But since we are mocking everything, we can just pass specific intent
-    
+
     const res = await processor.processPrompt({
       sessionId: 'sess-commit-gen',
       content: [{ type: 'text', text: 'Fix the bug' }],
       agentContext: {
         automation: {
-            mode: 'commit-only'
+          mode: 'commit-only',
         },
         repository: 'org/repo',
       },
       // Simulate that tools were used and files changed
       rawParams: {
         context: {
-            metadata: {
-                filesChanged: ['src/login.ts']
-            }
-        }
-      }
+          metadata: {
+            filesChanged: ['src/login.ts'],
+          },
+        },
+      },
     });
 
     // Expect Claude to be called twice
     expect(claudeClient.runPrompt).toHaveBeenCalledTimes(2);
-    
+
     // Check first call (task)
-    expect(claudeClient.runPrompt.mock.calls[0][1].sessionId).toBe('sess-commit-gen');
-    
+    expect(claudeClient.runPrompt.mock.calls[0][1].sessionId).toBe(
+      'sess-commit-gen',
+    );
+
     // Check second call (commit gen)
     // The prompt should contain the user request and summary
     const genPrompt = claudeClient.runPrompt.mock.calls[1][0];
     expect(genPrompt).toContain('Fix the bug');
     expect(genPrompt).toContain('I fixed the bug');
-    
+
     // Expect GitHub automation to receive the generated message
     expect(githubAutomationService.execute).toHaveBeenCalledTimes(1);
     const contextArg = githubAutomationService.execute.mock.calls[0][0];
@@ -340,7 +348,7 @@ describe('PromptProcessor', () => {
       const integrationClaude = {
         runPrompt: vi.fn(
           async (_prompt: string, _opts: any, callbacks: any) => {
-            // eslint-disable-line @typescript-eslint/no-explicit-any
+             
             callbacks.onStart?.({});
             callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
             callbacks.onComplete?.({ fullText: 'Hello world' });
@@ -437,7 +445,7 @@ describe('PromptProcessor', () => {
       const integrationClaude = {
         runPrompt: vi.fn(
           async (_prompt: string, _opts: any, callbacks: any) => {
-            // eslint-disable-line @typescript-eslint/no-explicit-any
+             
             callbacks.onStart?.({});
             callbacks.onDelta?.({ text: 'Hello world', tokens: 3 });
             callbacks.onComplete?.({ fullText: 'Hello world' });
@@ -532,10 +540,19 @@ function createIntegrationGitService(options: { failPush?: boolean } = {}) {
       return { stdout: 'deadbeefdeadbeef\n', stderr: '', code: 0 };
     }
     if (key.includes('rev-parse --abbrev-ref HEAD')) {
-        return { stdout: 'integration/issue-42-2025-09-25-120000\n', stderr: '', code: 0 };
+      return {
+        stdout: 'integration/issue-42-2025-09-25-120000\n',
+        stderr: '',
+        code: 0,
+      };
     }
     if (key.includes('ls-remote')) {
-        return { stdout: 'deadbeefdeadbeef\trefs/heads/integration/issue-42-2025-09-25-120000\n', stderr: '', code: 0 };
+      return {
+        stdout:
+          'deadbeefdeadbeef\trefs/heads/integration/issue-42-2025-09-25-120000\n',
+        stderr: '',
+        code: 0,
+      };
     }
     if (key === 'remote get-url --push origin') {
       return {
@@ -582,13 +599,15 @@ function createIntegrationGitService(options: { failPush?: boolean } = {}) {
     hasUncommittedChanges: vi.fn(async () => true),
     listChangedFiles: vi.fn(async () => ['src/index.ts']),
     getStatus: vi.fn(async () => ' M src/index.ts'),
-    getCurrentBranch: vi.fn(async () => 'integration/issue-42-2025-09-25-120000'),
+    getCurrentBranch: vi.fn(
+      async () => 'integration/issue-42-2025-09-25-120000',
+    ),
     getRemoteUrl: vi.fn(async () => 'https://github.com/org/repo.git'),
     getInfo: vi.fn(async () => ({
-        currentBranch: 'integration/issue-42-2025-09-25-120000',
-        hasUncommittedChanges: true,
-        remoteUrl: 'https://github.com/org/repo.git',
-        vcsRef: 'HEAD'
+      currentBranch: 'integration/issue-42-2025-09-25-120000',
+      hasUncommittedChanges: true,
+      remoteUrl: 'https://github.com/org/repo.git',
+      vcsRef: 'HEAD',
     })),
   };
 

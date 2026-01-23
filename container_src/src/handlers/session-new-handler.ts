@@ -3,6 +3,7 @@ import { acpState } from './acp-state.js';
 import type {
   SessionNewRequest,
   SessionNewResponse,
+  WorkspaceInfo,
 } from '../types/acp-messages.js';
 import type { ACPSession, SessionMode } from '../types/acp-session.js';
 import fs from 'node:fs/promises';
@@ -21,7 +22,7 @@ async function createWorkspaceInfo(
   const rootPath = workspaceUri
     ? new URL(workspaceUri).pathname
     : process.cwd();
-  const info = { rootPath, hasUncommittedChanges: false } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const info: WorkspaceInfo = { rootPath, hasUncommittedChanges: false };
   try {
     await fs.access(rootPath, fs.constants.R_OK | fs.constants.W_OK);
     if (sessionOptions?.enableGitOps) {

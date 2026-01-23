@@ -6,12 +6,10 @@ describe('TokenServiceImpl', () => {
   let generator: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    generator = vi.fn(
-      async (installationId: string) => ({
-        token: `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`,
-        expiresAt: Date.now() + 3600000,
-      }),
-    );
+    generator = vi.fn(async (installationId: string) => ({
+      token: `token-${installationId}-${Math.random().toString(36).slice(2, 8)}`,
+      expiresAt: Date.now() + 3600000,
+    }));
   });
 
   afterEach(() => {

@@ -6,12 +6,20 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+export interface DiagnosticsResult {
+  env?: Record<string, unknown>;
+  auth?: Record<string, unknown>;
+  cli?: Record<string, unknown>;
+  git?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
 export interface IDiagnosticsService {
-  run(opts: { workspacePath?: string; sessionId?: string }): Promise<any>; // replace any with a proper DiagnosticsResult if desired
-  envDiagnostics(): Promise<Record<string, any>>;
-  getAuthDiagnostics(): Promise<Record<string, any>>;
-  cliDiagnostics(): Promise<Record<string, any>>;
-  gitDiagnostics(workspacePath: string): Promise<Record<string, any> | null>;
+  run(opts: { workspacePath?: string; sessionId?: string }): Promise<DiagnosticsResult>;
+  envDiagnostics(): Promise<Record<string, unknown>>;
+  getAuthDiagnostics(): Promise<Record<string, unknown>>;
+  cliDiagnostics(): Promise<Record<string, unknown>>;
+  gitDiagnostics(workspacePath: string): Promise<Record<string, unknown> | null>;
 }
 
 type ExecResult = {
@@ -37,7 +45,7 @@ export class DiagnosticsService implements IDiagnosticsService {
     return { home, configDir, authFile, legacyFile };
   }
 
-  async envDiagnostics(): Promise<Record<string, any>> {
+  async envDiagnostics(): Promise<Record<string, unknown>> {
     return {
       node: process.version,
       platform: process.platform,
@@ -51,9 +59,9 @@ export class DiagnosticsService implements IDiagnosticsService {
     };
   }
 
-  async getAuthDiagnostics(): Promise<Record<string, any>> {
+  async getAuthDiagnostics(): Promise<Record<string, unknown>> {
     const { authFile, legacyFile } = this.getAuthPaths();
-    const diag: Record<string, any> = {
+    const diag: Record<string, unknown> = {
       authFile,
       legacyFile,
       authFileExists: false,
@@ -119,7 +127,7 @@ export class DiagnosticsService implements IDiagnosticsService {
         finished = true;
         clearTimeout(to);
         const message =
-          (err as any).code === 'ENOENT'
+          (err as { code?: string }).code === 'ENOENT'
             ? `not-found:${cmd}`
             : (err as Error).message;
         resolve({ code: null, stdout: '', stderr: message, timedOut });
@@ -139,8 +147,8 @@ export class DiagnosticsService implements IDiagnosticsService {
     });
   }
 
-  async cliDiagnostics(): Promise<Record<string, any>> {
-    const diag: Record<string, any> = {
+  async cliDiagnostics(): Promise<Record<string, unknown>> {
+    const diag: Record<string, unknown> = {
       timestamp: new Date().toISOString(),
       claudeVersion: null as string | null,
       helpExcerpt: null as string | null,
@@ -169,12 +177,12 @@ export class DiagnosticsService implements IDiagnosticsService {
 
   async gitDiagnostics(
     workspacePath: string,
-  ): Promise<Record<string, any> | null> {
+  ): Promise<Record<string, unknown> | null> {
     try {
       const gitDir = path.join(workspacePath, '.git');
       await fs.access(gitDir);
 
-      const result: Record<string, any> = {};
+      const result: Record<string, unknown> = {};
       try {
         const branch = await execFileAsync(
           'git',
@@ -227,7 +235,7 @@ export class DiagnosticsService implements IDiagnosticsService {
   async run(opts: {
     workspacePath?: string;
     sessionId?: string;
-  }): Promise<any> {
+  }): Promise<DiagnosticsResult> {
     const { workspacePath } = opts;
     const [env, auth, cli] = await Promise.all([
       this.envDiagnostics(),
@@ -235,7 +243,7 @@ export class DiagnosticsService implements IDiagnosticsService {
       this.cliDiagnostics(),
     ]);
 
-    const result: Record<string, any> = {
+    const result: DiagnosticsResult = {
       env,
       auth,
       cli,

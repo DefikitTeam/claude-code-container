@@ -1,3 +1,5 @@
+import type { ContentBlock } from '../../types/acp-messages.js';
+
 export interface TokenEstimationOptions {
   model?: string; // future: model-specific multipliers
   overheadRatio?: number; // default overhead multiplier
@@ -120,31 +122,32 @@ export function buildCompositePrompt(
 }
 
 export function buildPromptFromContent(
-  content: any[],
+  content: ContentBlock[],
   contextFiles?: string[],
   agentContext?: Record<string, unknown>,
-  session?: any,
+  session?: unknown, // loosely typed for now to avoid circular deps
 ): string {
   let prompt = '';
 
   // Add agent context if provided
   if (agentContext) {
-    if ((agentContext as any).userRequest) {
-      prompt += `User Request: ${(agentContext as any).userRequest}\n\n`;
+    if ((agentContext as Record<string, unknown>).userRequest) {
+      prompt += `User Request: ${(agentContext as Record<string, unknown>).userRequest}\n\n`;
     }
-    if ((agentContext as any).requestingAgent) {
-      prompt += `Requesting Agent: ${(agentContext as any).requestingAgent}\n\n`;
+    if ((agentContext as Record<string, unknown>).requestingAgent) {
+      prompt += `Requesting Agent: ${(agentContext as Record<string, unknown>).requestingAgent}\n\n`;
     }
   }
 
   // Add workspace context
-  if (session?.workspaceUri) {
+  const s = session as Record<string, unknown> | undefined;
+  if (s?.workspaceUri) {
     try {
-      prompt += `Working in: ${new URL(session.workspaceUri).pathname}\n`;
+      prompt += `Working in: ${new URL(s.workspaceUri as string).pathname}\n`;
     } catch {}
   }
-  if (session?.mode) {
-    prompt += `Session Mode: ${session.mode}\n\n`;
+  if (s?.mode) {
+    prompt += `Session Mode: ${s.mode}\n\n`;
   }
 
   // Add context files if provided
@@ -182,23 +185,23 @@ export function buildPromptFromContent(
   return prompt.trim();
 }
 
-export function estimateTokensFromMessage(message: any): number {
+export function estimateTokensFromMessage(message: unknown): number {
   const text = getMessageText(message);
   return estimateTokens(text).estimatedTokens;
 }
 
-export function getMessageText(message: any): string {
-  if (typeof (message as any).text === 'string') return (message as any).text;
-  if (typeof (message as any).content === 'string')
-    return (message as any).content;
-  if (Array.isArray((message as any).content))
-    return (message as any).content
-      .map((c: any) => c.text || JSON.stringify(c))
+export function getMessageText(message: unknown): string {
+  const msg = message as { text?: unknown; content?: unknown };
+  if (typeof msg.text === 'string') return msg.text;
+  if (typeof msg.content === 'string') return msg.content;
+  if (Array.isArray(msg.content))
+    return msg.content
+      .map((c: unknown) => (c as { text?: string }).text || JSON.stringify(c))
       .join('\n');
   return JSON.stringify(message);
 }
 
-export function extractMessageSummary(message: any): string {
+export function extractMessageSummary(message: unknown): string {
   const text = getMessageText(message);
   return text.length > 200 ? text.substring(0, 200) + '...' : text;
 }

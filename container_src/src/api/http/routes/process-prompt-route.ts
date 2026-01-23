@@ -56,7 +56,8 @@ export function registerProcessPromptRoute(router: Router): void {
       const { processPromptService } = getRuntimeServices();
 
       // Execute prompt processing
-      const result: ProcessPromptResult = await processPromptService.execute(payload);
+      const result: ProcessPromptResult =
+        await processPromptService.execute(payload);
 
       logWithContext('PROCESS-PROMPT-ROUTE', 'Request processed successfully', {
         requestId: ctx.requestId,
@@ -70,7 +71,8 @@ export function registerProcessPromptRoute(router: Router): void {
         ...result,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       logWithContext('PROCESS-PROMPT-ROUTE', 'Error processing prompt', {
         requestId: ctx.requestId,
@@ -80,42 +82,52 @@ export function registerProcessPromptRoute(router: Router): void {
       jsonResponse(ctx.res, 500, {
         success: false,
         error: errorMessage,
-        stack: process.env.NODE_ENV === 'development' ? (error as Error).stack : undefined,
+        stack:
+          process.env.NODE_ENV === 'development'
+            ? (error as Error).stack
+            : undefined,
       });
     }
   });
 }
 
-function validateRequest(payload: any): string | null {
-  if (!payload.sessionId || typeof payload.sessionId !== 'string') {
+function validateRequest(payload: unknown): string | null {
+  const p = payload as Partial<ProcessPromptRequest>;
+  if (!p.sessionId || typeof p.sessionId !== 'string') {
     return 'Missing or invalid sessionId';
   }
 
-  if (typeof payload.taskId !== 'number') {
+  if (typeof p.taskId !== 'number') {
     return 'Missing or invalid taskId';
   }
 
-  if (!payload.prompt || typeof payload.prompt !== 'string') {
+  if (!p.prompt || typeof p.prompt !== 'string') {
     return 'Missing or invalid prompt';
   }
 
-  if (!payload.repository || typeof payload.repository !== 'object') {
+  if (!p.repository || typeof p.repository !== 'object') {
     return 'Missing or invalid repository';
   }
 
-  if (!payload.repository.url || typeof payload.repository.url !== 'string') {
+  if (!p.repository.url || typeof p.repository.url !== 'string') {
     return 'Missing or invalid repository.url';
   }
 
-  if (!payload.repository.baseBranch || typeof payload.repository.baseBranch !== 'string') {
+  if (
+    !p.repository.baseBranch ||
+    typeof p.repository.baseBranch !== 'string'
+  ) {
     return 'Missing or invalid repository.baseBranch';
   }
 
-  if (!payload.repository.workingBranch || typeof payload.repository.workingBranch !== 'string') {
+  if (
+    !p.repository.workingBranch ||
+    typeof p.repository.workingBranch !== 'string'
+  ) {
     return 'Missing or invalid repository.workingBranch';
   }
 
-  if (!payload.githubToken || typeof payload.githubToken !== 'string') {
+  if (!p.githubToken || typeof p.githubToken !== 'string') {
     return 'Missing or invalid githubToken';
   }
 

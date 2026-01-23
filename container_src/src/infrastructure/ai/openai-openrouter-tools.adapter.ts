@@ -141,9 +141,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       // Resolve model with mapping
       const requestedModel =
         runOptions.model ?? context.model ?? this.config.defaultModel;
-      
+
       // Use the requested model directly, no internal selection/mapping that could force Grok
-      const model = requestedModel; 
+      const model = requestedModel;
 
       logger.info('🚀 OpenAI Tools Adapter SELECTED and STARTING', {
         requestedModel,
@@ -152,7 +152,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         hasWorkspace: !!context.workspacePath,
         workspacePath: context.workspacePath,
         streaming: true,
-        hasHistory: !!(runOptions.messages && Array.isArray(runOptions.messages)),
+        hasHistory: !!(
+          runOptions.messages && Array.isArray(runOptions.messages)
+        ),
         historyLength: runOptions.messages ? runOptions.messages.length : 0,
       });
 
@@ -182,7 +184,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
       logger.debug('tools prepared', {
         count: tools.length,
-        toolNames: tools.map((t: any) => t.function.name),
+        toolNames: tools.map((t) => t.function.name),
       });
 
       // Prepare system prompt for coding assistant behavior
@@ -194,8 +196,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       // We'll implement manual tool calling loop for maximum compatibility
       // This follows the pattern from OpenAI docs but with manual loop control
 
-
-      let conversationMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      const conversationMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         { role: 'system', content: systemPrompt },
       ];
 
@@ -207,43 +208,63 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         logger.debug('replaying history', {
           historyLength: runOptions.messages.length,
           firstItemType: typeof runOptions.messages[0],
-          firstItemKeys: runOptions.messages[0] && typeof runOptions.messages[0] === 'object'
-            ? Object.keys(runOptions.messages[0]).join(',')
-            : 'N/A'
+          firstItemKeys:
+            runOptions.messages[0] && typeof runOptions.messages[0] === 'object'
+              ? Object.keys(runOptions.messages[0]).join(',')
+              : 'N/A',
         });
 
-        runOptions.messages.forEach((item: any, index: number) => {
+        runOptions.messages.forEach((item: unknown, index: number) => {
           // NEW FORMAT: If item has 'role' property, it's already in OpenAI format
           // This is the new format that includes tool_calls and tool results
           if (item && typeof item === 'object' && 'role' in item) {
             // OpenAI message format - use directly
-            conversationMessages.push(item as OpenAI.Chat.ChatCompletionMessageParam);
-            logger.debug(`history[${index}]: role=${item.role}, hasToolCalls=${!!item.tool_calls}`);
+            conversationMessages.push(
+              item as OpenAI.Chat.ChatCompletionMessageParam,
+            );
+            logger.debug(
+              `history[${index}]: role=${(item as OpenAI.Chat.ChatCompletionMessageParam).role}, hasToolCalls=${!!(item as { tool_calls?: unknown }).tool_calls}`,
+            );
           }
           // LEGACY FORMAT: ContentBlock[] - convert to text-only message
           else if (Array.isArray(item)) {
             // ROBUSTNESS FIX: Check if the array contains a structured message (unnecessary wrapping)
             const firstBlock = item[0];
-            if (firstBlock && typeof firstBlock === 'object' && 'role' in firstBlock) {
-               conversationMessages.push(firstBlock as OpenAI.Chat.ChatCompletionMessageParam);
-               logger.debug(`history[${index}]: unwrapped array -> role=${(firstBlock as any).role}, hasToolCalls=${!!(firstBlock as any).tool_calls}`);
-               return;
+            if (
+              firstBlock &&
+              typeof firstBlock === 'object' &&
+              'role' in firstBlock
+            ) {
+              conversationMessages.push(
+                firstBlock as OpenAI.Chat.ChatCompletionMessageParam,
+              );
+              logger.debug(
+                `history[${index}]: unwrapped array -> role=${(firstBlock as OpenAI.Chat.ChatCompletionMessageParam).role}, hasToolCalls=${!!(firstBlock as { tool_calls?: unknown }).tool_calls}`,
+              );
+              return;
             }
 
             const role = index % 2 === 0 ? 'user' : 'assistant';
             const text = item
-              .filter((b: any) => b && b.type === 'text')
-              .map((b: any) => b.text || b.content || '')
+              .filter((b: { type?: string }) => b && b.type === 'text')
+              .map(
+                (b: { text?: string; content?: string }) =>
+                  b.text || b.content || '',
+              )
               .join('\n');
 
             if (text) {
               conversationMessages.push({ role, content: text });
-              logger.debug(`history[${index}]: role=${role} (legacy format), textLength=${text.length}`);
+              logger.debug(
+                `history[${index}]: role=${role} (legacy format), textLength=${text.length}`,
+              );
             }
           }
           // UNKNOWN FORMAT: Log warning and skip
           else {
-            logger.warn(`history[${index}]: unknown format, skipping`, { type: typeof item });
+            logger.warn(`history[${index}]: unknown format, skipping`, {
+              type: typeof item,
+            });
           }
         });
       }
@@ -254,18 +275,23 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       // DIAGNOSTIC: Log conversation structure to help debug history issues
       logger.info('📋 Conversation structure before execution:', {
         totalMessages: conversationMessages.length,
-        breakdown: conversationMessages.reduce((acc: Record<string, number>, msg: any) => {
-          const key = msg.role + ((msg as any).tool_calls ? '+tools' : '');
-          acc[key] = (acc[key] || 0) + 1;
-          return acc;
-        }, {}),
-        hasToolCalls: conversationMessages.some((m: any) => (m as any).tool_calls),
+        breakdown: conversationMessages.reduce(
+          (acc: Record<string, number>, msg: OpenAI.Chat.ChatCompletionMessageParam) => {
+            const key = msg.role + ((msg as { tool_calls?: unknown }).tool_calls ? '+tools' : '');
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+          },
+          {},
+        ),
+        hasToolCalls: conversationMessages.some(
+          (m) => (m as { tool_calls?: unknown }).tool_calls,
+        ),
         lastAssistantHadTools: (() => {
           const lastAssistant = conversationMessages
             .slice()
             .reverse()
-            .find((m: any) => m.role === 'assistant');
-          return lastAssistant ? !!(lastAssistant as any).tool_calls : false;
+            .find((m) => m.role === 'assistant');
+          return lastAssistant ? !!(lastAssistant as { tool_calls?: unknown }).tool_calls : false;
         })(),
       });
 
@@ -297,7 +323,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         const stream = await client.chat.completions.create({
           model,
           messages: conversationMessages,
-          tools: tools as any,
+          tools: tools as unknown as OpenAI.Chat.ChatCompletionTool[],
           stream: true,
           max_tokens: 15600, // Reasonable limit to prevent credit exhaustion
         });
@@ -306,8 +332,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         );
 
         let currentMessage = '';
-        let currentToolCalls: any[] = [];
-        let currentToolCallsMap = new Map<
+        let currentToolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+        const currentToolCallsMap = new Map<
           number,
           { id: string; name: string; arguments: string }
         >();
@@ -376,51 +402,65 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           // Heuristic: If model is "planning" but not "doing" (common in smaller models), bounce back
           // check for phrases like "Let me check", "I will", "I need to", "I'll", "checking"
           // Expanded for Mistral/Devstral: "Cloning", "Running", "Executing"
-          const planningPhrases = /Let me check|I will|I'll|I need to|checking|verify|examine|cloning|running|executing|starting|creating|updating|modifying/i;
-          
+          const planningPhrases =
+            /Let me check|I will|I'll|I need to|checking|verify|examine|cloning|running|executing|starting|creating|updating|modifying/i;
+
           // Enhanced hallucination detection: catch JSON that looks like tool results or raw JSON output
           // Matches:
           // 1. Starts with optional text/whitespace then {"success":...
           // 2. Starts with "Assistant:" then optional text then {"success":...
           // 3. Contains "content":"..." and "path":"..." (common in file operations)
-          const jsonHallucinationRegex = /^\s*(?:Assistant:\s*)?\{.*"success"\s*:\s*/s;
+          const jsonHallucinationRegex =
+            /^\s*(?:Assistant:\s*)?\{.*"success"\s*:\s*/s;
           const looksLikeFileContent = /"path"\s*:\s*".*"\s*,\s*"content"\s*:/s;
-          
-          const isHallucinatedToolResult = 
-            jsonHallucinationRegex.test(currentMessage) || 
-            (currentMessage.includes('{') && looksLikeFileContent.test(currentMessage));
+
+          const isHallucinatedToolResult =
+            jsonHallucinationRegex.test(currentMessage) ||
+            (currentMessage.includes('{') &&
+              looksLikeFileContent.test(currentMessage));
 
           if (isHallucinatedToolResult) {
             logger.warn('⚠️ Model hallucinated tool result. Forcing retry.');
-             conversationMessages.push({ 
-               role: 'assistant', 
-               content: currentMessage 
-             });
-             conversationMessages.push({ 
-               role: 'user', 
-               
-               // Stronger prompt for Devstral
-               content: 'STOP! You are Hallucinating. You manually wrote the tool output instead of calling the tool. DO NOT write JSON. Call the function "readFile" or "writeFile" using the PROPER TOOL CALL SYNTAX.' 
-             });
-             continue;
+            conversationMessages.push({
+              role: 'assistant',
+              content: currentMessage,
+            });
+            conversationMessages.push({
+              role: 'user',
+
+              // Stronger prompt for Devstral
+              content:
+                'STOP! You are Hallucinating. You manually wrote the tool output instead of calling the tool. DO NOT write JSON. Call the function "readFile" or "writeFile" using the PROPER TOOL CALL SYNTAX.',
+            });
+            continue;
           }
 
           // Relaxed check: Retry if it looks like planning, even if message is longer (up to 500 chars)
           // Also check for raw commands that should be executed vs described
-          const commandLike = /^\s*`{0,3}\$?\s*(?:git|npm|node|pnpm|ls|cd|mkdir|touch)\s+/m.test(currentMessage);
-          
-          if ((loopCount < 5) && (planningPhrases.test(currentMessage) || commandLike) && currentMessage.length < 500) {
-             logger.warn('⚠️ Model discussed action but used no tools. Forcing retry with instruction.');
-             
-             conversationMessages.push({ 
-               role: 'assistant', 
-               content: currentMessage 
-             });
-             conversationMessages.push({ 
-               role: 'user', 
-               content: 'You did not call any tools. Do not describe the plan. Use the tools IMMEDIATELY to perform the action. Example: Call executeBash for git commands.' 
-             });
-             continue;
+          const commandLike =
+            /^\s*`{0,3}\$?\s*(?:git|npm|node|pnpm|ls|cd|mkdir|touch)\s+/m.test(
+              currentMessage,
+            );
+
+          if (
+            loopCount < 5 &&
+            (planningPhrases.test(currentMessage) || commandLike) &&
+            currentMessage.length < 500
+          ) {
+            logger.warn(
+              '⚠️ Model discussed action but used no tools. Forcing retry with instruction.',
+            );
+
+            conversationMessages.push({
+              role: 'assistant',
+              content: currentMessage,
+            });
+            conversationMessages.push({
+              role: 'user',
+              content:
+                'You did not call any tools. Do not describe the plan. Use the tools IMMEDIATELY to perform the action. Example: Call executeBash for git commands.',
+            });
+            continue;
           }
 
           logger.debug('completion finished - no tool calls');
@@ -440,7 +480,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           conversationMessages.push({
             role: 'assistant',
             content: currentMessage || (null as any),
-            tool_calls: currentToolCalls as any,
+            tool_calls: currentToolCalls,
           });
 
           // Execute each tool and add results to conversation
@@ -452,7 +492,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
             logger.debug('executing tool', { name: toolName, id: toolCallId });
 
             // Find matching tool
-            const tool = tools.find((t: any) => t.function.name === toolName);
+            const tool = tools.find((t) => t.function.name === toolName);
             if (!tool) {
               logger.error('tool not found', { name: toolName });
               conversationMessages.push({
@@ -485,10 +525,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
                 tool_call_id: toolCallId,
                 content: resultStr,
               });
-            } catch (error: any) {
+            } catch (error: unknown) {
               logger.error('tool execution failed', {
                 name: toolName,
-                error: error.message,
+                error: error instanceof Error ? error.message : String(error),
               });
 
               conversationMessages.push({
@@ -496,7 +536,7 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
                 tool_call_id: toolCallId,
                 content: JSON.stringify({
                   success: false,
-                  error: error.message,
+                  error: error instanceof Error ? error.message : String(error),
                 }),
               });
             }
@@ -532,9 +572,9 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       callbacks.onComplete?.({ fullText, durationMs });
 
       const toolUses = conversationMessages
-        .filter(m => m.role === 'assistant' && (m as any).tool_calls)
-        .flatMap(m => (m as any).tool_calls || [])
-        .map((tc: any) => ({ name: tc.function.name }));
+        .filter((m) => m.role === 'assistant' && (m as { tool_calls?: unknown }).tool_calls)
+        .flatMap((m) => (m as { tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[] }).tool_calls || [])
+        .map((tc) => ({ name: tc.function.name }));
 
       return {
         fullText,
@@ -562,32 +602,41 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       }
 
       if (error instanceof OpenAI.APIError) {
-        const apiError = new Error(
-          `openrouter_api_error_${error.status || 'unknown'}: ${error.message}`,
+        const apiError = Object.assign(
+          new Error(
+            `openrouter_api_error_${String(error.status || 'unknown')}: ${error.message}`,
+          ),
+          {
+            detail: {
+              status: error.status,
+              type: error.type,
+              code: error.code,
+              message: error.message,
+            },
+          },
         );
-        (apiError as any).detail = {
-          status: error.status,
-          type: error.type,
-          code: error.code,
-          message: error.message,
-        };
         callbacks.onError?.(apiError);
         throw apiError;
       }
 
       // Handle timeouts gracefully by returning explanatory text instead of throwing
-      if (error instanceof OpenAI.APIConnectionTimeoutError || 
-          (error.code === 'ETIMEDOUT') || 
-          error.message?.includes('timeout')) {
-        
-        const timeoutMessage = "\n\n⚠️ **Task Timeout**: This task took longer than 5 minutes to complete. The model may be struggling with the size or complexity of the request.\n\n**Recommendation:**\nPlease split this task into smaller, more manageable sub-tasks and try again.";
-        
+      if (
+        error instanceof OpenAI.APIConnectionTimeoutError ||
+        error.code === 'ETIMEDOUT' ||
+        error.message?.includes('timeout')
+      ) {
+        const timeoutMessage =
+          '\n\n⚠️ **Task Timeout**: This task took longer than 5 minutes to complete. The model may be struggling with the size or complexity of the request.\n\n**Recommendation:**\nPlease split this task into smaller, more manageable sub-tasks and try again.';
+
         logger.warn('request timed out, sending advice to user');
-        
+
         // Return partial result with warning
         callbacks.onDelta?.({ text: timeoutMessage, tokens: 0 });
-        callbacks.onComplete?.({ fullText: fullText + timeoutMessage, durationMs: Date.now() - startTime });
-        
+        callbacks.onComplete?.({
+          fullText: fullText + timeoutMessage,
+          durationMs: Date.now() - startTime,
+        });
+
         return {
           fullText: fullText + timeoutMessage,
           tokens: {
@@ -681,10 +730,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
                 content,
                 size: stats.size,
               };
-            } catch (error: any) {
+            } catch (error: unknown) {
               return {
                 success: false,
-                error: error.message,
+                error: error instanceof Error ? error.message : String(error),
               };
             }
           },
@@ -730,10 +779,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
                 path: args.path,
                 size: stats.size,
               };
-            } catch (error: any) {
+            } catch (error: unknown) {
               return {
                 success: false,
-                error: error.message,
+                error: error instanceof Error ? error.message : String(error),
               };
             }
           },
@@ -799,10 +848,10 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
                 files,
                 count: files.length,
               };
-            } catch (error: any) {
+            } catch (error: unknown) {
               return {
                 success: false,
-                error: error.message,
+                error: error instanceof Error ? error.message : String(error),
               };
             }
           },
@@ -849,13 +898,14 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
                 stdout: stdout.trim(),
                 stderr: stderr.trim(),
               };
-            } catch (error: any) {
+            } catch (error: unknown) {
+              const err = error as { message?: string; stdout?: string; stderr?: string };
               return {
                 success: false,
                 command: args.command,
-                error: error.message,
-                stdout: error.stdout?.trim() || '',
-                stderr: error.stderr?.trim() || '',
+                error: err.message || String(error),
+                stdout: err.stdout?.trim() || '',
+                stderr: err.stderr?.trim() || '',
               };
             }
           },

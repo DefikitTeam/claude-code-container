@@ -33,7 +33,7 @@ export class ContainerController {
       const result = await this.spawnContainerUseCase.execute(containerData);
 
       return createdResponse(c, result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -47,7 +47,7 @@ export class ContainerController {
       const result = await this.processPromptUseCase.execute(promptData);
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -63,7 +63,7 @@ export class ContainerController {
       const result = await this.getLogsUseCase.execute({ containerId });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -81,7 +81,7 @@ export class ContainerController {
       });
 
       return successResponse(c, result, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }

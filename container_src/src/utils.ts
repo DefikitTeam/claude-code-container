@@ -68,6 +68,7 @@ export class Pushable<T> {
     this.closed = true;
     while (this.resolvers.length > 0) {
       const resolve = this.resolvers.shift()!;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       resolve({ value: undefined as any, done: true });
     }
   }
@@ -92,6 +93,7 @@ export class Pushable<T> {
     if (this.items.length > 0) {
       return { value: this.items.shift()!, done: false };
     } else if (this.closed) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return { value: undefined as any, done: true };
     } else {
       return new Promise<IteratorResult<T>>((resolve) => {
@@ -163,11 +165,11 @@ export class WorkerHttpClient {
     private apiKey?: string,
   ) {}
 
-  async sendJsonRpc(
+  async sendJsonRpc<T = unknown>(
     method: string,
-    params: any,
+    params: unknown,
     id: string | number,
-  ): Promise<any> {
+  ): Promise<T> {
     const request = {
       jsonrpc: '2.0',
       method,

@@ -4,9 +4,22 @@
  */
 
 import { Context } from 'hono';
+import { Env } from '../../shared/types/index';
 import { IACPBridgeService } from '../../infrastructure/services/acp-bridge.service';
 import { successResponse } from '../responses/success.response';
 import { errorResponse } from '../responses/error.response';
+
+interface ACPResult {
+  jsonrpc: '2.0';
+  result?: Record<string, unknown>;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+  id?: number | string | null;
+}
+type C = Context<{ Bindings: Env }>;
 
 export class ACPController {
   constructor(private readonly acpBridgeService: IACPBridgeService) {}
@@ -15,7 +28,7 @@ export class ACPController {
    * Initialize - ACP initialization handshake
    * Returns JSON-RPC 2.0 response
    */
-  async initialize(c: Context) {
+  async initialize(c: C) {
     try {
       const jsonRpcRequest = await c.req.json();
       // Extract params from JSON-RPC envelope (params field contains actual parameters)
@@ -25,8 +38,8 @@ export class ACPController {
         params,
         c.env,
       );
-      return c.json(result);
-    } catch (err: any) {
+      return c.json(result as unknown as ACPResult);
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -35,20 +48,20 @@ export class ACPController {
    * Session New - Create new ACP session
    * Returns JSON-RPC 2.0 response
    */
-  async sessionNew(c: Context) {
+  async sessionNew(c: C) {
     try {
       const jsonRpcRequest = await c.req.json();
       // Extract params from JSON-RPC envelope (params field contains actual parameters)
       const params = jsonRpcRequest.params || jsonRpcRequest;
-      const result = await this.acpBridgeService.routeACPMethod(
+      const result = (await this.acpBridgeService.routeACPMethod(
         'session/new',
         params,
         c.env,
-      );
+      )) as unknown as ACPResult;
 
       // Sync session to ACPSessionDO if creation was successful and we have a sessionId
       if (result?.result?.sessionId && params?.userId) {
-        const sessionId = result.result.sessionId;
+        const sessionId = result.result.sessionId as string;
         const userId = params.userId;
         // Installation ID might be in params or context
         const installationId =
@@ -96,7 +109,7 @@ export class ACPController {
       }
 
       return c.json(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -105,7 +118,7 @@ export class ACPController {
    * Session Prompt - Send prompt to existing session
    * Returns JSON-RPC 2.0 response
    */
-  async sessionPrompt(c: Context) {
+  async sessionPrompt(c: C) {
     const startTime = Date.now();
     try {
       console.log('[ACP-CONTROLLER] sessionPrompt - START');
@@ -172,11 +185,11 @@ export class ACPController {
 
       console.log('[ACP-CONTROLLER] Using SYNC mode');
       // Sync mode - wait for completion (original behavior)
-      const result = await this.acpBridgeService.routeACPMethod(
+      const result = (await this.acpBridgeService.routeACPMethod(
         'session/prompt',
         params,
         c.env,
-      );
+      )) as unknown as ACPResult;
 
       console.log('[ACP-CONTROLLER] Got result from bridge service');
       console.log('[ACP-CONTROLLER] Result keys:', Object.keys(result || {}));
@@ -203,11 +216,11 @@ export class ACPController {
       //   },
       // });
       return c.json(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const duration = Date.now() - startTime;
       console.error(
         `[ACP-CONTROLLER] sessionPrompt - ERROR after ${duration}ms:`,
-        err.message,
+        err instanceof Error ? err.message : String(err),
       );
       return errorResponse(c, err);
     }
@@ -216,7 +229,7 @@ export class ACPController {
   /**
    * Get async job status
    */
-  async getJobStatus(c: Context) {
+  async getJobStatus(c: C) {
     try {
       const jobId = c.req.param('jobId');
       if (!jobId) {
@@ -238,17 +251,20 @@ export class ACPController {
         c.env,
       );
 
-      if (result.error) {
+      // result is unknown, cast safely if needed
+      const res = result as { error?: string; code?: string };
+
+      if (res.error) {
         return c.json(
           {
             jsonrpc: '2.0',
             error: {
-              code: result.code === 'JOB_NOT_FOUND' ? -32001 : -32603,
-              message: result.error,
+              code: res.code === 'JOB_NOT_FOUND' ? -32001 : -32603,
+              message: res.error,
             },
             id: Date.now(),
           },
-          result.code === 'JOB_NOT_FOUND' ? 404 : 500,
+          res.code === 'JOB_NOT_FOUND' ? 404 : 500,
         );
       }
 
@@ -257,7 +273,7 @@ export class ACPController {
         result,
         id: Date.now(),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -266,7 +282,7 @@ export class ACPController {
    * Session Load - Load existing session state
    * Returns JSON-RPC 2.0 response
    */
-  async sessionLoad(c: Context) {
+  async sessionLoad(c: C) {
     try {
       const jsonRpcRequest = await c.req.json();
       // Extract params from JSON-RPC envelope (params field contains actual parameters)
@@ -276,8 +292,8 @@ export class ACPController {
         params,
         c.env,
       );
-      return c.json(result);
-    } catch (err: any) {
+      return c.json(result as unknown as ACPResult);
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -286,7 +302,7 @@ export class ACPController {
    * Cancel - Cancel ongoing ACP operation
    * Returns JSON-RPC 2.0 response
    */
-  async cancel(c: Context) {
+  async cancel(c: C) {
     try {
       const jsonRpcRequest = await c.req.json();
       // Extract params from JSON-RPC envelope (params field contains actual parameters)
@@ -296,8 +312,8 @@ export class ACPController {
         params,
         c.env,
       );
-      return c.json(result);
-    } catch (err: any) {
+      return c.json(result as unknown as ACPResult);
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -305,7 +321,7 @@ export class ACPController {
   /**
    * Generic ACP method handler (catch-all)
    */
-  async handleMethod(c: Context) {
+  async handleMethod(c: C) {
     try {
       const method = c.req.param('method');
       const jsonRpcRequest = await c.req.json();
@@ -316,8 +332,8 @@ export class ACPController {
         params,
         c.env,
       );
-      return c.json(result);
-    } catch (err: any) {
+      return c.json(result as unknown as ACPResult);
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -325,7 +341,7 @@ export class ACPController {
   /**
    * Legacy task execute endpoint (backward compatibility)
    */
-  async taskExecute(c: Context) {
+  async taskExecute(c: C) {
     try {
       const msg = await c.req.json();
       const payload = msg.params || msg.payload;
@@ -357,7 +373,7 @@ export class ACPController {
         );
 
         const text = await resp.text();
-        let parsed: any = null;
+        let parsed: unknown = null;
         try {
           parsed = JSON.parse(text);
         } catch {
@@ -374,7 +390,7 @@ export class ACPController {
 
       // Otherwise queue for processing
       return c.json({ success: true, queued: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }
@@ -382,11 +398,11 @@ export class ACPController {
   /**
    * Get ACP status
    */
-  async getStatus(c: Context) {
+  async getStatus(c: C) {
     try {
       const status = await this.acpBridgeService.getStatus(c.env);
       return successResponse(c, status, 200);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return errorResponse(c, err);
     }
   }

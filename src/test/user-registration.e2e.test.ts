@@ -49,12 +49,10 @@ describe('E2E: User Registration Flow', () => {
 
     // Mock crypto service
     mockCryptoService = {
-      encrypt: vi
-        .fn()
-        .mockResolvedValue({
-          encryptedData: new Uint8Array(),
-          iv: new Uint8Array(),
-        }),
+      encrypt: vi.fn().mockResolvedValue({
+        encryptedData: new Uint8Array(),
+        iv: new Uint8Array(),
+      }),
       decrypt: vi.fn().mockResolvedValue('decrypted'),
       hash: vi.fn().mockResolvedValue('hash'),
     };

@@ -80,12 +80,10 @@ describe('E2E: Full Platform Workflow', () => {
       Array.from(deployments.values()),
     );
 
-    mockDeploymentService.deploy = vi
-      .fn()
-      .mockResolvedValue({
-        success: true,
-        url: 'https://workers.dev/deploy/1',
-      });
+    mockDeploymentService.deploy = vi.fn().mockResolvedValue({
+      success: true,
+      url: 'https://workers.dev/deploy/1',
+    });
     mockDeploymentService.getStatus = vi
       .fn()
       .mockResolvedValue({ status: 'success' });

@@ -26,7 +26,7 @@ export class AsyncJobDO extends DurableObject {
 
       // POST /job - Create new job
       if (request.method === 'POST' && path === '/job') {
-        const body = (await request.json()) as { method: string; params: any };
+        const body = (await request.json()) as { method: string; params: Record<string, unknown> };
         return await this.createJob(body);
       }
 
@@ -73,7 +73,7 @@ export class AsyncJobDO extends DurableObject {
    */
   private async createJob(body: {
     method: string;
-    params: any;
+    params: Record<string, unknown>;
   }): Promise<Response> {
     const job = AsyncJobEntity.create(body.method, body.params);
     const data = job.toJSON();

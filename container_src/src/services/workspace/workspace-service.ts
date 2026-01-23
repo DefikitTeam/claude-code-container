@@ -245,12 +245,13 @@ export class WorkspaceService implements IWorkspaceService {
         // Here using fs.stat to ensure path exists
         await fs.access(desc.path);
         // remove recursively and force
-        // @ts-ignore - using rm on fs.promises
-        if ((fs as any).rm) {
-          // some environments provide rm
-          await (fs as any).rm(desc.path, { recursive: true, force: true });
+        // remove recursively and force
+        // Node 14.14+ supports fs.rm
+        if (typeof fs.rm === 'function') {
+          await fs.rm(desc.path, { recursive: true, force: true });
         } else {
-          await fs.rmdir(desc.path, { recursive: true });
+          // Fallback for older node versions if strictly necessary, strictly typed
+          await (fs as unknown as { rmdir: (path: string, opts: unknown) => Promise<void> }).rmdir(desc.path, { recursive: true });
         }
       } catch (e) {
         // ignore cleanup errors

@@ -109,12 +109,12 @@ export class GitHubServiceImpl implements IGitHubService {
         throw new UnauthorizedError('Failed to fetch repositories from GitHub');
       }
 
-      const data = (await response.json()) as any;
-      return (data.repositories || []).map((repo: any) => ({
-        id: repo.id,
-        name: repo.name,
-        fullName: repo.full_name,
-        url: repo.html_url,
+      const data = (await response.json()) as { repositories: Record<string, unknown>[] };
+      return (data.repositories || []).map((repo) => ({
+        id: repo.id as number,
+        name: repo.name as string,
+        fullName: repo.full_name as string,
+        url: repo.html_url as string,
       }));
     } catch (error) {
       if (error instanceof UnauthorizedError) throw error;
@@ -164,10 +164,10 @@ export class GitHubServiceImpl implements IGitHubService {
         throw new Error(`GitHub API error: ${response.status}`);
       }
 
-      const branches = (await response.json()) as any[];
+      const branches = (await response.json()) as Record<string, unknown>[];
       return branches.map((branch) => ({
-        name: branch.name,
-        commit: { sha: branch.commit.sha },
+        name: branch.name as string,
+        commit: { sha: (branch.commit as { sha: string }).sha },
       }));
     } catch (error) {
       throw new Error(
@@ -198,27 +198,28 @@ export class GitHubServiceImpl implements IGitHubService {
     const { owner, repo, branchName, baseBranch, installationId } = params;
 
     if (!owner || !repo || !branchName || !baseBranch || !installationId) {
-      throw new ValidationError(
-        'All branch creation parameters are required',
-      );
+      throw new ValidationError('All branch creation parameters are required');
     }
 
     try {
-      const { token } = await this.tokenService.getInstallationToken(installationId);
+      const { token } =
+        await this.tokenService.getInstallationToken(installationId);
 
       // 1. Get SHA of base branch
       const refResponse = await this.githubRequest(
         'GET',
         `/repos/{owner}/{repo}/git/ref/heads/{baseBranch}`,
         token,
-        { owner, repo, baseBranch }
+        { owner, repo, baseBranch },
       );
 
       if (!refResponse.ok) {
-        throw new Error(`Failed to get base branch '${baseBranch}': ${refResponse.status}`);
+        throw new Error(
+          `Failed to get base branch '${baseBranch}': ${refResponse.status}`,
+        );
       }
 
-      const refData = await refResponse.json() as any;
+      const refData = (await refResponse.json()) as { object: { sha: string } };
       const sha = refData.object.sha;
 
       // 2. Create new ref
@@ -230,17 +231,24 @@ export class GitHubServiceImpl implements IGitHubService {
           owner,
           repo,
           ref: `refs/heads/${branchName}`,
-          sha
-        }
+          sha,
+        },
       );
 
       if (!createResponse.ok) {
         // If 422, it might already exist, which is fine, but we should check content
         const errText = await createResponse.text();
-        throw new Error(`Failed to create branch: ${createResponse.status} - ${errText}`);
+        throw new Error(
+          `Failed to create branch: ${createResponse.status} - ${errText}`,
+        );
       }
 
-      return (await createResponse.json()) as any;
+      return (await createResponse.json()) as {
+        ref: string;
+        node_id: string;
+        url: string;
+        object: { sha: string; type: string; url: string };
+      };
     } catch (error) {
       throw new Error(
         `Failed to create branch ${branchName} in ${owner}/${repo}: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -292,13 +300,13 @@ export class GitHubServiceImpl implements IGitHubService {
       );
 
       if (!response.ok) {
-        const errorData: any = await response.json();
+        const errorData = (await response.json()) as { message?: string };
         throw new Error(
           `GitHub API error: ${errorData.message || response.status}`,
         );
       }
 
-      const pr = (await response.json()) as any;
+      const pr = (await response.json()) as { number: number; html_url: string; title: string };
       return {
         number: pr.number,
         url: pr.html_url,
@@ -353,7 +361,7 @@ export class GitHubServiceImpl implements IGitHubService {
         throw new Error(`GitHub API error: ${response.status}`);
       }
 
-      const issue = (await response.json()) as any;
+      const issue = (await response.json()) as { number: number; html_url: string };
       return {
         number: issue.number,
         url: issue.html_url,
@@ -402,7 +410,7 @@ export class GitHubServiceImpl implements IGitHubService {
         throw new Error(`GitHub API error: ${response.status}`);
       }
 
-      const comment = (await response.json()) as any;
+      const comment = (await response.json()) as { id: number; html_url: string };
       return {
         id: comment.id,
         url: comment.html_url,
@@ -435,7 +443,7 @@ export class GitHubServiceImpl implements IGitHubService {
     const fullUrl = `${this.apiBaseUrl}${url}`;
 
     // Filter params to get body fields (not URL path params)
-    const bodyFields: Record<string, any> = {};
+    const bodyFields: Record<string, unknown> = {};
     if (params && method === 'POST') {
       const pathKeys =
         path.match(/\{(\w+)\}/g)?.map((k) => k.slice(1, -1)) || [];

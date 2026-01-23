@@ -43,13 +43,13 @@ export class HttpBridgeAgent implements Agent {
   async initialize(request: InitializeRequest): Promise<InitializeResponse> {
     try {
       // Forward initialize request to remote worker
-      const response = await this.httpClient.sendJsonRpc(
+      const response = await this.httpClient.sendJsonRpc<InitializeResponse>(
         'initialize',
         request,
         'init-1',
       );
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge initialize error:', error);
       throw new RequestError(-32603, 'Internal error', {
         message: 'Failed to initialize remote worker',
@@ -60,7 +60,7 @@ export class HttpBridgeAgent implements Agent {
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     try {
       // Forward session creation to remote worker
-      const response = await this.httpClient.sendJsonRpc(
+      const response = await this.httpClient.sendJsonRpc<NewSessionResponse>(
         'session/new',
         params,
         'session-new-1',
@@ -72,7 +72,7 @@ export class HttpBridgeAgent implements Agent {
       }
 
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge newSession error:', error);
       throw new RequestError(-32603, 'Internal error', {
         message: 'Failed to create session on remote worker',
@@ -83,7 +83,7 @@ export class HttpBridgeAgent implements Agent {
   async authenticate(params: AuthenticateRequest): Promise<void> {
     try {
       await this.httpClient.sendJsonRpc('authenticate', params, 'auth-1');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge authenticate error:', error);
       throw new RequestError(-32603, 'Internal error', {
         message: 'Authentication failed with remote worker',
@@ -94,13 +94,13 @@ export class HttpBridgeAgent implements Agent {
   async prompt(params: PromptRequest): Promise<PromptResponse> {
     try {
       // Forward prompt to remote worker
-      const response = await this.httpClient.sendJsonRpc(
+      const response = await this.httpClient.sendJsonRpc<PromptResponse>(
         'session/prompt',
         params,
         `prompt-${Date.now()}`,
       );
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge prompt error:', error);
 
       // Check if it's an auth error
@@ -115,7 +115,7 @@ export class HttpBridgeAgent implements Agent {
   async cancel(params: CancelNotification): Promise<void> {
     try {
       await this.httpClient.sendJsonRpc('session/cancel', params, 'cancel-1');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge cancel error:', error);
       // Don't throw - cancellation should be best-effort
     }
@@ -125,13 +125,13 @@ export class HttpBridgeAgent implements Agent {
     params: SetSessionModeRequest,
   ): Promise<SetSessionModeResponse> {
     try {
-      const response = await this.httpClient.sendJsonRpc(
+      const response = await this.httpClient.sendJsonRpc<SetSessionModeResponse>(
         'session/setMode',
         params,
         'mode-1',
       );
       return response || {};
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge setSessionMode error:', error);
       throw new RequestError(-32603, 'Internal error', {
         message: 'Failed to set session mode on remote worker',
@@ -144,13 +144,13 @@ export class HttpBridgeAgent implements Agent {
   ): Promise<ReadTextFileResponse> {
     try {
       // For file operations, try local first, then delegate to worker if needed
-      const response = await this.httpClient.sendJsonRpc(
+      const response = await this.httpClient.sendJsonRpc<ReadTextFileResponse>(
         'fs/readTextFile',
         params,
         'read-1',
       );
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge readTextFile error:', error);
       throw new RequestError(-32603, 'Internal error', {
         message: 'Failed to read file via remote worker',
@@ -162,13 +162,13 @@ export class HttpBridgeAgent implements Agent {
     params: WriteTextFileRequest,
   ): Promise<WriteTextFileResponse> {
     try {
-      const response = await this.httpClient.sendJsonRpc(
+      const response = await this.httpClient.sendJsonRpc<WriteTextFileResponse>(
         'fs/writeTextFile',
         params,
         'write-1',
       );
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('HTTP Bridge writeTextFile error:', error);
       throw new RequestError(-32603, 'Internal error', {
         message: 'Failed to write file via remote worker',
@@ -182,12 +182,12 @@ export class HttpBridgeAgent implements Agent {
  * This creates an ACP agent that looks like a normal ACP agent to clients
  * but actually forwards all requests to a remote worker via HTTP
  */
-export async function runHttpBridge(argv: any): Promise<void> {
+export async function runHttpBridge(argv: Record<string, unknown>): Promise<void> {
   const workerUrl =
-    argv['worker-url'] ||
+    (argv['worker-url'] as string) ||
     process.env.WORKER_URL ||
     'https://your-worker-domain.com';
-  const apiKey = argv['api-key'] || process.env.ANTHROPIC_API_KEY;
+  const apiKey = (argv['api-key'] as string) || process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     console.error('Error: ANTHROPIC_API_KEY is required for HTTP bridge mode');

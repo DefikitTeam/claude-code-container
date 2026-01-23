@@ -26,7 +26,7 @@ interface DurableObjectId {
 }
 
 interface DurableObjectStub {
-  fetch(request: Request, init?: RequestInit): Promise<Response>;
+  fetch(input: Request | string, init?: RequestInit): Promise<Response>;
   readonly id: DurableObjectId;
   readonly name?: string;
 }
@@ -37,6 +37,7 @@ export interface Env {
   GITHUB_APP_CONFIG: DurableObjectNamespace;
   USER_CONFIG: DurableObjectNamespace;
   ACP_SESSION: DurableObjectNamespace;
+  ASYNC_JOB: DurableObjectNamespace;
 
   // Environment variables
   ANTHROPIC_API_KEY?: string;
@@ -50,6 +51,30 @@ export interface Env {
 
   // CORS configuration
   ALLOWED_ORIGINS?: string;
+
+  // Container Configuration
+  NO_CONTAINERS?: string;
+  CONTAINER_PROVIDER?: string;
+
+  // AI & Analytics
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_DEFAULT_MODEL?: string;
+  OPENHANDS_API_KEY?: string;
+  OPENHANDS_DEFAULT_MODEL?: string;
+  ALLHANDS_API_KEY?: string;
+  ENABLE_DEEP_REASONING?: string;
+  DEEP_REASONING_THRESHOLD?: string;
+  PROCESSING_TIMEOUT?: string;
+  CLAUDE_CODE_TIMEOUT?: string;
+
+  // Daytona Configuration
+  DAYTONA_API_URL?: string;
+  DAYTONA_API_KEY?: string;
+  DAYTONA_ORGANIZATION_ID?: string;
+  DAYTONA_ACP_SNAPSHOT_NAME?: string;
+  DAYTONA_SNAPSHOT_NAME?: string;
+  DAYTONA_ACP_CONFIG_ID?: string;
+  DAYTONA_CONFIG_ID?: string;
 }
 
 // ============================================
@@ -339,7 +364,7 @@ export interface ACPMessage {
   sender: string;
   target?: string;
   timestamp: number;
-  payload?: any;
+  payload?: unknown;
   signature?: string;
 }
 

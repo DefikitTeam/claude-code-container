@@ -222,7 +222,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
 
       // Process stream
       let fullText = '';
-      let inputTokens = this.estimateTokens(prompt);
+      const inputTokens = this.estimateTokens(prompt);
       let outputTokens = 0;
 
       // Iterate through streaming chunks
@@ -250,7 +250,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
           logger.debug('tool calls received', {
             count: delta.tool_calls.length,
             tools: delta.tool_calls
-              .map((tc: any) => tc.function?.name)
+              .map((tc) => tc.function?.name)
               .filter(Boolean),
           });
 
@@ -287,14 +287,14 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
           output: outputTokens,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       const durationMs = Date.now() - startTime;
 
       logger.error('completion failed', {
         durationMs,
-        errorMessage: error.message,
-        errorType: error.constructor.name,
-        stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
+        stack: error instanceof Error ? error.stack?.split('\n').slice(0, 3).join('\n') : undefined,
       });
 
       // Classify and re-throw with better error messages
@@ -309,7 +309,7 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
         const apiError = new Error(
           `openrouter_api_error_${error.status || 'unknown'}: ${error.message}`,
         );
-        (apiError as any).detail = {
+        (apiError as unknown as Record<string, unknown>).detail = {
           status: error.status,
           type: error.type,
           code: error.code,

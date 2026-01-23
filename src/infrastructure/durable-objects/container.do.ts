@@ -3,6 +3,7 @@
  * Ported from src/durable-objects.ts - Uses actual @cloudflare/containers
  */
 
+// @ts-ignore
 import { Container } from '@cloudflare/containers';
 
 /**
@@ -14,7 +15,7 @@ import { Container } from '@cloudflare/containers';
  * Unlike traditional Durable Objects, this handles the container lifecycle
  * and forwards requests to the containerized application running inside.
  */
-export class ContainerDO extends Container<any> {
+export class ContainerDO extends Container<any> implements DurableObject {
   // Port the container listens on (default: 8080)
   defaultPort = 8080;
 

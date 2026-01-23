@@ -16,11 +16,11 @@ export function generateRandomIV(): Uint8Array {
  * Generate a random key for AES-256
  */
 export async function generateRandomKey(): Promise<CryptoKey> {
-  return crypto.subtle.generateKey(
+  return (await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     true, // extractable
     ['encrypt', 'decrypt'],
-  );
+  )) as CryptoKey;
 }
 
 /**

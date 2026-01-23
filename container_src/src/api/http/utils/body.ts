@@ -17,8 +17,9 @@ export function parseJsonBody<T>(raw: string): T {
   try {
     return JSON.parse(raw) as T;
   } catch (error) {
-    const err = new Error('invalid_json_body');
-    (err as any).detail = { rawSnippet: raw.slice(0, 256) };
+    const err = Object.assign(new Error('invalid_json_body'), {
+      detail: { rawSnippet: raw.slice(0, 256) },
+    });
     throw err;
   }
 }

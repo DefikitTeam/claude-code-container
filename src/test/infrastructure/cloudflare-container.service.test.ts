@@ -78,7 +78,7 @@ describe('CloudflareContainerService', () => {
         request.method === 'POST' &&
         new URL(request.url).pathname === '/process'
       ) {
-        const body = await request.json();
+        const body = await request.json<{ type: string; command: string }>();
         expect(body.type).toBe('execute');
         expect(body.command).toBe('npm test');
         return new Response(
@@ -151,10 +151,10 @@ describe('CloudflareContainerService', () => {
     const { namespace } = createNamespace(async (request) => {
       expect(request.method).toBe('GET');
       expect(new URL(request.url).pathname).toBe('/health');
-      return new Response(
-        JSON.stringify({ status: 'healthy' }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ status: 'healthy' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     });
 
     const service = new CloudflareContainerService(namespace);
