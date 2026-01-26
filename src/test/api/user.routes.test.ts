@@ -13,7 +13,7 @@ import { UserEntity } from '../../core/entities/user.entity';
 import { IUserRepository } from '../../core/interfaces/repositories/user.repository';
 
 const MOCK_USER_ID = 'user-123';
-const MOCK_INSTALLATION_ID = 'inst-123';
+const MOCK_INSTALLATION_ID = '123456';
 
 class InMemoryUserRepository implements IUserRepository {
   private users = new Map<string, UserEntity>();
