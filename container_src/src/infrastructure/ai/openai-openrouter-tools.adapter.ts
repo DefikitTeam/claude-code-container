@@ -28,6 +28,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { providerRegistry } from './providers/ProviderRegistry.js';
+import { LLMProviderContext } from './providers/ILLMProvider.js';
 
 const execAsync = promisify(exec);
 
@@ -156,22 +158,45 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           runOptions.messages && Array.isArray(runOptions.messages)
         ),
         historyLength: runOptions.messages ? runOptions.messages.length : 0,
+        provider: context.llmProvider?.provider || 'default',
       });
 
       // Notify start
       callbacks.onStart?.({ startTime });
 
-      // Create OpenAI client
-      const client = new OpenAI({
-        apiKey,
-        baseURL: this.config.baseURL,
-        defaultHeaders: {
-          'HTTP-Referer': this.config.httpReferer,
-          'X-Title': this.config.siteName,
+      // Build provider context from ACP session context / RuntimeContext
+      const providerContext: LLMProviderContext = {
+        apiKey: apiKey,
+        provider: context.llmProvider?.provider,
+        baseURL: context.llmProvider?.baseURL,
+        model: context.llmProvider?.model,
+        headers: context.llmProvider?.headers,
+        jwtToken: context.jwtToken || process.env.LUMILINK_JWT_TOKEN,
+      };
+
+      // Select provider (defaults to OpenRouter if no config)
+      const provider = providerRegistry.select(providerContext);
+      if (!provider) {
+        throw new Error('No suitable LLM provider found');
+      }
+
+      logger.info(`[LLM] Using provider: ${provider.getName()}`);
+
+      // Prepare config for provider
+      const providerConfig = {
+        provider: providerContext.provider || 'openrouter',
+        baseURL: providerContext.baseURL || this.config.baseURL,
+        model: providerContext.model || model,
+        apiKey: providerContext.apiKey,
+        headers: {
+          ...providerContext.headers,
+          // Pass raw token; LocalGLMProvider adds "Bearer " prefix
+          authorization:
+            providerContext.jwtToken ||
+            providerContext.headers?.authorization ||
+            '',
         },
-        timeout: this.config.timeout,
-        maxRetries: this.config.maxRetries,
-      });
+      };
 
       // CRITICAL: Prepare file system tools (REQUIRED for coding tasks)
       const tools = this.prepareTools(context);
@@ -318,15 +343,15 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
         // Create streaming completion
         logger.info(
-          `📡 Making API call to OpenRouter (iteration ${loopCount})...`,
+          `📡 Making API call to ${provider.getName()} (iteration ${loopCount})...`,
         );
-        const stream = await client.chat.completions.create({
-          model,
-          messages: conversationMessages,
-          tools: tools as unknown as OpenAI.Chat.ChatCompletionTool[],
-          stream: true,
-          max_tokens: 15600, // Reasonable limit to prevent credit exhaustion
-        });
+
+        const stream = provider.chat(
+          conversationMessages,
+          tools,
+          providerConfig
+        );
+
         logger.info(
           `✅ API call started successfully (iteration ${loopCount})`,
         );
