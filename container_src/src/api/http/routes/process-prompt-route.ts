@@ -131,5 +131,9 @@ function validateRequest(payload: unknown): string | null {
     return 'Missing or invalid githubToken';
   }
 
+  if (p.llmProvider && (typeof p.llmProvider !== 'object' || !p.llmProvider.provider)) {
+      return 'Invalid llmProvider configuration';
+  }
+
   return null;
 }

@@ -268,6 +268,8 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       disableCli: process.env.CLAUDE_CLIENT_DISABLE_CLI === '1',
       forceHttpApi: process.env.CLAUDE_CLIENT_FORCE_HTTP_API === '1',
       env: { ...process.env, ANTHROPIC_API_KEY: apiKey },
+      llmProvider: options.llmProvider,
+      jwtToken: options.jwtToken,
     };
   }
 

@@ -13,6 +13,14 @@ export interface RunOptions {
   abortSignal?: AbortSignal;
   model?: string;
   messages?: Array<unknown>; // Full message history
+  llmProvider?: {
+    provider: 'openrouter' | 'local-glm';
+    baseURL: string;
+    model: string;
+    apiKey?: string;
+    headers?: Record<string, string>;
+  };
+  jwtToken?: string;
 }
 
 export interface ClaudeResult {

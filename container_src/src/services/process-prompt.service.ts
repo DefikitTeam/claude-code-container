@@ -18,6 +18,14 @@ export interface ProcessPromptRequest {
   };
   githubToken: string;
   workspacePath?: string;
+  llmProvider?: {
+    provider: 'openrouter' | 'local-glm';
+    baseURL: string;
+    model: string;
+    apiKey?: string;
+    headers?: Record<string, string>;
+  };
+  jwtToken?: string;
 }
 
 export interface ProcessPromptResult {
@@ -83,6 +91,8 @@ export class ProcessPromptService {
         workspacePath: repoDir,
         apiKey: this.apiKey,
         model: this.model,
+        llmProvider: request.llmProvider,
+        jwtToken: request.jwtToken,
       });
 
       logWithContext('PROCESS-PROMPT', `Execution complete`, { sessionId });
