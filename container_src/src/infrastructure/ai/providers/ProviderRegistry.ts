@@ -1,6 +1,6 @@
-import { ILLMProvider, LLMProviderContext } from './ILLMProvider';
-import { OpenRouterProvider } from './OpenRouterProvider';
-import { LocalGLMProvider } from './LocalGLMProvider';
+import { ILLMProvider, LLMProviderContext } from './ILLMProvider.js';
+import { OpenRouterProvider } from './OpenRouterProvider.js';
+import { LocalGLMProvider } from './LocalGLMProvider.js';
 
 export class ProviderRegistry {
   private providers: ILLMProvider[] = [];

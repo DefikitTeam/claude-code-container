@@ -1,5 +1,15 @@
 #!/usr/bin/env node
 
+// Immediate startup logging to catch early crashes
+try {
+  console.error(`[CONTAINER-BOOT] Starting container process at ${new Date().toISOString()}`);
+  console.error(`[CONTAINER-BOOT] Node version: ${process.version}`);
+  console.error(`[CONTAINER-BOOT] Arguments: ${process.argv.join(' ')}`);
+} catch (e) {
+  // Ignore
+}
+
+
 import { loadManagedSettings, applyEnvironmentSettings } from './utils.js';
 import minimist from 'minimist';
 import * as fs from 'node:fs';
@@ -118,3 +128,12 @@ if (argv['http-bridge']) {
   // Keep process alive in ACP mode only
   process.stdin.resume();
 }
+
+// Global error handler for uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('[CONTAINER-FATAL] Uncaught exception in main entry point:');
+  console.error(error);
+  // Ensure we exit with a non-zero code but log it first
+  console.error('[CONTAINER-FATAL] Exiting with code 1');
+  process.exit(1);
+});

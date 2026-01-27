@@ -25,7 +25,7 @@ export interface ProcessPromptRequest {
     apiKey?: string;
     headers?: Record<string, string>;
   };
-  jwtToken?: string;
+  // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable
 }
 
 export interface ProcessPromptResult {
@@ -92,7 +92,6 @@ export class ProcessPromptService {
         apiKey: this.apiKey,
         model: this.model,
         llmProvider: request.llmProvider,
-        jwtToken: request.jwtToken,
       });
 
       logWithContext('PROCESS-PROMPT', `Execution complete`, { sessionId });

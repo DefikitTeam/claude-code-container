@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { ILLMProvider, LLMProviderConfig, LLMProviderContext } from './ILLMProvider';
+import { ILLMProvider, LLMProviderConfig, LLMProviderContext } from './ILLMProvider.js';
 
 export class OpenRouterProvider implements ILLMProvider {
   canHandle(context: LLMProviderContext): boolean {

@@ -269,7 +269,7 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       forceHttpApi: process.env.CLAUDE_CLIENT_FORCE_HTTP_API === '1',
       env: { ...process.env, ANTHROPIC_API_KEY: apiKey },
       llmProvider: options.llmProvider,
-      jwtToken: options.jwtToken,
+      // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable in LocalGLMProvider
     };
   }
 

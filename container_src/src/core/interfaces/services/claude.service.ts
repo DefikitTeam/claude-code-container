@@ -20,7 +20,7 @@ export interface RunOptions {
     apiKey?: string;
     headers?: Record<string, string>;
   };
-  jwtToken?: string;
+  // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable
 }
 
 export interface ClaudeResult {

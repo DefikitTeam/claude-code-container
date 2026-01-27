@@ -183,19 +183,13 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       logger.info(`[LLM] Using provider: ${provider.getName()}`);
 
       // Prepare config for provider
+      // Note: LocalGLMProvider will add JWT from LUMILINK_JWT_TOKEN environment variable
       const providerConfig = {
         provider: providerContext.provider || 'openrouter',
         baseURL: providerContext.baseURL || this.config.baseURL,
         model: providerContext.model || model,
         apiKey: providerContext.apiKey,
-        headers: {
-          ...providerContext.headers,
-          // Pass raw token; LocalGLMProvider adds "Bearer " prefix
-          authorization:
-            providerContext.jwtToken ||
-            providerContext.headers?.authorization ||
-            '',
-        },
+        headers: providerContext.headers,
       };
 
       // CRITICAL: Prepare file system tools (REQUIRED for coding tasks)

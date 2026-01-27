@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
-import { ILLMProvider, LLMProviderConfig, LLMProviderContext } from './ILLMProvider';
+import { ILLMProvider, LLMProviderConfig, LLMProviderContext } from './ILLMProvider.js';
 
 export class LocalGLMProvider implements ILLMProvider {
   canHandle(context: LLMProviderContext): boolean {
-    return context.provider === 'local-glm' && !!context.jwtToken;
+    return context.provider === 'local-glm';
   }
 
   async *chat(
@@ -11,11 +11,15 @@ export class LocalGLMProvider implements ILLMProvider {
     tools: any[],
     config: LLMProviderConfig
   ): AsyncIterable<any> {
+    // Use LUMILINK_JWT_TOKEN from container's environment
+    // This is the same JWT used for GitHub authentication
+    const jwtToken = process.env.LUMILINK_JWT_TOKEN || '';
+
     const openai = new OpenAI({
       apiKey: 'dummy', // Not used, auth via headers
       baseURL: config.baseURL || 'https://llm.defikit.net/v1',
       defaultHeaders: {
-        authorization: `Bearer ${config.headers?.authorization || ''}`, // Token passed in config or handled by caller
+        authorization: `Bearer ${jwtToken}`,
         origin: 'https://llm.defikit.net',
         referer: 'https://llm.defikit.net/',
         'user-agent': 'LumiLink-CodingMode/1.0',

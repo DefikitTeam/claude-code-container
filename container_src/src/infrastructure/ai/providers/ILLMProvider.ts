@@ -4,6 +4,7 @@ export interface LLMProviderContext {
   model?: string;
   provider?: 'openrouter' | 'local-glm';
   headers?: Record<string, string>;
+  // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable
   jwtToken?: string;
 }
 
