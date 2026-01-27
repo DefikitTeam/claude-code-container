@@ -25,7 +25,7 @@ export class ContainerDO extends Container<any> implements DurableObject {
   // Environment variables passed to the container
   // Note: ANTHROPIC_API_KEY and other sensitive data are provided per-request in fetch() env parameter
   envVars = {
-    NODE_ENV: 'production',
+    NODE_ENV: 'development',
     CONTAINER_ID: crypto.randomUUID(),
     PORT: '8080',
     ACP_MODE: 'http-server',

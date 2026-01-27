@@ -40,7 +40,7 @@ import { defaultErrorClassifier } from '../../core/errors/error-classifier.js';
 import type {
   ContentBlock,
   SessionPromptResponse,
-} from '../../types/acp-messages';
+} from '../../types/acp-messages.js';
 import type { ACPSession } from '../../types/acp-session.js';
 import { useDomainEntities } from '../../core/config/feature-flags.js';
 import { SessionEntity } from '../../core/entities/session.entity.js';

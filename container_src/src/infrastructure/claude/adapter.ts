@@ -23,6 +23,7 @@ export interface ClaudeRuntimeContext {
     apiKey?: string;
     headers?: Record<string, string>;
   };
+  // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable
   jwtToken?: string;
 }
 
