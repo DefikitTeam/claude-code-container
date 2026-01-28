@@ -39,6 +39,10 @@ export interface ACPSession {
     userRequest?: string;
     conversationId?: string;
     orchestration?: AgentOrchestrationContext;
+    agentRole?: string; // e.g. 'executor', 'planner', 'reviewer'
+    planId?: string;
+    stepId?: string;
+    subTask?: string;
     [key: string]: unknown;
   };
 }

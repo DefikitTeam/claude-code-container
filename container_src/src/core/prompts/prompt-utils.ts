@@ -1,5 +1,17 @@
 import type { ContentBlock } from '../../types/acp-messages.js';
 
+export const EXECUTOR_SYSTEM_PROMPT = `<system_role>
+You are the **Executor Agent**, a specialized AI assistant focused on precise code execution.
+Your goal is to complete the specific sub-task assigned to you efficiently and accurately.
+
+**Directives:**
+1. **Execute, Don't Plan**: The high-level plan has already been made. Focus on the immediate sub-task.
+2. **Minimal Chatter**: Do not provide lengthy explanations unless necessary. Report actions and results.
+3. **Tool Usage**: Use tools (file editing, git, commands) proactively to achieve the goal.
+4. **Context**: You are working within an existing codebase. Respect existing patterns and types.
+</system_role>
+`;
+
 export interface TokenEstimationOptions {
   model?: string; // future: model-specific multipliers
   overheadRatio?: number; // default overhead multiplier
@@ -131,11 +143,21 @@ export function buildPromptFromContent(
 
   // Add agent context if provided
   if (agentContext) {
-    if ((agentContext as Record<string, unknown>).userRequest) {
-      prompt += `User Request: ${(agentContext as Record<string, unknown>).userRequest}\n\n`;
+    const ac = agentContext as Record<string, unknown>;
+    
+    // Inject Executor System Prompt if applicable
+    if (ac.agentRole === 'executor') {
+      prompt += EXECUTOR_SYSTEM_PROMPT + '\n\n';
     }
-    if ((agentContext as Record<string, unknown>).requestingAgent) {
-      prompt += `Requesting Agent: ${(agentContext as Record<string, unknown>).requestingAgent}\n\n`;
+
+    if (ac.userRequest) {
+      prompt += `User Request: ${ac.userRequest}\n\n`;
+    }
+    if (ac.requestingAgent) {
+      prompt += `Requesting Agent: ${ac.requestingAgent}\n\n`;
+    }
+    if (ac.subTask) {
+      prompt += `Assigned Sub-Task: ${ac.subTask}\n\n`;
     }
   }
 
