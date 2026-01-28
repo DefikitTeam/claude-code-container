@@ -1,6 +1,6 @@
 FROM node:22-alpine
 
-# Force rebuild timestamp: 2026-01-27T14:58:00
+# Force rebuild timestamp: 2026-01-27T15:55:00
 
 # Install system dependencies for git operations and Claude Code requirements
 RUN apk add --no-cache git bash curl ripgrep

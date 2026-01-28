@@ -32,11 +32,28 @@ export class LocalGLMProvider implements ILLMProvider {
       },
     });
 
+    console.debug('[LocalGLMProvider] Initialized OpenAI client', {
+        baseURL: openai.baseURL,
+        hasJwt: !!jwtToken
+    });
+
+    // Workaround for GLM-4 server-side template error ("Unknown argument ensure_ascii")
+    // We manually format tools into the system prompt and disable native tool passing
+    
+    let finalMessages = [...messages];
+
+    // Native tool support is now enabled on the backend model
+    // No need for XML hacks or stop tokens anymore
+    
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _ignored = tools; // Tools are passed directly to create()
+
     const stream = await openai.chat.completions.create({
-      model: config.model || 'glm-4.7',
-      messages,
-      tools,
+      model: config.model || 'GLM-4.7-Flash',
+      messages: finalMessages,
+      tools: tools && tools.length > 0 ? tools : undefined,
       stream: true,
+      // No stop token needed for native tools
     });
 
     for await (const chunk of stream) {

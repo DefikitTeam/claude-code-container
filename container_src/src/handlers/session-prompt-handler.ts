@@ -222,6 +222,10 @@ export async function sessionPromptHandler(
           ? (rawParams.githubToken as string)
           : undefined,
       rawParams,
+      llmProvider:
+        ((orchestrationContext as any)?.llmProvider ||
+        (rawParams.llmProvider as any) ||
+        (supplementalContext as any)?.llmConfig) as any,
     });
     return result;
   } finally {
