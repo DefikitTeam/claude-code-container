@@ -82,6 +82,12 @@ export interface ProcessPromptOptions {
   session?: ACPSession;
   githubTokenError?: string;
   rawParams?: Record<string, unknown>;
+  llmProvider?: {
+    provider: 'openrouter' | 'local-glm';
+    model: string;
+    baseURL: string;
+    headers?: Record<string, string>;
+  };
 }
 
 export class PromptProcessor {
@@ -444,6 +450,7 @@ export class PromptProcessor {
         apiKey,
         abortSignal,
         messages: session?.messageHistory,
+        llmProvider: opts.llmProvider,
       };
       if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
         runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;

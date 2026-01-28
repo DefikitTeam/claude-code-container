@@ -333,6 +333,17 @@ export class ACPBridgeService implements IACPBridgeService {
             ...((params.context as ACPContext)?.orchestration
               ? { orchestration: (params.context as ACPContext).orchestration }
               : {}),
+            // ✅ Explicitly pass llmConfig, with fallback to Local GLM if missing
+            llmConfig: (params.context as any)?.llmConfig || {
+                provider: 'local-glm',
+                baseURL: 'https://llm.defikit.net/v1',
+                model: 'glm-4.7',
+                headers: {
+                    origin: "https://llm.defikit.net",
+                    referer: "https://llm.defikit.net/",
+                    "user-agent": "LumiLink-CodingMode/1.0",
+                }
+            },
           },
         },
         id: Date.now(),
@@ -650,6 +661,15 @@ export class ACPBridgeService implements IACPBridgeService {
 
     // Build JSON-RPC request with injected credentials (same structure as routeACPMethod)
     const containerName = 'acp-session';
+
+    console.log('[ACP-BRIDGE-STREAM] Preparing request for container', {
+      method,
+      paramsKeys: Object.keys(params || {}),
+      contextKeys: Object.keys((params.context as Record<string, unknown>) || {}),
+      hasLlmConfig: !!(params.context as any)?.llmConfig,
+      llmConfig: (params.context as any)?.llmConfig
+    });
+
     const jsonRpcRequest = {
       jsonrpc: '2.0',
       method: method,
@@ -677,6 +697,17 @@ export class ACPBridgeService implements IACPBridgeService {
           ...((params.context as ACPContext)?.orchestration
             ? { orchestration: (params.context as ACPContext).orchestration }
             : {}),
+          // ✅ Explicitly pass llmConfig, with fallback to Local GLM if missing (User Requirement)
+          llmConfig: (params.context as any)?.llmConfig || {
+            provider: 'local-glm',
+            baseURL: 'https://llm.defikit.net/v1',
+            model: 'glm-4.7',
+            headers: {
+              origin: "https://llm.defikit.net",
+              referer: "https://llm.defikit.net/",
+              "user-agent": "LumiLink-CodingMode/1.0",
+            }
+          },
         },
       },
       id: Date.now(),

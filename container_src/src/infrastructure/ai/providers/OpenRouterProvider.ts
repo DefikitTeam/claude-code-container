@@ -13,7 +13,7 @@ export class OpenRouterProvider implements ILLMProvider {
   ): AsyncIterable<any> {
     const openai = new OpenAI({
       apiKey: config.apiKey || process.env.OPENROUTER_API_KEY,
-      baseURL: config.baseURL || 'https://openrouter.ai/api/v1',
+      baseURL: config.baseURL || process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     });
 
     const stream = await openai.chat.completions.create({

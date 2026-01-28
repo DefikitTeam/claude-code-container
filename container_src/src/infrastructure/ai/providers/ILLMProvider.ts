@@ -10,7 +10,7 @@ export interface LLMProviderContext {
 
 export interface LLMProviderConfig {
   provider: 'openrouter' | 'local-glm';
-  baseURL: string;
+  baseURL?: string;
   model: string;
   apiKey?: string;
   headers?: Record<string, string>;

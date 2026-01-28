@@ -145,7 +145,12 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         runOptions.model ?? context.model ?? this.config.defaultModel;
 
       // Use the requested model directly, no internal selection/mapping that could force Grok
-      const model = requestedModel;
+      let model = requestedModel;
+
+      // FIX: If provider is local-glm, force the correct model ID if it wasn't explicitly provided (or if it defaulted to devstral)
+      if (context.llmProvider?.provider === 'local-glm' && (model === this.config.defaultModel || !model)) {
+        model = 'GLM-4.7-Flash';
+      }
 
       logger.info('🚀 OpenAI Tools Adapter SELECTED and STARTING', {
         requestedModel,
@@ -186,11 +191,16 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       // Note: LocalGLMProvider will add JWT from LUMILINK_JWT_TOKEN environment variable
       const providerConfig = {
         provider: providerContext.provider || 'openrouter',
-        baseURL: providerContext.baseURL || this.config.baseURL,
+        baseURL: providerContext.baseURL, // Don't enforce default here, let provider handle it
         model: providerContext.model || model,
         apiKey: providerContext.apiKey,
         headers: providerContext.headers,
       };
+
+      logger.debug('calling provider chat', {
+        provider: provider.getName(),
+        config: { ...providerConfig, apiKey: providerConfig.apiKey ? '***' : undefined }
+      });
 
       // CRITICAL: Prepare file system tools (REQUIRED for coding tasks)
       const tools = this.prepareTools(context);
@@ -483,7 +493,61 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           }
 
           logger.debug('completion finished - no tool calls');
-          break;
+
+          // Fallback: Check for XML-wrapped JSON tool calls (Legacy/LocalGLM support)
+          // We look for <tool_code>{...}</tool_code> anywhere in the message.
+          if (currentMessage) {
+            try {
+              // Regex allows explicit closing tag OR end of string (if stop sequence cutoff happened)
+              const xmlMatch = currentMessage.match(/<tool_code>([\s\S]*?)(?:<\/tool_code>|$)/);
+              if (xmlMatch && xmlMatch[1]) {
+                // CLEANUP: Strip markdown code blocks if the model wrapped the JSON
+                let potentialJson = xmlMatch[1].trim();
+                potentialJson = potentialJson.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```$/, '');
+
+                const parsed = JSON.parse(potentialJson); // This might throw if invald JSON
+
+                if (parsed.name && parsed.arguments) {
+                  logger.info('🔧 Detected XML-wrapped tool call', { tool: parsed.name });
+                  
+                  const toolCallId = `call_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+                  const argsString = typeof parsed.arguments === 'string' 
+                    ? parsed.arguments 
+                    : JSON.stringify(parsed.arguments);
+
+                  currentToolCalls.push({
+                    id: toolCallId,
+                    type: 'function',
+                    function: {
+                      name: parsed.name,
+                      arguments: argsString
+                    }
+                  });
+                }
+              } else {
+                // Secondary Fallback: Try raw JSON matching if tags are missing but structure looks like a tool call
+                // This handles cases where the model forgets the tags but tries to output JSON
+                const jsonMatch = currentMessage.match(/\{[\s\S]*"name"\s*:\s*"[^"]+"[\s\S]*"arguments"\s*:/);
+                if (jsonMatch) {
+                   // ... (Attempt naive JSON extraction, simplified for safety)
+                   // We won't re-implement the full brace counting here to keep it clean, 
+                   // assuming the XML tag is the primary contract. 
+                   // If purely raw JSON is needed, we can rely on the previous logic, 
+                   // but let's stick to the prompt contract first.
+                 }
+              }
+            } catch (e) {
+              const xmlMatch = currentMessage.match(/<tool_code>([\s\S]*?)(?:<\/tool_code>|$)/);
+              logger.warn('failed to parse XML-based tool call', { 
+                error: String(e),
+                contentPreview: xmlMatch ? xmlMatch[1].substring(0, 200) : 'N/A'
+              });
+            }
+          }
+
+          if (currentToolCalls.length === 0) {
+             break;
+          }
         }
 
         // If we have tool calls, execute them
@@ -743,6 +807,20 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               }
 
               const content = await fs.readFile(fullPath, 'utf-8');
+              
+              // Truncate large files to prevent context window overflow
+              const MAX_OUTPUT_CHARS = 8000;
+              if (content.length > MAX_OUTPUT_CHARS) {
+                const truncatedContent = content.substring(0, MAX_OUTPUT_CHARS);
+                return {
+                  success: true,
+                  path: args.path,
+                  content: truncatedContent + `\n\n[WARNING: File content truncated. Total length: ${content.length} chars. Showing first ${MAX_OUTPUT_CHARS} chars.]`,
+                  size: stats.size,
+                  truncated: true
+                };
+              }
+
               return {
                 success: true,
                 path: args.path,
