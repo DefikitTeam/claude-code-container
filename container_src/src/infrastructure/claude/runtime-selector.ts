@@ -15,7 +15,7 @@ import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adap
 
 // Hard-force OpenRouter model selection.
 // Any requested Claude model strings (e.g. "claude-sonnet-4") are ignored downstream.
-const DEFAULT_MODEL = 'mistralai/devstral-2512:free';
+const DEFAULT_MODEL = 'google/gemini-2.0-flash-lite-001';
 
 type InFlight = {
   sessionId: string;

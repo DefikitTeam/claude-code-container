@@ -33,7 +33,7 @@ import { LLMProviderContext } from './providers/ILLMProvider.js';
 
 const execAsync = promisify(exec);
 
-const FORCED_OPENROUTER_MODEL = 'mistralai/devstral-2512:free'; // Fallback default if needed
+const FORCED_OPENROUTER_MODEL = 'google/gemini-2.0-flash-lite-001'; // Free model available
 
 // Lightweight logger scoped to this adapter
 const logger = {
@@ -170,6 +170,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
       callbacks.onStart?.({ startTime });
 
       // Build provider context from ACP session context / RuntimeContext
+      console.error('[ADAPTER-DEBUG] context.llmProvider:', JSON.stringify(context.llmProvider, null, 2));
+
       const providerContext: LLMProviderContext = {
         apiKey: apiKey,
         provider: context.llmProvider?.provider,
@@ -178,6 +180,8 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         headers: context.llmProvider?.headers,
         jwtToken: context.jwtToken || process.env.LUMILINK_JWT_TOKEN,
       };
+
+      console.error('[ADAPTER-DEBUG] Built providerContext:', JSON.stringify(providerContext, null, 2));
 
       // Select provider (defaults to OpenRouter if no config)
       const provider = providerRegistry.select(providerContext);
@@ -807,20 +811,6 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
               }
 
               const content = await fs.readFile(fullPath, 'utf-8');
-              
-              // Truncate large files to prevent context window overflow
-              const MAX_OUTPUT_CHARS = 8000;
-              if (content.length > MAX_OUTPUT_CHARS) {
-                const truncatedContent = content.substring(0, MAX_OUTPUT_CHARS);
-                return {
-                  success: true,
-                  path: args.path,
-                  content: truncatedContent + `\n\n[WARNING: File content truncated. Total length: ${content.length} chars. Showing first ${MAX_OUTPUT_CHARS} chars.]`,
-                  size: stats.size,
-                  truncated: true
-                };
-              }
-
               return {
                 success: true,
                 path: args.path,
