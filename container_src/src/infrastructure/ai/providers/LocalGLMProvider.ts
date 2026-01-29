@@ -44,9 +44,6 @@ export class LocalGLMProvider implements ILLMProvider {
 
     // Native tool support is now enabled on the backend model
     // No need for XML hacks or stop tokens anymore
-    
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _ignored = tools; // Tools are passed directly to create()
 
     const stream = await openai.chat.completions.create({
       model: config.model || 'GLM-4.7-Flash',
