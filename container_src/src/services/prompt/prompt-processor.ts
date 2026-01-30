@@ -40,7 +40,7 @@ import { defaultErrorClassifier } from '../../core/errors/error-classifier.js';
 import type {
   ContentBlock,
   SessionPromptResponse,
-} from '../../types/acp-messages';
+} from '../../types/acp-messages.js';
 import type { ACPSession } from '../../types/acp-session.js';
 import { useDomainEntities } from '../../core/config/feature-flags.js';
 import { SessionEntity } from '../../core/entities/session.entity.js';
@@ -82,6 +82,12 @@ export interface ProcessPromptOptions {
   session?: ACPSession;
   githubTokenError?: string;
   rawParams?: Record<string, unknown>;
+  llmProvider?: {
+    provider: 'openrouter' | 'local-glm';
+    model: string;
+    baseURL: string;
+    headers?: Record<string, string>;
+  };
 }
 
 export class PromptProcessor {
@@ -444,6 +450,7 @@ export class PromptProcessor {
         apiKey,
         abortSignal,
         messages: session?.messageHistory,
+        llmProvider: opts.llmProvider,
       };
       if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
         runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;

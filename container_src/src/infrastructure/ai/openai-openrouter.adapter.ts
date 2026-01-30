@@ -37,7 +37,7 @@ const logger = {
 };
 
 // const FORCED_OPENROUTER_MODEL = 'x-ai/grok-code-fast-1' as const;
-const FORCED_OPENROUTER_MODEL = 'mistralai/devstral-2512:free' as const;
+const FORCED_OPENROUTER_MODEL = 'google/gemini-2.0-flash-lite-001' as const; // Free model available
 
 /**
  * Configuration for OpenAI OpenRouter adapter
@@ -355,9 +355,9 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       'o1': 'openai/o1',
 
       // Google models
-      'gemini-2.0-flash': 'google/gemini-2.0-flash-exp:free',
-      'gemini-2.0-flash-exp': 'google/gemini-2.0-flash-exp:free',
-      'gemini-flash': 'google/gemini-2.0-flash-exp:free',
+      'gemini-2.0-flash': 'google/gemini-2.0-flash-lite-001',
+      'gemini-2.0-flash-exp': 'google/gemini-2.0-flash-lite-001',
+      'gemini-flash': 'google/gemini-2.0-flash-lite-001',
 
       // Coding-specific models
       'qwen-coder': 'qwen/qwen-2.5-coder-32b-instruct',

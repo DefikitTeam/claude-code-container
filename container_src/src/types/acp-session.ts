@@ -43,6 +43,14 @@ export interface ACPSession {
     planId?: string;
     stepId?: string;
     subTask?: string;
+    llmProvider?: {
+      provider: 'openrouter' | 'local-glm';
+      baseURL: string;
+      model: string;
+      apiKey?: string;
+      headers?: Record<string, string>;
+    };
+    // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable in container
     [key: string]: unknown;
   };
 }

@@ -28,10 +28,12 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { providerRegistry } from './providers/ProviderRegistry.js';
+import { LLMProviderContext } from './providers/ILLMProvider.js';
 
 const execAsync = promisify(exec);
 
-const FORCED_OPENROUTER_MODEL = 'mistralai/devstral-2512:free'; // Fallback default if needed
+const FORCED_OPENROUTER_MODEL = 'google/gemini-2.0-flash-lite-001'; // Free model available
 
 // Lightweight logger scoped to this adapter
 const logger = {
@@ -143,7 +145,12 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
         runOptions.model ?? context.model ?? this.config.defaultModel;
 
       // Use the requested model directly, no internal selection/mapping that could force Grok
-      const model = requestedModel;
+      let model = requestedModel;
+
+      // FIX: If provider is local-glm, force the correct model ID if it wasn't explicitly provided (or if it defaulted to devstral)
+      if (context.llmProvider?.provider === 'local-glm' && (model === this.config.defaultModel || !model)) {
+        model = 'GLM-4.7-Flash';
+      }
 
       logger.info('🚀 OpenAI Tools Adapter SELECTED and STARTING', {
         requestedModel,
@@ -156,21 +163,47 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           runOptions.messages && Array.isArray(runOptions.messages)
         ),
         historyLength: runOptions.messages ? runOptions.messages.length : 0,
+        provider: context.llmProvider?.provider || 'default',
       });
 
       // Notify start
       callbacks.onStart?.({ startTime });
 
-      // Create OpenAI client
-      const client = new OpenAI({
-        apiKey,
-        baseURL: this.config.baseURL,
-        defaultHeaders: {
-          'HTTP-Referer': this.config.httpReferer,
-          'X-Title': this.config.siteName,
-        },
-        timeout: this.config.timeout,
-        maxRetries: this.config.maxRetries,
+      // Build provider context from ACP session context / RuntimeContext
+      console.error('[ADAPTER-DEBUG] context.llmProvider:', JSON.stringify(context.llmProvider, null, 2));
+
+      const providerContext: LLMProviderContext = {
+        apiKey: apiKey,
+        provider: context.llmProvider?.provider,
+        baseURL: context.llmProvider?.baseURL,
+        model: context.llmProvider?.model,
+        headers: context.llmProvider?.headers,
+        jwtToken: context.jwtToken || process.env.LUMILINK_JWT_TOKEN,
+      };
+
+      console.error('[ADAPTER-DEBUG] Built providerContext:', JSON.stringify(providerContext, null, 2));
+
+      // Select provider (defaults to OpenRouter if no config)
+      const provider = providerRegistry.select(providerContext);
+      if (!provider) {
+        throw new Error('No suitable LLM provider found');
+      }
+
+      logger.info(`[LLM] Using provider: ${provider.getName()}`);
+
+      // Prepare config for provider
+      // Note: LocalGLMProvider will add JWT from LUMILINK_JWT_TOKEN environment variable
+      const providerConfig = {
+        provider: providerContext.provider || 'openrouter',
+        baseURL: providerContext.baseURL, // Don't enforce default here, let provider handle it
+        model: providerContext.model || model,
+        apiKey: providerContext.apiKey,
+        headers: providerContext.headers,
+      };
+
+      logger.debug('calling provider chat', {
+        provider: provider.getName(),
+        config: { ...providerConfig, apiKey: providerConfig.apiKey ? '***' : undefined }
       });
 
       // CRITICAL: Prepare file system tools (REQUIRED for coding tasks)
@@ -318,15 +351,15 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
 
         // Create streaming completion
         logger.info(
-          `📡 Making API call to OpenRouter (iteration ${loopCount})...`,
+          `📡 Making API call to ${provider.getName()} (iteration ${loopCount})...`,
         );
-        const stream = await client.chat.completions.create({
-          model,
-          messages: conversationMessages,
-          tools: tools as unknown as OpenAI.Chat.ChatCompletionTool[],
-          stream: true,
-          max_tokens: 15600, // Reasonable limit to prevent credit exhaustion
-        });
+
+        const stream = provider.chat(
+          conversationMessages,
+          tools,
+          providerConfig
+        );
+
         logger.info(
           `✅ API call started successfully (iteration ${loopCount})`,
         );
@@ -464,7 +497,61 @@ export class OpenAIOpenRouterToolsAdapter implements ClaudeAdapter {
           }
 
           logger.debug('completion finished - no tool calls');
-          break;
+
+          // Fallback: Check for XML-wrapped JSON tool calls (Legacy/LocalGLM support)
+          // We look for <tool_code>{...}</tool_code> anywhere in the message.
+          if (currentMessage) {
+            try {
+              // Regex allows explicit closing tag OR end of string (if stop sequence cutoff happened)
+              const xmlMatch = currentMessage.match(/<tool_code>([\s\S]*?)(?:<\/tool_code>|$)/);
+              if (xmlMatch && xmlMatch[1]) {
+                // CLEANUP: Strip markdown code blocks if the model wrapped the JSON
+                let potentialJson = xmlMatch[1].trim();
+                potentialJson = potentialJson.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```$/, '');
+
+                const parsed = JSON.parse(potentialJson); // This might throw if invald JSON
+
+                if (parsed.name && parsed.arguments) {
+                  logger.info('🔧 Detected XML-wrapped tool call', { tool: parsed.name });
+                  
+                  const toolCallId = `call_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+                  const argsString = typeof parsed.arguments === 'string' 
+                    ? parsed.arguments 
+                    : JSON.stringify(parsed.arguments);
+
+                  currentToolCalls.push({
+                    id: toolCallId,
+                    type: 'function',
+                    function: {
+                      name: parsed.name,
+                      arguments: argsString
+                    }
+                  });
+                }
+              } else {
+                // Secondary Fallback: Try raw JSON matching if tags are missing but structure looks like a tool call
+                // This handles cases where the model forgets the tags but tries to output JSON
+                const jsonMatch = currentMessage.match(/\{[\s\S]*"name"\s*:\s*"[^"]+"[\s\S]*"arguments"\s*:/);
+                if (jsonMatch) {
+                   // ... (Attempt naive JSON extraction, simplified for safety)
+                   // We won't re-implement the full brace counting here to keep it clean, 
+                   // assuming the XML tag is the primary contract. 
+                   // If purely raw JSON is needed, we can rely on the previous logic, 
+                   // but let's stick to the prompt contract first.
+                 }
+              }
+            } catch (e) {
+              const xmlMatch = currentMessage.match(/<tool_code>([\s\S]*?)(?:<\/tool_code>|$)/);
+              logger.warn('failed to parse XML-based tool call', { 
+                error: String(e),
+                contentPreview: xmlMatch ? xmlMatch[1].substring(0, 200) : 'N/A'
+              });
+            }
+          }
+
+          if (currentToolCalls.length === 0) {
+             break;
+          }
         }
 
         // If we have tool calls, execute them

@@ -13,6 +13,14 @@ export interface RunOptions {
   abortSignal?: AbortSignal;
   model?: string;
   messages?: Array<unknown>; // Full message history
+  llmProvider?: {
+    provider: 'openrouter' | 'local-glm';
+    baseURL: string;
+    model: string;
+    apiKey?: string;
+    headers?: Record<string, string>;
+  };
+  // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable
 }
 
 export interface ClaudeResult {

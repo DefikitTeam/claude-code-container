@@ -1,5 +1,7 @@
 FROM node:22-alpine
 
+# Force rebuild timestamp: 2026-01-27T15:55:00
+
 # Install system dependencies for git operations and Claude Code requirements
 RUN apk add --no-cache git bash curl ripgrep
 
@@ -8,7 +10,7 @@ RUN npm install -g pnpm@10.18.3
 
 # Create a non-root user for running the application
 RUN addgroup -g 1001 -S appuser && \
-    adduser -u 1001 -S appuser -G appuser
+  adduser -u 1001 -S appuser -G appuser
 
 # Set working directory
 WORKDIR /app

@@ -15,6 +15,16 @@ export interface ClaudeRuntimeContext {
   disableCli: boolean;
   forceHttpApi: boolean;
   env: NodeJS.ProcessEnv;
+  // Provider configuration (injected from ACP session)
+  llmProvider?: {
+    provider: 'openrouter' | 'local-glm';
+    baseURL: string;
+    model: string;
+    apiKey?: string;
+    headers?: Record<string, string>;
+  };
+  // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable
+  jwtToken?: string;
 }
 
 export interface ClaudeAdapter {

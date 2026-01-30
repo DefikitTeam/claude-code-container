@@ -18,6 +18,14 @@ export interface ProcessPromptRequest {
   };
   githubToken: string;
   workspacePath?: string;
+  llmProvider?: {
+    provider: 'openrouter' | 'local-glm';
+    baseURL: string;
+    model: string;
+    apiKey?: string;
+    headers?: Record<string, string>;
+  };
+  // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable
 }
 
 export interface ProcessPromptResult {
@@ -83,6 +91,7 @@ export class ProcessPromptService {
         workspacePath: repoDir,
         apiKey: this.apiKey,
         model: this.model,
+        llmProvider: request.llmProvider,
       });
 
       logWithContext('PROCESS-PROMPT', `Execution complete`, { sessionId });

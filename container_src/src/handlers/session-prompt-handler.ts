@@ -90,6 +90,11 @@ export async function sessionPromptHandler(
       : [],
   });
 
+  // DEBUG: Log the actual llmConfig received
+  if (supplementalContext) {
+    console.error('[SESSION-PROMPT-DEBUG] supplementalContext.llmConfig:', JSON.stringify((supplementalContext as any).llmConfig, null, 2));
+  }
+
   let session = acpState.getSession(sessionId);
   // if (!session) {
   //   throw Object.assign(new Error(`Session not found: ${sessionId}`), { code: -32001 });
@@ -222,6 +227,20 @@ export async function sessionPromptHandler(
           ? (rawParams.githubToken as string)
           : undefined,
       rawParams,
+      llmProvider:
+        ((orchestrationContext as any)?.llmProvider ||
+        (rawParams.llmProvider as any) ||
+        (supplementalContext as any)?.llmConfig) as any,
+    });
+
+    // DEBUG: Log what provider config we extracted
+    console.error('[SESSION-PROMPT-DEBUG] LLM Provider extraction:', {
+      orchestrationLlmProvider: (orchestrationContext as any)?.llmProvider,
+      rawParamsLlmProvider: rawParams.llmProvider,
+      supplementalLlmConfig: (supplementalContext as any)?.llmConfig,
+      finalLlmProvider: ((orchestrationContext as any)?.llmProvider ||
+        (rawParams.llmProvider as any) ||
+        (supplementalContext as any)?.llmConfig),
     });
     return result;
   } finally {

@@ -15,7 +15,7 @@ import { OpenAIOpenRouterToolsAdapter } from '../ai/openai-openrouter-tools.adap
 
 // Hard-force OpenRouter model selection.
 // Any requested Claude model strings (e.g. "claude-sonnet-4") are ignored downstream.
-const DEFAULT_MODEL = 'mistralai/devstral-2512:free';
+const DEFAULT_MODEL = 'google/gemini-2.0-flash-lite-001';
 
 type InFlight = {
   sessionId: string;
@@ -268,6 +268,8 @@ export class ClaudeRuntimeSelector implements IClaudeService {
       disableCli: process.env.CLAUDE_CLIENT_DISABLE_CLI === '1',
       forceHttpApi: process.env.CLAUDE_CLIENT_FORCE_HTTP_API === '1',
       env: { ...process.env, ANTHROPIC_API_KEY: apiKey },
+      llmProvider: options.llmProvider,
+      // Note: JWT for Local GLM is read from LUMILINK_JWT_TOKEN environment variable in LocalGLMProvider
     };
   }
 
