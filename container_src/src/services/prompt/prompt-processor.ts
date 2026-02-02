@@ -444,6 +444,7 @@ export class PromptProcessor {
           status: 'working',
           message: 'Claude streaming...',
           delta: delta.text, // ✅ Send the actual text chunk
+          content: [{ type: 'text', text: fullText }], // ✅ Send full content for frontend compatibility
           progress: {
             current: Math.max(1, Math.floor(outputTokens / 50)),
             total: 3,
@@ -480,6 +481,7 @@ export class PromptProcessor {
         abortSignal,
         messages: session?.messageHistory,
         llmProvider: opts.llmProvider,
+        model: opts.llmProvider?.model,
       };
       if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
         runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;
@@ -658,7 +660,18 @@ export class PromptProcessor {
 
     const response: SessionPromptResponse['result'] = {
       stopReason: 'completed',
-      usage: { inputTokens: inputTokensUsed, outputTokens: outputTokensUsed },
+      usage: { 
+        inputTokens: inputTokensUsed, 
+        outputTokens: outputTokensUsed,
+        // Include cost data from runResult if available
+        ...(runResult?.cost && {
+          cost: {
+            inputUsd: runResult.cost.inputUsd,
+            outputUsd: runResult.cost.outputUsd,
+            totalUsd: runResult.cost.totalUsd,
+          },
+        }),
+      },
       summary:
         fullText.substring(0, 200) + (fullText.length > 200 ? '...' : ''),
     };
@@ -1020,6 +1033,7 @@ export class PromptProcessor {
         summaryText,
         workspace.path,
         apiKey,
+        options.llmProvider?.model,
       );
     }
 
@@ -1638,6 +1652,7 @@ export class PromptProcessor {
     summary: string,
     workspacePath: string,
     apiKey?: string,
+    model?: string,
   ): Promise<string | undefined> {
     try {
       let derivedFilesChanged: string[] | undefined;
@@ -1712,8 +1727,8 @@ Rules:
       const result = await this.deps.claudeClient.runPrompt(generationPrompt, {
         sessionId,
         apiKey, // Pass API key for LLM call
-        // Use a cheaper/faster model if possible, or same model
-        // Minimal context needed
+        model, // Use the same model as the session if available
+        workspacePath, // Pass workspace path to avoid tool adapter initialization errors
       });
 
       const raw = result.fullText.trim();

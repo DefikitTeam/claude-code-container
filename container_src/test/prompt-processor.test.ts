@@ -269,6 +269,11 @@ describe('PromptProcessor', () => {
         },
         repository: 'org/repo',
       },
+      llmProvider: {
+        provider: 'openrouter',
+        model: 'test-model-123',
+        baseURL: 'https://openrouter.ai/api/v1',
+      },
       // Simulate that tools were used and files changed
       rawParams: {
         context: {
@@ -286,10 +291,16 @@ describe('PromptProcessor', () => {
     expect(claudeClient.runPrompt.mock.calls[0][1].sessionId).toBe(
       'sess-commit-gen',
     );
+    expect(claudeClient.runPrompt.mock.calls[0][1].model).toBe(
+      'test-model-123',
+    );
 
     // Check second call (commit gen)
     // The prompt should contain the user request and summary
     const genPrompt = claudeClient.runPrompt.mock.calls[1][0];
+    const genOptions = claudeClient.runPrompt.mock.calls[1][1];
+    expect(genOptions.model).toBe('test-model-123');
+    expect(genOptions.workspacePath).toBe(process.cwd()); // Explicitly check workspace path
     expect(genPrompt).toContain('Fix the bug');
     expect(genPrompt).toContain('I fixed the bug');
 

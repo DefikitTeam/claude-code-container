@@ -12,6 +12,8 @@ import type {
   ClaudeResult,
   RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
+import { calculateCost } from './utils/cost-calculator.js';
+import { costTracker } from './services/cost-tracker.service.js';
 
 /**
  * Vercel AI SDK + OpenRouter adapter
@@ -210,26 +212,81 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
       const usage = await result.usage;
       const providerMetadata = await result.providerMetadata;
 
-      // 9. Extract token usage (if available)
+      // 9. Extract token usage from Vercel SDK (including cache tokens)
+      const promptTokens = usage?.inputTokens || 0;
+      const completionTokens = usage?.outputTokens || 0;
+      const totalTokens = usage?.totalTokens || promptTokens + completionTokens;
+      
+      // Extract cache tokens if available (Vercel SDK may expose this)
+      const cacheReadTokens = (usage as any)?.cacheReadTokens || 
+                             (usage as any)?.cache_read_tokens || 
+                             0;
+
       const tokens = {
-        input: usage?.inputTokens || this.estimateTokens(prompt),
-        output: usage?.outputTokens || this.estimateTokens(fullText),
+        input: promptTokens,
+        output: completionTokens,
+        cache_read: cacheReadTokens,
+        total: totalTokens,
       };
 
-      // 10. Optional: Log OpenRouter-specific metadata (cost tracking)
+      // 10. Calculate cost using OpenRouter pricing (including cache cost)
+      const costCalculation = calculateCost(
+        modelName,
+        promptTokens,
+        completionTokens,
+        cacheReadTokens,
+      );
+
+      // 11. Log usage and cost (OpenRouter-specific metadata is also available)
+      console.log('[VercelOpenRouterAdapter] Usage:', {
+        model: modelName,
+        tokens: {
+          input: promptTokens,
+          output: completionTokens,
+          total: totalTokens,
+        },
+        cost: {
+          input: `$${costCalculation.inputCostUsd.toFixed(6)}`,
+          output: `$${costCalculation.outputCostUsd.toFixed(6)}`,
+          total: `$${costCalculation.totalCostUsd.toFixed(6)}`,
+        },
+        toolCalls: toolCallCount,
+        toolExecutions: toolExecutionCount,
+      });
+
+      // OpenRouter metadata (optional, for debugging)
       if (providerMetadata?.openrouter) {
         const metadata = providerMetadata.openrouter as {
           usage?: { cost?: number; totalTokens?: number };
         };
-        console.log('[VercelOpenRouterAdapter] Usage:', {
-          cost: metadata.usage?.cost,
-          totalTokens: metadata.usage?.totalTokens,
+        console.log('[VercelOpenRouterAdapter] OpenRouter metadata:', {
+          reportedCost: metadata.usage?.cost,
+          reportedTokens: metadata.usage?.totalTokens,
         });
       }
+
+      // Track cost for monitoring
+      costTracker.trackCall(runOptions.sessionId || 'unknown', {
+        model: modelName,
+        promptTokens,
+        completionTokens,
+        totalCostUsd: costCalculation.totalCostUsd,
+        inputCostUsd: costCalculation.inputCostUsd,
+        outputCostUsd: costCalculation.outputCostUsd,
+        metadata: {
+          toolCalls: toolCallCount,
+          toolExecutions: toolExecutionCount,
+        },
+      });
 
       return {
         fullText,
         tokens,
+        cost: {
+          inputUsd: costCalculation.inputCostUsd,
+          outputUsd: costCalculation.outputCostUsd,
+          totalUsd: costCalculation.totalCostUsd,
+        },
       };
     } catch (error) {
       // Handle errors
@@ -294,12 +351,5 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
     // Map to OpenRouter model ID
     return modelMap[requestedModel] || `anthropic/${requestedModel}`;
     */
-  }
-
-  /**
-   * Estimate tokens (fallback if usage not provided)
-   */
-  private estimateTokens(text: string): number {
-    return Math.max(1, Math.ceil(text.length / 4));
   }
 }

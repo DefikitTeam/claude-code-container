@@ -13,6 +13,12 @@ ANTHROPIC_API_KEY=sk-ant-api03-your_anthropic_key_here
 # OpenRouter API key for ACP bridge operations
 OPENROUTER_API_KEY=sk-or-v1-your_openrouter_key_here
 
+# LangSmith Cost Tracking (optional)
+# Enable tracing to track LLM costs and performance
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=ls_...
+LANGSMITH_PROJECT=lumilink-code-mode
+
 # Container provider selection ("cloudflare" or "daytona")
 CONTAINER_PROVIDER=cloudflare
 # Daytona API credentials (required when CONTAINER_PROVIDER=daytona)
