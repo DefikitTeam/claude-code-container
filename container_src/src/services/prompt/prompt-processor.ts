@@ -330,12 +330,41 @@ export class PromptProcessor {
                 targetBranch,
               ]);
             } else {
-              // If branch doesn't exist remotely yet, ensure we are on the default branch.
-              if (resolvedRepo.defaultBranch) {
+              // If branch doesn't exist remotely (e.g. new feature branch), check local existence
+              console.error(
+                `[PROMPT][${sessionId}] Remote branch ${targetBranch} not found, checking local...`,
+              );
+
+              const localRef = await this.deps.gitService.runGit(wsDesc.path, [
+                'rev-parse',
+                '--verify',
+                targetBranch,
+              ]);
+
+              if (localRef.code === 0) {
+                // Exists locally, just checkout
+                await this.deps.gitService.runGit(wsDesc.path, [
+                  'checkout',
+                  targetBranch,
+                ]);
+              } else if (resolvedRepo.defaultBranch) {
+                // Doesn't exist locally or remotely. Create it from default branch.
+                console.error(
+                  `[PROMPT][${sessionId}] Creating new local branch ${targetBranch} from ${resolvedRepo.defaultBranch}`,
+                );
+
+                // First ensure we are on default
                 await this.deps.gitService.checkoutBranch(
                   wsDesc.path,
                   resolvedRepo.defaultBranch,
                 );
+
+                // Create new branch
+                await this.deps.gitService.runGit(wsDesc.path, [
+                  'checkout',
+                  '-b',
+                  targetBranch,
+                ]);
               }
             }
           }
