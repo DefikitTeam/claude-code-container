@@ -282,10 +282,15 @@ export class VercelOpenRouterAdapter implements ClaudeAdapter {
       return {
         fullText,
         tokens,
-        cost: {
-          inputUsd: costCalculation.inputCostUsd,
-          outputUsd: costCalculation.outputCostUsd,
-          totalUsd: costCalculation.totalCostUsd,
+        costTracking: {
+          model: modelName,
+          promptTokens,
+          completionTokens,
+          cacheReadTokens,
+          totalTokens,
+          inputCostUsd: costCalculation.inputCostUsd,
+          outputCostUsd: costCalculation.outputCostUsd,
+          totalCostUsd: costCalculation.totalCostUsd,
         },
       };
     } catch (error) {

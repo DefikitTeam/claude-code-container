@@ -663,18 +663,15 @@ export class PromptProcessor {
       usage: { 
         inputTokens: inputTokensUsed, 
         outputTokens: outputTokensUsed,
-        // Include cost data from runResult if available
-        ...(runResult?.cost && {
-          cost: {
-            inputUsd: runResult.cost.inputUsd,
-            outputUsd: runResult.cost.outputUsd,
-            totalUsd: runResult.cost.totalUsd,
-          },
-        }),
       },
       summary:
         fullText.substring(0, 200) + (fullText.length > 200 ? '...' : ''),
     };
+    
+    // Add costTracking data if available from runResult
+    if (runResult?.costTracking) {
+      response.costTracking = runResult.costTracking;
+    }
     console.error(
       `[PROMPT-SUMMARY][${sessionId}${operationId ? `:${operationId}` : ''}] ${response.summary ?? ''}`,
     );

@@ -36,6 +36,16 @@ export interface ClaudeResult {
     outputUsd: number;
     totalUsd: number;
   };
+  costTracking?: {
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+    cacheReadTokens: number;
+    totalTokens: number;
+    inputCostUsd: number;
+    outputCostUsd: number;
+    totalCostUsd: number;
+  };
   stopReason?: string;
   toolUse?: Array<{ name: string }>;
 }

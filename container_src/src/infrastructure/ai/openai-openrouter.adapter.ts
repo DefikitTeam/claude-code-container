@@ -352,10 +352,15 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
           cache_read: cacheReadTokens,
           total: promptTokens + completionTokens,
         },
-        cost: {
-          inputUsd: costCalculation.inputCostUsd,
-          outputUsd: costCalculation.outputCostUsd,
-          totalUsd: costCalculation.totalCostUsd,
+        costTracking: {
+          model,
+          promptTokens,
+          completionTokens,
+          cacheReadTokens,
+          totalTokens: promptTokens + completionTokens,
+          inputCostUsd: costCalculation.inputCostUsd,
+          outputCostUsd: costCalculation.outputCostUsd,
+          totalCostUsd: costCalculation.totalCostUsd,
         },
       };
     } catch (error: unknown) {
