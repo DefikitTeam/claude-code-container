@@ -5,7 +5,7 @@
  * Pricing is per million tokens (input and output are priced separately).
  * 
  * Pricing data source: https://openrouter.ai/api/v1/models
- * Last updated: 2026-02-02
+ * Last updated: 2026-02-04
  */
 
 /**
@@ -34,12 +34,12 @@ export const OPENROUTER_PRICING: Record<string, ModelPricing> = {
     cacheRead: 0.175,
   },
   'openai/gpt-5': {
-    input: 1.0,
-    output: 5.0,
+    input: 1.25,
+    output: 10.0,
   },
   'openai/gpt-5-mini': {
-    input: 0.15,
-    output: 0.6,
+    input: 0.25,
+    output: 2.0,
   },
   'openai/gpt-4o': {
     input: 2.5,
@@ -50,26 +50,30 @@ export const OPENROUTER_PRICING: Record<string, ModelPricing> = {
     output: 60.0,
   },
   'openai/gpt-audio': {
-    input: 2.5,
-    output: 10.0,
+    input: 32.0,
+    output: 64.0,
   },
   'openai/gpt-audio-mini': {
     input: 0.6,
     output: 2.4,
   },
 
-  // Google Models (Free)
+  // Google Models
   'google/gemini-2.0-flash-lite-001': {
+    input: 0.075,
+    output: 0.3,
+  },
+  'google/gemini-2.0-flash-exp-free': {
     input: 0,
     output: 0,
   },
   'google/gemini-2.0-flash': {
-    input: 0,
-    output: 0,
+    input: 0.1,
+    output: 0.4,
   },
   'google/gemini-flash': {
-    input: 0,
-    output: 0,
+    input: 0.075,
+    output: 0.3,
   },
 
   // Anthropic Models
@@ -88,7 +92,7 @@ export const OPENROUTER_PRICING: Record<string, ModelPricing> = {
 
   // X.AI Models
   'x-ai/grok-code-fast-1': {
-    input: 0.5,
+    input: 0.2,
     output: 1.5,
   },
 
@@ -117,8 +121,8 @@ export const OPENROUTER_PRICING: Record<string, ModelPricing> = {
     output: 0.3,
   },
   'bytedance-seed/seed-1.6': {
-    input: 0.4,
-    output: 1.2,
+    input: 0.25,
+    output: 2.0,
   },
 
   // AllenAI Models
