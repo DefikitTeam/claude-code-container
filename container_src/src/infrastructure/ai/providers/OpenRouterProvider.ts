@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { wrapOpenAI } from 'langsmith/wrappers';
 import { ILLMProvider, LLMProviderConfig, LLMProviderContext } from './ILLMProvider.js';
 
 export class OpenRouterProvider implements ILLMProvider {
@@ -11,10 +12,13 @@ export class OpenRouterProvider implements ILLMProvider {
     tools: any[],
     config: LLMProviderConfig
   ): AsyncIterable<any> {
-    const openai = new OpenAI({
-      apiKey: config.apiKey || process.env.OPENROUTER_API_KEY,
-      baseURL: config.baseURL || process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
-    });
+    // Wrap OpenAI client with LangSmith for automatic tracing
+    const openai = wrapOpenAI(
+      new OpenAI({
+        apiKey: config.apiKey || process.env.OPENROUTER_API_KEY,
+        baseURL: config.baseURL || process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      }),
+    );
 
     const stream = await openai.chat.completions.create({
       model: config.model || 'mistralai/devstral-2512:free',

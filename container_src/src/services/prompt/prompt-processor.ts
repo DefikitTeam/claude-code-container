@@ -330,12 +330,41 @@ export class PromptProcessor {
                 targetBranch,
               ]);
             } else {
-              // If branch doesn't exist remotely yet, ensure we are on the default branch.
-              if (resolvedRepo.defaultBranch) {
+              // If branch doesn't exist remotely (e.g. new feature branch), check local existence
+              console.error(
+                `[PROMPT][${sessionId}] Remote branch ${targetBranch} not found, checking local...`,
+              );
+
+              const localRef = await this.deps.gitService.runGit(wsDesc.path, [
+                'rev-parse',
+                '--verify',
+                targetBranch,
+              ]);
+
+              if (localRef.code === 0) {
+                // Exists locally, just checkout
+                await this.deps.gitService.runGit(wsDesc.path, [
+                  'checkout',
+                  targetBranch,
+                ]);
+              } else if (resolvedRepo.defaultBranch) {
+                // Doesn't exist locally or remotely. Create it from default branch.
+                console.error(
+                  `[PROMPT][${sessionId}] Creating new local branch ${targetBranch} from ${resolvedRepo.defaultBranch}`,
+                );
+
+                // First ensure we are on default
                 await this.deps.gitService.checkoutBranch(
                   wsDesc.path,
                   resolvedRepo.defaultBranch,
                 );
+
+                // Create new branch
+                await this.deps.gitService.runGit(wsDesc.path, [
+                  'checkout',
+                  '-b',
+                  targetBranch,
+                ]);
               }
             }
           }
@@ -415,6 +444,7 @@ export class PromptProcessor {
           status: 'working',
           message: 'Claude streaming...',
           delta: delta.text, // ✅ Send the actual text chunk
+          content: [{ type: 'text', text: fullText }], // ✅ Send full content for frontend compatibility
           progress: {
             current: Math.max(1, Math.floor(outputTokens / 50)),
             total: 3,
@@ -451,6 +481,7 @@ export class PromptProcessor {
         abortSignal,
         messages: session?.messageHistory,
         llmProvider: opts.llmProvider,
+        model: opts.llmProvider?.model,
       };
       if (resolvedRepo && resolvedRepo.owner && resolvedRepo.name) {
         runtimeOptions.repository = `${resolvedRepo.owner}/${resolvedRepo.name}`;
@@ -629,10 +660,18 @@ export class PromptProcessor {
 
     const response: SessionPromptResponse['result'] = {
       stopReason: 'completed',
-      usage: { inputTokens: inputTokensUsed, outputTokens: outputTokensUsed },
+      usage: { 
+        inputTokens: inputTokensUsed, 
+        outputTokens: outputTokensUsed,
+      },
       summary:
         fullText.substring(0, 200) + (fullText.length > 200 ? '...' : ''),
     };
+    
+    // Add costTracking data if available from runResult
+    if (runResult?.costTracking) {
+      response.costTracking = runResult.costTracking;
+    }
     console.error(
       `[PROMPT-SUMMARY][${sessionId}${operationId ? `:${operationId}` : ''}] ${response.summary ?? ''}`,
     );
@@ -991,6 +1030,7 @@ export class PromptProcessor {
         summaryText,
         workspace.path,
         apiKey,
+        options.llmProvider?.model,
       );
     }
 
@@ -1609,6 +1649,7 @@ export class PromptProcessor {
     summary: string,
     workspacePath: string,
     apiKey?: string,
+    model?: string,
   ): Promise<string | undefined> {
     try {
       let derivedFilesChanged: string[] | undefined;
@@ -1683,8 +1724,8 @@ Rules:
       const result = await this.deps.claudeClient.runPrompt(generationPrompt, {
         sessionId,
         apiKey, // Pass API key for LLM call
-        // Use a cheaper/faster model if possible, or same model
-        // Minimal context needed
+        model, // Use the same model as the session if available
+        workspacePath, // Pass workspace path to avoid tool adapter initialization errors
       });
 
       const raw = result.fullText.trim();

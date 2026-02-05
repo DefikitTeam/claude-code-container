@@ -137,13 +137,20 @@ export class ClaudeRuntimeSelector implements IClaudeService {
           const durationMs = Date.now() - startTime;
           callbacks.onComplete?.({ fullText, durationMs });
 
-          return {
+          const response: any = {
             fullText,
             tokens: {
               input: inputTokens,
               output: outputTokens || this.estimateTokens(fullText),
             },
           };
+
+          // Pass through costTracking from adapter if available
+          if (result?.costTracking) {
+            response.costTracking = result.costTracking;
+          }
+
+          return response;
         } catch (error) {
           lastError = error;
           // Try next adapter in cascade.

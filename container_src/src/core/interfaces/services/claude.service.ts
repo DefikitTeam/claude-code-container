@@ -28,6 +28,23 @@ export interface ClaudeResult {
   tokens?: {
     input: number;
     output: number;
+    cache_read?: number;
+    total?: number;
+  };
+  cost?: {
+    inputUsd: number;
+    outputUsd: number;
+    totalUsd: number;
+  };
+  costTracking?: {
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+    cacheReadTokens: number;
+    totalTokens: number;
+    inputCostUsd: number;
+    outputCostUsd: number;
+    totalCostUsd: number;
   };
   stopReason?: string;
   toolUse?: Array<{ name: string }>;

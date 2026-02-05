@@ -17,12 +17,15 @@
  */
 
 import OpenAI from 'openai';
+import { wrapOpenAI } from 'langsmith/wrappers';
 import type { ClaudeAdapter, ClaudeRuntimeContext } from '../claude/adapter.js';
 import type {
   ClaudeCallbacks,
   ClaudeResult,
   RunOptions,
 } from '../../core/interfaces/services/claude.service.js';
+import { calculateCost } from './utils/cost-calculator.js';
+import { costTracker } from './services/cost-tracker.service.js';
 
 // Lightweight logger scoped to this adapter
 const logger = {
@@ -191,16 +194,19 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       callbacks.onStart?.({ startTime });
 
       // Create OpenAI client configured for OpenRouter
-      const client = new OpenAI({
-        apiKey,
-        baseURL: this.config.baseURL,
-        defaultHeaders: {
-          'HTTP-Referer': this.config.httpReferer,
-          'X-Title': this.config.siteName,
-        },
-        timeout: this.config.timeout,
-        maxRetries: this.config.maxRetries,
-      });
+      // Wrapped with LangSmith for automatic tracing
+      const client = wrapOpenAI(
+        new OpenAI({
+          apiKey,
+          baseURL: this.config.baseURL,
+          defaultHeaders: {
+            'HTTP-Referer': this.config.httpReferer,
+            'X-Title': this.config.siteName,
+          },
+          timeout: this.config.timeout,
+          maxRetries: this.config.maxRetries,
+        }),
+      );
 
       // Check abort before starting
       if (abortSignal.aborted) {
@@ -222,8 +228,9 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
 
       // Process stream
       let fullText = '';
-      const inputTokens = this.estimateTokens(prompt);
-      let outputTokens = 0;
+      let promptTokens = 0;
+      let completionTokens = 0;
+      let cacheReadTokens = 0;
 
       // Iterate through streaming chunks
       for await (const chunk of stream) {
@@ -232,17 +239,36 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
           throw new Error('aborted');
         }
 
+        // Extract usage data from chunk (OpenRouter provides this)
+        if (chunk.usage) {
+          promptTokens = chunk.usage.prompt_tokens || 0;
+          completionTokens = chunk.usage.completion_tokens || 0;
+          
+          // OpenRouter may use different field names for cache tokens
+          // Try both known field names and log which one is used
+          const cacheHitTokens = (chunk.usage as any).prompt_cache_hit_tokens;
+          const cacheReadTokensField = (chunk.usage as any).cache_read_input_tokens;
+          cacheReadTokens = cacheHitTokens || cacheReadTokensField || 0;
+          
+          // Debug logging to understand OpenRouter's field naming
+          if (cacheReadTokens > 0) {
+            logger.debug('cache tokens detected', {
+              cacheReadTokens,
+              usingField: cacheHitTokens ? 'prompt_cache_hit_tokens' : 'cache_read_input_tokens',
+            });
+          }
+        }
+
         // Extract delta content
         const delta = chunk.choices[0]?.delta;
         const content = delta?.content || '';
 
         if (content) {
           fullText += content;
-          const tokens = this.estimateTokens(content);
-          outputTokens += tokens;
 
-          // Notify delta callback
-          callbacks.onDelta?.({ text: content, tokens });
+          // Notify delta callback (estimate tokens for real-time feedback)
+          const estimatedTokens = Math.max(1, Math.ceil(content.length / 4));
+          callbacks.onDelta?.({ text: content, tokens: estimatedTokens });
         }
 
         // Handle tool calls if present
@@ -264,17 +290,55 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
           logger.debug('completion finished', {
             finishReason,
             outputLength: fullText.length,
-            outputTokens,
           });
         }
       }
 
       const durationMs = Date.now() - startTime;
 
+      // Warn if no token usage was received from OpenRouter
+      if (promptTokens === 0 && completionTokens === 0 && fullText.length > 0) {
+        logger.warn('no token usage received from OpenRouter', {
+          model,
+          contentLength: fullText.length,
+          message: 'Token counts may be inaccurate. Check OpenRouter API response.',
+        });
+      }
+
+      // Calculate actual cost using OpenRouter pricing
+      const costCalculation = calculateCost(
+        model,
+        promptTokens,
+        completionTokens,
+        cacheReadTokens,
+      );
+
       logger.info('completion succeeded', {
         durationMs,
         outputLength: fullText.length,
-        outputTokens,
+        tokens: {
+          prompt: promptTokens,
+          completion: completionTokens,
+          cacheRead: cacheReadTokens,
+          total: promptTokens + completionTokens,
+        },
+        cost: {
+          input: `$${costCalculation.inputCostUsd.toFixed(6)}`,
+          output: `$${costCalculation.outputCostUsd.toFixed(6)}`,
+          total: `$${costCalculation.totalCostUsd.toFixed(6)}`,
+        },
+      });
+
+      // Track cost for monitoring
+      costTracker.trackCall(runOptions.sessionId || 'unknown', {
+        model,
+        promptTokens,
+        completionTokens,
+        cacheReadTokens,
+        totalCostUsd: costCalculation.totalCostUsd,
+        inputCostUsd: costCalculation.inputCostUsd,
+        outputCostUsd: costCalculation.outputCostUsd,
+        cacheReadCostUsd: costCalculation.cacheReadCostUsd,
       });
 
       // Notify completion
@@ -283,8 +347,20 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
       return {
         fullText,
         tokens: {
-          input: inputTokens,
-          output: outputTokens,
+          input: promptTokens,
+          output: completionTokens,
+          cache_read: cacheReadTokens,
+          total: promptTokens + completionTokens,
+        },
+        costTracking: {
+          model,
+          promptTokens,
+          completionTokens,
+          cacheReadTokens,
+          totalTokens: promptTokens + completionTokens,
+          inputCostUsd: costCalculation.inputCostUsd,
+          outputCostUsd: costCalculation.outputCostUsd,
+          totalCostUsd: costCalculation.totalCostUsd,
         },
       };
     } catch (error: unknown) {
@@ -380,13 +456,6 @@ export class OpenAIOpenRouterAdapter implements ClaudeAdapter {
     */
   }
 
-  /**
-   * Estimate token count from text
-   * Simple heuristic: ~4 characters per token (works reasonably well for English)
-   */
-  private estimateTokens(text: string): number {
-    return Math.max(1, Math.ceil(text.length / 4));
-  }
 }
 
 export default OpenAIOpenRouterAdapter;

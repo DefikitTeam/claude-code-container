@@ -75,6 +75,11 @@ export interface WorkspaceInfo {
 export interface Usage {
   inputTokens: number;
   outputTokens: number;
+  cost?: {
+    inputUsd: number;
+    outputUsd: number;
+    totalUsd: number;
+  };
 }
 
 export interface Progress {

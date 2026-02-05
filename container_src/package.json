@@ -42,6 +42,7 @@
     "@zed-industries/agent-client-protocol": "0.3.1",
     "ai": "^5.0.81",
     "diff": "8.0.2",
+    "langsmith": "^0.4.12",
     "minimist": "1.2.8",
     "openai": "^4.104.0",
     "socket.io-client": "^4.8.1",
